@@ -18,6 +18,7 @@ package-lock.json
 Thumbs.db
 
 # agent/tool 런타임 캐시
+.superpowers/
 .gstack/
 .omc/
 .omx/

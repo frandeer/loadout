@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 import { loadRoots, loadSources, absRoot, addRoot, removeRoot, addRepo, ensureSourcesFile } from "./sources.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
-const webDir = join(root, "src/web");
+const clientDist = join(root, "src/client/dist");
+const webDir = existsSync(clientDist) ? clientDist : join(root, "src/web");
 const dataDir = join(root, "data");
 const mediaDir = join(root, "media");
 const port = Number(process.env.PORT || 4970);
