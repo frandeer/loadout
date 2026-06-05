@@ -195,17 +195,26 @@ async function walk(dir, onFile, depth = 0) {
   } catch {
     return;
   }
+  // 파일 먼저 처리(이 폴더가 스킬 루트인지 판정도 겸함)
+  let hasSkillMd = false;
+  for (const e of entries) {
+    if (e.isFile()) {
+      if (e.name.toLowerCase() === "skill.md") hasSkillMd = true;
+      await onFile(join(dir, e.name));
+    }
+  }
+  // 스킬 루트(SKILL.md 보유)면 하위로 더 내려가지 않는다 — 스킬의 하위 폴더는
+  // 별도 스킬이 아니다. Claude Code도 `~/.claude/skills/<name>/`를 1단계로만 보고
+  // 하위를 재귀하지 않으므로 그 동작과 일치시킨다. 이렇게 하면 gstack 같은 번들
+  // repo가 내부에 같은 스킬을 .cursor/.kiro 미러로 수십 벌 복제해도(또한 top-level
+  // 엔트리포인트와도 중복) 카드 1장(gstack)으로만 잡힌다. 디스크는 안 건드림.
+  if (hasSkillMd) return;
   for (const e of entries) {
     if (e.isDirectory()) {
       if (cfg.ignoreDirs.includes(e.name)) continue;
-      // 숨김 닷폴더 스킵: gstack 등은 같은 스킬을 .cursor/.kiro/.gbrain/.hermes 등
-      // IDE/에이전트별 미러 폴더에 그대로 복제한다(내용이 툴별로 미세하게 달라
-      // contentHash 디듀프로도 안 접힘). 정규 SKILL.md만 남기려면 닷폴더를 건너뛴다.
       if (e.name.startsWith(".")) continue;
       if (depth > 12) continue;
       await walk(join(dir, e.name), onFile, depth + 1);
-    } else if (e.isFile()) {
-      await onFile(join(dir, e.name));
     }
   }
 }

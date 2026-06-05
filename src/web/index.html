@@ -33,21 +33,17 @@
         <circle cx="49" cy="16" r="6.5" fill="#22965A"/>
       </svg>
     </div>
-    <div><b>LOADOUT</b><br><span>Mission Asset Deck</span></div>
+    <div><b>LOADOUT</b></div>
   </div>
   <nav class="nav" id="nav">
-    <button data-tab="collection" class="active">작전 자산</button>
-    <button data-tab="team">관제 편성</button>
-    <button data-tab="arsenal">지원 모듈</button>
-    <button data-tab="inventory">임무 패키지</button>
+    <button data-tab="collection" class="active">전체</button>
+    <button data-tab="team">SKILL</button>
+    <button data-tab="arsenal">AGENT</button>
+    <button data-tab="inventory">MCP</button>
   </nav>
   <div class="spacer"></div>
   <div class="topbar-actions">
     <button class="tbtn" id="themeToggle" onclick="LO.toggleTheme()" title="Light / Dark 테마 전환">Light</button>
-    <button class="tbtn" id="langToggle" onclick="LO.toggleLang()" title="표시 언어 전환 (한국어 번역본 ↔ 원문). 원문 데이터는 그대로 둡니다.">🌐 한국어</button>
-    <select class="tbtn" id="fontSelect" onchange="LO.changeFont(this.value)" title="글꼴은 Pretendard로 고정" style="cursor: pointer; padding: 0 8px;">
-      <option value="pretendard">Pretendard (기본)</option>
-    </select>
     <button class="tbtn" id="srcBtn" onclick="LO.openSources()" title="자산을 가져올 소스(폴더·git) 관리">📂 소스 관리</button>
   </div>
   <div class="search">
@@ -57,21 +53,15 @@
     <a href="https://artificialanalysis.ai/" target="_blank" rel="noopener">지능 순위</a>
     <a href="https://www.designarena.ai/leaderboard?tab=image" target="_blank" rel="noopener">이미지 순위</a>
   </div>
-  <div class="resources">
-    <div class="res crystal"><span><b id="rc-skill">0</b><small>자산</small></span></div>
-    <div class="res emerald"><span><b id="rc-agent">0</b><small>요원</small></span></div>
-    <div class="res violet"><span><b id="rc-mcp">0</b><small>모듈</small></span></div>
-    <div class="res gold"><span><b id="rc-leg">0</b><small>S-CLASS</small></span></div>
-  </div>
 </header>
 
 <!-- 3분할 무대 -->
 <div class="stage">
   <aside class="rail" aria-label="workspace shortcuts">
-    <button class="active" title="임무 패키지">덱</button>
-    <button title="작전 자산">자산</button>
-    <button title="관제 요원">요원</button>
-    <button title="지원 모듈">모듈</button>
+    <button class="active" title="전체">전체</button>
+    <button title="SKILL">SKILL</button>
+    <button title="AGENT">AGENT</button>
+    <button title="MCP">MCP</button>
     <button title="상태 분석">분석</button>
   </aside>
 

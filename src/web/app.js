@@ -8,12 +8,17 @@ const RARITY = {
 };
 const PAGE = 60;
 
+// 즐겨찾기: localStorage 영속(서버 상태와 무관한 개인 표식). 파싱 실패 시 빈 집합으로 폴백.
+const FAV_KEY = "loadout-fav";
+const loadFavSet = () => { try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")); } catch { return new Set(); } };
+
 const state = {
   all: [], meta: {},
   kind: "all", rarity: "all", q: "", sort: "score",
-  dupOnly: false, equipOnly: false,
+  dupOnly: false, equipOnly: false, favOnly: false,
   filtered: [], shown: PAGE, selected: null,
   picked: new Set(),          // 일괄 이미지 생성용 다중 선택(체크박스). selected(단일 상세선택)와 별개.
+  fav: loadFavSet(),          // 즐겨찾기한 id 집합(localStorage 영속).
   aiEngine: "heuristic", engines: ["heuristic"],
   lang: "en",                 // 표시 언어: ko(한국어 번역본 우선) | en(원문). 기본=원문(영어).
   docCache: {},               // id → 원본 전체 내용 캐시(/api/content)
@@ -66,12 +71,14 @@ function iconFor(it) {
 function setData(data) {
   state.all = data.items || [];
   state.meta = data;
-  $("#rc-skill").textContent = (data.counts?.skill || 0).toLocaleString();
-  $("#rc-agent").textContent = (data.counts?.agent || 0).toLocaleString();
-  $("#rc-mcp").textContent = (data.counts?.mcp || 0).toLocaleString();
-  $("#rc-leg").textContent = state.all.filter((i) => i.rarity === "legendary").length.toLocaleString();
-  $("#hsTotal").textContent = (data.total || state.all.length).toLocaleString();
-  $("#hsDup").textContent = (data.dupGroups || 0).toLocaleString();
+  // 요소가 있을 때만 갱신(우측 카운터 rc-* 는 제거됨 → null 가드).
+  const setTxt = (sel, v) => { const el = $(sel); if (el) el.textContent = v; };
+  setTxt("#rc-skill", (data.counts?.skill || 0).toLocaleString());
+  setTxt("#rc-agent", (data.counts?.agent || 0).toLocaleString());
+  setTxt("#rc-mcp", (data.counts?.mcp || 0).toLocaleString());
+  setTxt("#rc-leg", state.all.filter((i) => i.rarity === "legendary").length.toLocaleString());
+  setTxt("#hsTotal", (data.total || state.all.length).toLocaleString());
+  setTxt("#hsDup", (data.dupGroups || 0).toLocaleString());
   renderSides();
   apply();
 }
@@ -136,6 +143,7 @@ function apply() {
   if (state.rarity !== "all") xs = xs.filter((i) => i.rarity === state.rarity);
   if (state.dupOnly) xs = xs.filter((i) => i.group);
   if (state.equipOnly) xs = xs.filter((i) => i.equipped);
+  if (state.favOnly) xs = xs.filter((i) => state.fav.has(i.id));
   if (state.q) {
     const q = state.q.toLowerCase();
     // 원문 + 한국어 번역본 + 저장소 모두에서 검색되도록.
@@ -161,9 +169,9 @@ function cardHTML(it) {
 
   const kindKo = it.kind === "skill" ? "스킬" : it.kind === "agent" ? "요원" : "모듈";
   const art = it.image ? `<img src="${esc(it.image)}" alt="">` : `<span class="fallback-icon">${iconFor(it)}</span>`;
+  const isFav = state.fav.has(it.id);
 
-  return `<div class="card r-${it.rarity} ${it.equipped ? "is-equipped" : ""} animate__animated animate__fadeIn" style="--rc:${r.c};--rg:${r.g}" data-id="${esc(it.id)}">
-    <input type="checkbox" class="card-pick" data-id="${esc(it.id)}" ${state.picked.has(it.id) ? "checked" : ""} title="일괄 이미지 생성에 포함">
+  return `<div class="card r-${it.rarity} ${it.equipped ? "is-equipped" : ""} animate__animated animate__fadeIn" style="--rc:${r.c}" data-id="${esc(it.id)}">
     <div class="card-inner">
       <div class="card-header">
         <div class="card-meta">
@@ -172,7 +180,11 @@ function cardHTML(it) {
         <div class="card-status">
           <span class="status-dot" style="background:${it.equipped ? 'var(--rc)' : '#565e56'}"></span>
         </div>
-        ${it.group ? '<div class="newbadge" title="중복 후보 있음">복수</div>' : ""}
+        <div class="card-actions">
+          ${it.group ? '<div class="newbadge" title="중복 후보 있음">복수</div>' : ""}
+          <button type="button" class="card-fav ${isFav ? "is-fav" : ""}" data-id="${esc(it.id)}" title="즐겨찾기" aria-pressed="${isFav}">★</button>
+          <input type="checkbox" class="card-pick" data-id="${esc(it.id)}" ${state.picked.has(it.id) ? "checked" : ""} title="일괄 이미지 생성에 포함">
+        </div>
       </div>
       
       <div class="art">${art}</div>
@@ -289,7 +301,7 @@ function select(id) {
   const dupGroup = it.group ? state.all.filter((x) => x.group === it.group && x.id !== it.id) : [];
   const art = it.image ? `<img src="${esc(it.image)}">` : iconFor(it);
   $("#detail").innerHTML = `
-    <div class="bigcard r-${it.rarity} animate__animated animate__fadeInRight" style="--rc:${r.c};--rg:${r.g}">
+    <div class="bigcard r-${it.rarity} animate__animated animate__fadeInRight" style="--rc:${r.c}">
       <div class="bi"><div class="bart">${art}</div>
         <div class="bmeta">
           <div class="kind">${it.kind === "skill" ? "기밀 자산" : it.kind === "agent" ? "작전 요원" : "지원 모듈"}${it.installed ? ' · <span style="color:var(--r-rare)">설치됨</span>' : ""}</div>
@@ -611,7 +623,7 @@ function renderFormation() {
       return `<button class="formation-slot empty" type="button"><span>${roleKo(role)}</span><b>빈 슬롯</b><small>요원 배치 대기</small></button>`;
     }
     const r = RARITY[unit.rarity] || RARITY.common;
-    return `<button class="formation-slot filled" type="button" style="--rc:${r.c};--rg:${r.g}" data-id="${esc(unit.id)}">
+    return `<button class="formation-slot filled" type="button" style="--rc:${r.c}" data-id="${esc(unit.id)}">
       <span>${roleKo(role)}</span>
       <b>${esc(dispName(unit))}</b>
       <small>${skill ? esc(dispName(skill)) : "자산 미투입"} · LV.${Math.round((unit.score || 50) / 2)}</small>
@@ -642,7 +654,7 @@ function renderEquipmentStrip() {
     <div class="equipment-row">
       ${pool.map((it, idx) => {
         const r = RARITY[it.rarity] || RARITY.common;
-        return `<button class="equipment-card" type="button" style="--rc:${r.c};--rg:${r.g}" data-id="${esc(it.id)}">
+        return `<button class="equipment-card" type="button" style="--rc:${r.c}" data-id="${esc(it.id)}">
           <span>${["주 모듈", "보조 모듈", "신호기", "문양키", "지원 모듈", "작전덱"][idx] || "슬롯"}</span>
           <b>${esc(dispName(it))}</b>
           <small>추진력 +${it.stats?.power ?? it.score ?? 0}</small>
@@ -662,8 +674,8 @@ function bind() {
     state.kind = map[t]; state.equipOnly = t === "inventory";
     $$("#kindChips .chip").forEach((c) => c.classList.toggle("on", c.dataset.kind === (state.kind)));
     $("#equipOnly").classList.toggle("on", state.equipOnly);
-    $("#heroTitle").textContent = { collection: "자산", team: "관제 편성", arsenal: "지원 모듈", inventory: "임무 패키지" }[t];
-    $("#gridTitle").childNodes[0].nodeValue = { collection: "임무 자산 ", team: "관제 요원 ", arsenal: "지원 모듈 ", inventory: "연결 자산 " }[t];
+    $("#heroTitle").textContent = { collection: "전체", team: "SKILL", arsenal: "AGENT", inventory: "MCP" }[t];
+    $("#gridTitle").childNodes[0].nodeValue = { collection: "전체 ", team: "SKILL ", arsenal: "AGENT ", inventory: "MCP " }[t];
     apply();
   });
   $$("#kindChips .chip").forEach((c) => c.onclick = () => {
