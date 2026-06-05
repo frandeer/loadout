@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>✂️ web-image-forge — 슬라이서 (독립 실행)</title>
+<style>
+  :root{--bg:#0a161b;--panel:#11272e;--border:#27525a;--gold:#e8c37a;--teal:#46d6c4;--txt:#e7f3f1;--muted:#8aa6a4}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:"Malgun Gothic","Segoe UI",sans-serif;font-size:14px}
+  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:center}
+  header b{color:var(--gold);font-size:16px}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;padding:14px 20px;align-items:center}
+  input,button{font-family:inherit;background:#06101385;border:1px solid var(--border);color:var(--txt);border-radius:8px;padding:9px 12px;font-size:13px}
+  button{cursor:pointer;font-weight:700}button:hover{border-color:var(--teal);color:var(--teal)}
+  button.go{background:linear-gradient(135deg,var(--gold),#caa24f);color:#1a1205;border:none}
+  .stage{display:grid;grid-template-columns:1fr 240px;gap:18px;padding:0 20px 30px}
+  .cw{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#06101385}
+  canvas{display:block;width:100%;cursor:crosshair}
+  .list{display:flex;flex-direction:column;gap:8px;max-height:72vh;overflow:auto}
+  .t{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px}
+  .t img{width:46px;height:46px;object-fit:contain;background:#0006;border-radius:5px}
+  .hint{color:var(--muted);font-size:12px;padding:0 20px}
+</style></head><body>
+<header><b>✂️ web-image-forge 슬라이서</b><span class="hint">이미지를 불러와 드래그/격자로 잘라 PNG로 저장 (서버 불필요)</span></header>
+<div class="bar">
+  <input type="file" id="file" accept="image/*">
+  <input id="url" placeholder="또는 이미지 URL/경로" style="width:280px">
+  <button onclick="loadUrl()">불러오기</button>
+  <input id="grid" value="4x4" style="width:70px">
+  <button onclick="autoGrid()">🔲 격자 분할</button>
+  <button onclick="clearAll()">🗑️ 비우기</button>
+  <button class="go" onclick="saveAll()">💾 전체 PNG 저장</button>
+</div>
+<div class="stage">
+  <div class="cw"><canvas id="cv"></canvas></div>
+  <div><div class="hint" style="padding:0 0 8px">조각</div><div class="list" id="list"></div></div>
+</div>
+<script>
+let img=null,scale=1,drag=null,slices=[],start=null;
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+document.getElementById("file").onchange=e=>{const f=e.target.files[0];if(f)load(URL.createObjectURL(f));};
+function loadUrl(){const u=document.getElementById("url").value.trim();if(u)load(u);}
+function load(src){const i=new Image();i.crossOrigin="anonymous";i.onload=()=>{img=i;scale=Math.min(1,720/i.naturalWidth);cv.width=i.naturalWidth*scale;cv.height=i.naturalHeight*scale;draw();};i.onerror=()=>alert("로드 실패");i.src=src;}
+function draw(){ctx.clearRect(0,0,cv.width,cv.height);if(img)ctx.drawImage(img,0,0,cv.width,cv.height);if(drag){ctx.strokeStyle="#e8c37a";ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.strokeRect(drag.x,drag.y,drag.w,drag.h);ctx.fillStyle="rgba(232,195,122,.12)";ctx.fillRect(drag.x,drag.y,drag.w,drag.h);}}
+cv.onmousedown=e=>{const r=cv.getBoundingClientRect();start={x:e.clientX-r.left,y:e.clientY-r.top};};
+cv.onmousemove=e=>{if(!start)return;const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;drag={x:Math.min(start.x,x),y:Math.min(start.y,y),w:Math.abs(x-start.x),h:Math.abs(y-start.y)};draw();};
+cv.onmouseup=()=>{if(drag&&drag.w>8&&drag.h>8)cut(drag);start=null;drag=null;draw();};
+function cut(d){const sx=d.x/scale,sy=d.y/scale,sw=d.w/scale,sh=d.h/scale;const o=document.createElement("canvas");o.width=sw;o.height=sh;o.getContext("2d").drawImage(img,sx,sy,sw,sh,0,0,sw,sh);slices.push(o.toDataURL("image/png"));render();}
+function autoGrid(){if(!img)return alert("먼저 이미지 불러오기");const m=document.getElementById("grid").value.match(/(\d+)\s*[x×]\s*(\d+)/);if(!m)return alert("형식 4x4");const C=+m[1],R=+m[2],cw=cv.width/C,ch=cv.height/R;for(let r=0;r<R;r++)for(let c=0;c<C;c++)cut({x:c*cw,y:r*ch,w:cw,h:ch});}
+function render(){document.getElementById("list").innerHTML=slices.map((s,i)=>`<div class="t"><img src="${s}"><div style="flex:1;font-size:12px">#${i+1}</div><button onclick="dl(${i})">💾</button></div>`).join("")||'<div class="hint">조각 없음</div>';}
+function dl(i){const a=document.createElement("a");a.href=slices[i];a.download=`slice-${i+1}.png`;a.click();}
+function saveAll(){slices.forEach((_,i)=>setTimeout(()=>dl(i),i*120));}
+function clearAll(){slices=[];render();}
+render();
+</script></body></html>

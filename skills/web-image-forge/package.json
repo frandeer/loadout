@@ -1,0 +1,9 @@
+{
+  "name": "web-image-forge",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "프롬프트로 게임 웹 자산(카드/아이콘/로고/BG/레이아웃) 이미지를 생성하고 슬라이스하는 스킬",
+  "engines": { "node": ">=18.18" },
+  "dependencies": { "chrome-remote-interface": "^0.33.0" }
+}

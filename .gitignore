@@ -1,0 +1,29 @@
+# clone된 원본 repo — Loadout이 소유하지만 버전관리 대상 아님
+sources/
+
+# 스캔으로 생성되는 인덱스/캐시
+data/
+!data/.gitkeep
+
+# 생성된 카드 아트/다이어그램
+media/generated/
+
+# node
+node_modules/
+*.log
+package-lock.json
+
+# os
+.DS_Store
+Thumbs.db
+
+# agent/tool 런타임 캐시
+.gstack/
+.omc/
+.omx/
+.playwright-mcp/
+playwright-mcp/
+
+# 백업/임시 파일
+*.bak
+*.tmp

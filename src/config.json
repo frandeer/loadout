@@ -1,0 +1,20 @@
+{
+  "sourceRoots": [
+    "./skills"
+  ],
+  "ignoreDirs": ["node_modules", ".git", ".omc", ".omx", "dist", "build", ".next"],
+  "ccConfigCandidates": [
+    "~/.claude.json",
+    "~/.claude/settings.json"
+  ],
+  "repoPopularity": {
+    "anthropics__skills": 95,
+    "antigravity-awesome-skills": 80,
+    "Claude-Code-Game-Studios": 70,
+    "matt-skills": 78,
+    "claude-skills": 72,
+    "supanova-design-skill": 65,
+    "prompt-master": 60
+  },
+  "maxScanFiles": 6000
+}

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로드아웃 — 임무 자산 대시보드</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="icon" type="image/png" href="/media/brand/favicon.png?v=2">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css">
+<link rel="stylesheet" href="styles.css?v=20260605-header-v3">
+<!-- 더보기(GitBook 팝업)에서 스킬 본문 마크다운을 렌더. 없으면 app.js가 자체 폴백 사용. -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+</head>
+<body class="theme-light">
+
+<!-- 로딩 -->
+<div class="loader" id="loader">
+  <div class="ring"></div>
+  <div style="color:var(--color-primary);font-weight:700;letter-spacing:1px">시스템 동기화 중...</div>
+</div>
+
+<!-- 상단바 -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo" aria-label="LOADOUT 로고">
+      <img src="/media/brand/logo.png?v=4" alt="LOADOUT" class="logo-img" onerror="var s=this.parentElement.querySelector('svg'); if(s) s.style.display='block'; this.remove()">
+      <svg viewBox="0 0 64 64" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+        <rect width="64" height="64" rx="13" fill="#F7FBFF"/>
+        <path d="M11 45 C24 20 41 17 55 14" fill="none" stroke="#2E73DF" stroke-width="4" stroke-linecap="round" stroke-dasharray="5 4.5"/>
+        <path d="M16 47 h25 l8 -8 v15 H16 z" fill="#EAF3FF" stroke="#2E73DF" stroke-width="3" stroke-linejoin="round"/>
+        <circle cx="49" cy="16" r="11" fill="none" stroke="#22965A" stroke-width="2" opacity=".35"/>
+        <circle cx="49" cy="16" r="6.5" fill="#22965A"/>
+      </svg>
+    </div>
+    <div><b>LOADOUT</b><br><span>Mission Asset Deck</span></div>
+  </div>
+  <nav class="nav" id="nav">
+    <button data-tab="collection" class="active">작전 자산</button>
+    <button data-tab="team">관제 편성</button>
+    <button data-tab="arsenal">지원 모듈</button>
+    <button data-tab="inventory">임무 패키지</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="topbar-actions">
+    <button class="tbtn" id="themeToggle" onclick="LO.toggleTheme()" title="Light / Dark 테마 전환">Light</button>
+    <button class="tbtn" id="langToggle" onclick="LO.toggleLang()" title="표시 언어 전환 (한국어 번역본 ↔ 원문). 원문 데이터는 그대로 둡니다.">🌐 한국어</button>
+    <select class="tbtn" id="fontSelect" onchange="LO.changeFont(this.value)" title="글꼴은 Pretendard로 고정" style="cursor: pointer; padding: 0 8px;">
+      <option value="pretendard">Pretendard (기본)</option>
+    </select>
+    <button class="tbtn" id="srcBtn" onclick="LO.openSources()" title="자산을 가져올 소스(폴더·git) 관리">📂 소스 관리</button>
+  </div>
+  <div class="search">
+    <span>검색</span><input id="search" placeholder="자산명·설명·저장소 검색 (한/영)">
+  </div>
+  <div class="reflinks" title="어떤 AI 지능·이미지 모델을 쓸지 가끔 참고하세요 (새 창)">
+    <a href="https://artificialanalysis.ai/" target="_blank" rel="noopener">지능 순위</a>
+    <a href="https://www.designarena.ai/leaderboard?tab=image" target="_blank" rel="noopener">이미지 순위</a>
+  </div>
+  <div class="resources">
+    <div class="res crystal"><span><b id="rc-skill">0</b><small>자산</small></span></div>
+    <div class="res emerald"><span><b id="rc-agent">0</b><small>요원</small></span></div>
+    <div class="res violet"><span><b id="rc-mcp">0</b><small>모듈</small></span></div>
+    <div class="res gold"><span><b id="rc-leg">0</b><small>S-CLASS</small></span></div>
+  </div>
+</header>
+
+<!-- 3분할 무대 -->
+<div class="stage">
+  <aside class="rail" aria-label="workspace shortcuts">
+    <button class="active" title="임무 패키지">덱</button>
+    <button title="작전 자산">자산</button>
+    <button title="관제 요원">요원</button>
+    <button title="지원 모듈">모듈</button>
+    <button title="상태 분석">분석</button>
+  </aside>
+
+  <!-- 좌: 필터 + 팀 로스터 -->
+  <aside class="col left">
+    <div class="filters" id="filters">
+      <div class="fgroup">
+        <div class="lbl">종류</div>
+        <div class="chips" id="kindChips">
+          <button class="chip on" data-kind="all">전체</button>
+          <button class="chip" data-kind="skill">자산</button>
+          <button class="chip" data-kind="agent">요원</button>
+          <button class="chip" data-kind="mcp">MCP</button>
+        </div>
+      </div>
+      <div class="fgroup">
+        <div class="lbl">등급</div>
+        <div class="chips" id="rarityChips">
+          <button class="chip on" data-rarity="all">전체</button>
+          <button class="chip r-legendary" data-rarity="legendary">S-CLASS</button>
+          <button class="chip r-epic" data-rarity="epic">A-CLASS</button>
+          <button class="chip r-rare" data-rarity="rare">B-CLASS</button>
+          <button class="chip" data-rarity="uncommon">C-CLASS</button>
+          <button class="chip" data-rarity="common">D-CLASS</button>
+        </div>
+      </div>
+      <div class="fgroup">
+        <div class="lbl">정렬</div>
+        <select class="sortsel" id="sortSel">
+          <option value="score">종합 점수 ↓</option>
+          <option value="power">작전력 ↓</option>
+          <option value="popularity">신뢰도 ↓</option>
+          <option value="clarity">명확도 ↓</option>
+          <option value="name">이름 가나다</option>
+        </select>
+      </div>
+      <div class="fgroup">
+        <div class="lbl">옵션</div>
+        <div class="chips">
+          <button class="chip" id="dupOnly" data-toggle="dup">중복만</button>
+          <button class="chip" id="equipOnly" data-toggle="equip">장착만</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-h"><span class="ic"></span> 요원 명단 <span class="tag" id="teamCount">0/6</span></div>
+    <div class="scroll" id="roster"></div>
+  </aside>
+
+  <!-- 중앙: 로드아웃 + 카드 그리드 -->
+  <main class="col center">
+    <div class="center-wrap" id="centerWrap">
+      <div class="hero">
+        <div class="hero-banner">
+          <h2 id="heroTitle">자산</h2>
+          <div class="hero-stat-row">
+            <div class="hero-stat"><b id="hsTotal">0</b><span>전체 자산</span></div>
+            <div class="hero-stat"><b id="hsShown">0</b><span>현재 표시</span></div>
+            <div class="hero-stat"><b id="hsEquip">0</b><span>투입 대기</span></div>
+            <div class="hero-stat"><b id="hsDup">0</b><span>중복 그룹</span></div>
+          </div>
+        </div>
+        <section class="formation-panel animate__animated animate__fadeInUp">
+          <div class="formation-head">
+            <div>
+              <span>관제 편성 보드</span>
+              <strong id="teamPower">0</strong>
+            </div>
+            <button class="btn primary deck-save" type="button" onclick="LO.saveDeckPulse()">임무 저장</button>
+          </div>
+          <div class="formation-board" id="formationBoard"></div>
+          <div class="synergy-panel" id="synergyPanel">
+            <b>신호 링크 대기</b><span>분석관 + 정찰관 조합 대기 중</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="section-title" id="gridTitle">임무 자산 <span class="muted" id="gridMeta"></span></div>
+      <div class="grid" id="grid"></div>
+      <button class="btn load-more" id="loadMore" style="display:none">더 불러오기 ▾</button>
+      <div class="empty-note" id="emptyNote" style="display:none">조건에 맞는 자산이 없습니다.</div>
+      <!-- 일괄 이미지 생성 바: 카드 체크박스 선택 시 등장. 순차 생성. -->
+      <div class="batch-bar" id="batchBar" style="display:none">
+        <span class="batch-count" id="batchCount">0개 선택</span>
+        <div class="seg" id="batchEngine">
+          <button class="preset on" data-engine="chatgpt">ChatGPT</button>
+          <button class="preset" data-engine="grok">Grok</button>
+        </div>
+        <button class="btn" onclick="LO.pickAll()">표시 전체</button>
+        <button class="btn batch-go" id="batchGo" onclick="LO.batchGen()">🪄 일괄 생성</button>
+        <button class="btn" onclick="LO.clearPicks()">선택 해제</button>
+      </div>
+      <section class="equipment-strip animate__animated animate__fadeInUp" id="equipmentStrip"></section>
+    </div>
+  </main>
+
+  <!-- 우: 상세 / 능력치 / 비교 -->
+  <aside class="col right">
+    <div class="panel-h"><span class="ic"></span> 선택 자산 정보 <span class="tag">해금됨</span></div>
+    <div class="detail" id="detail">
+      <div class="empty">자산을 선택하면 상태 점검과 임무 배치 액션이 표시됩니다.</div>
+    </div>
+  </aside>
+</div>
+
+<!-- 이미지 작업실 모달 (생성 + 슬라이스) -->
+<div class="modal-bg" id="imgModal">
+  <div class="modal">
+    <div class="modal-h">🎨 이미지 작업실 — 생성 · 슬라이스
+      <span style="font-size:11px;font-weight:600;color:var(--dim);margin-left:10px"><span class="health-dot" id="chromeDot"></span><span id="chromeStat">Chrome 미연결</span></span>
+      <button class="x" onclick="LO.closeImg()">✕</button>
+    </div>
+    <div class="modal-b">
+      <div class="field">
+        <label>① 무엇을 만들까? (프리셋 → 프롬프트 자동 구성)</label>
+        <div class="preset-row" id="presetRow">
+          <button class="preset on" data-preset="card">🃏 카드 아트</button>
+          <button class="preset" data-preset="icon">✨ 아이콘 시트</button>
+          <button class="preset" data-preset="logo">🔰 로고</button>
+          <button class="preset" data-preset="bg">🌌 배경(BG)</button>
+          <button class="preset" data-preset="sprite">🧷 스프라이트 시트</button>
+          <button class="preset" data-preset="layout">🧩 UI 레이아웃</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>② 생성 엔진 선택 (launch-chrome 로그인 탭 필요)</label>
+        <div class="preset-row" id="engineRow">
+          <button class="preset on" data-engine="chatgpt">🪄 ChatGPT (DALL-E 3)</button>
+          <button class="preset" data-engine="grok">🌌 Grok (Grok 2 Image)</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>③ 프롬프트 (SHIP/MONITOR 콘셉트, 자유 수정)</label>
+        <textarea id="genPrompt"></textarea>
+      </div>
+      <div class="btn-row2">
+        <button class="btn ai" onclick="LO.generate()">⚡ 이미지 생성 시작</button>
+        <button class="btn sm" onclick="LO.loadIntoSlicer()">📂 기존 이미지 불러와 슬라이스</button>
+      </div>
+
+      <div class="section-title" style="margin-top:20px">✂️ 슬라이서 <span class="muted">드래그로 영역 지정 → 조각 추출 → 카드/아이콘/BG로 사용</span></div>
+      <div class="slicer-stage">
+        <div>
+          <div class="slicer-canvas-wrap"><canvas id="sliceCanvas"></canvas></div>
+          <div class="hint">캔버스를 드래그해 잘라낼 영역을 그리세요. 격자 자동분할도 가능합니다.</div>
+          <div class="btn-row2" style="margin-top:8px">
+            <input id="gridN" class="field" style="padding:8px" placeholder="격자 칸수 (예: 3x2)" value="3x2">
+            <button class="btn sm" onclick="LO.autoGrid()">🔲 격자 분할</button>
+          </div>
+        </div>
+        <div>
+          <div class="lbl" style="font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:8px">추출된 조각</div>
+          <div class="slice-list" id="sliceList"></div>
+          <button class="btn sm" style="margin-top:8px" onclick="LO.clearSlices()">🗑️ 비우기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 소스 관리 모달 (어디서 자산을 가져올지) -->
+<div class="modal-bg" id="srcModal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-h">📂 소스 관리 — 자산을 어디서 가져올까
+      <button class="x" onclick="LO.closeSources()">✕</button>
+    </div>
+    <div class="modal-b">
+      <p class="hint" style="margin-top:0">폴더를 추가하거나 GitHub 저장소를 clone 해 자산 소스로 등록합니다. 추가/제거 즉시 재스캔되어 실시간 반영됩니다. (기본값: <code>~/.claude</code> 의 스킬·플러그인·에이전트)</p>
+
+      <div class="field">
+        <label>① 폴더 경로 추가</label>
+        <div class="btn-row2">
+          <input id="srcPath" class="field" style="padding:9px" placeholder="예: ./my-skills  또는  ~/.claude/skills">
+          <button class="btn primary sm" onclick="LO.addSource()">폴더 추가</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>② GitHub 저장소 clone 후 등록</label>
+        <div class="btn-row2">
+          <input id="srcUrl" class="field" style="padding:9px" placeholder="예: https://github.com/owner/repo">
+          <button class="btn ai sm" onclick="LO.cloneRepo()">clone + 등록</button>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:18px">등록된 소스 <span class="muted">제거 시 즉시 재스캔</span></div>
+      <div class="src-list" id="srcList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 더보기 — 스킬 전체 내용 GitBook 스타일 팝업 -->
+<div class="modal-bg doc-modal-bg" id="docModal">
+  <div class="modal doc-modal">
+    <div class="modal-h doc-modal-h">
+      <span class="doc-kind" id="docKind"></span>
+      <span class="doc-title" id="docTitle">자산 문서</span>
+      <span class="doc-path" id="docPath"></span>
+      <button class="x" onclick="LO.closeDoc()">✕</button>
+    </div>
+    <div class="doc-body">
+      <aside class="doc-toc" id="docToc"></aside>
+      <article class="doc-content markdown-body" id="docContent">
+        <div class="doc-loading">불러오는 중…</div>
+      </article>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="app.js?v=20260605-header-v3"></script>
+</body>
+</html>
