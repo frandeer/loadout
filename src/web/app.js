@@ -11,6 +11,8 @@ const PAGE = 60;
 // 즐겨찾기: localStorage 영속(서버 상태와 무관한 개인 표식). 파싱 실패 시 빈 집합으로 폴백.
 const FAV_KEY = "loadout-fav";
 const loadFavSet = () => { try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]")); } catch { return new Set(); } };
+// 별 아이콘: Lucide(lucide.dev) 'star' — 현행 아이콘 라이브러리 트렌드. 평소 외곽선, 즐겨찾기 시 CSS로 노란 채움.
+const STAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
 
 const state = {
   all: [], meta: {},
@@ -55,15 +57,15 @@ const renderSides = () => { renderRoster(); renderFormation(); renderEquipmentSt
 const syncLangButton = () => { const b = $("#langToggle"); if (b) b.textContent = state.lang === "ko" ? "🌐 한국어" : "🌐 원문(EN)"; };
 
 function iconFor(it) {
-  if (it.kind === "agent") return "요원";
-  if (it.kind === "mcp") return "모듈";
+  if (it.kind === "agent") return "agent";
+  if (it.kind === "mcp") return "module";
   const t = (it.name + " " + it.category + " " + it.description).toLowerCase();
-  const map = [["pdf",  "문서"],["doc","문서"],["design","설계"],["debug","수리"],["test","검증"],["security","방패"],
-    ["game","게임"],["data","자료"],["web","웹"],["api","연결"],["git","관리"],["deploy","출정"],["image","그림"],
-    ["music|audio","음향"],["video","영상"],["ml|ai|model","비전"],["search","탐색"],["plan","책략"],["write|doc","집필"],
-    ["memory","기억"],["slide","발표"],["review","감정"]];
+  const map = [["pdf","docs"],["doc","docs"],["design","design"],["debug","debug"],["test","test"],["security","security"],
+    ["game","game"],["data","data"],["web","web"],["api","api"],["git","git"],["deploy","deploy"],["image","image"],
+    ["music|audio","audio"],["video","video"],["ml|ai|model","ai"],["search","search"],["plan","plan"],["write|doc","writing"],
+    ["memory","memory"],["slide","slides"],["review","review"]];
   for (const [k, e] of map) if (new RegExp(k).test(t)) return e;
-  return "자산";
+  return "util";
 }
 
 /* ---------- 데이터 로드 ---------- */
@@ -167,31 +169,27 @@ function cardHTML(it) {
   const maxExp = lvl === 7 ? 50 : lvl === 6 ? 40 : lvl === 5 ? 30 : lvl === 4 ? 25 : lvl === 3 ? 20 : lvl === 2 ? 15 : 10;
   const curExp = Math.max(1, Math.min(maxExp - 1, Math.round((it.stats?.popularity || 40) / 100 * maxExp)));
 
-  const kindKo = it.kind === "skill" ? "스킬" : it.kind === "agent" ? "요원" : "모듈";
-  const art = it.image ? `<img src="${esc(it.image)}" alt="">` : `<span class="fallback-icon">${iconFor(it)}</span>`;
+  const art = it.image ? `<img src="${esc(it.image)}" alt="">` : '';
+  const category = iconFor(it);
   const isFav = state.fav.has(it.id);
 
   return `<div class="card r-${it.rarity} ${it.equipped ? "is-equipped" : ""} animate__animated animate__fadeIn" style="--rc:${r.c}" data-id="${esc(it.id)}">
     <div class="card-inner">
-      <div class="card-header">
-        <div class="card-meta">
-          <span class="kind-text">${kindKo}</span>
-        </div>
-        <div class="card-status">
-          <span class="status-dot" style="background:${it.equipped ? 'var(--rc)' : '#565e56'}"></span>
-        </div>
-        <div class="card-actions">
-          ${it.group ? '<div class="newbadge" title="중복 후보 있음">복수</div>' : ""}
-          <button type="button" class="card-fav ${isFav ? "is-fav" : ""}" data-id="${esc(it.id)}" title="즐겨찾기" aria-pressed="${isFav}">★</button>
-          <input type="checkbox" class="card-pick" data-id="${esc(it.id)}" ${state.picked.has(it.id) ? "checked" : ""} title="일괄 이미지 생성에 포함">
-        </div>
-      </div>
-      
+      <input type="checkbox" class="card-pick" data-id="${esc(it.id)}" ${state.picked.has(it.id) ? "checked" : ""} title="일괄 이미지 생성에 포함">
+      ${it.group ? '<div class="newbadge" title="중복 후보 있음">복수</div>' : ""}
+
       <div class="art">${art}</div>
-      
+
       <div class="body">
-        <div class="nm">${esc(dispName(it))}</div>
+        <div class="nm-row">
+          <button type="button" class="card-fav ${isFav ? "is-fav" : ""}" data-id="${esc(it.id)}" title="즐겨찾기" aria-pressed="${isFav}">${STAR_SVG}</button>
+          <div class="nm">${esc(dispName(it))}</div>
+        </div>
         <div class="card-desc">${esc(summarize(dispDesc(it))) || "<span style='color:var(--dim)'>설명 없음</span>"}</div>
+        <div class="card-tags">
+          <span class="kind-tag" data-kind="${it.kind}">${it.kind}</span>
+          <span class="kind-tag">${category}</span>
+        </div>
         <div class="card-progress">
           <span class="lv">LV.${lvl}</span>
           <div class="progress-bar-track">
@@ -200,7 +198,7 @@ function cardHTML(it) {
           <span class="exp">${curExp}/${maxExp}</span>
         </div>
       </div>
-      
+
       ${it.equipped ? '<div class="equipped-badge">장착 중</div>' : ""}
     </div>
   </div>`;
@@ -218,6 +216,14 @@ function renderGrid() {
   $$(".card", grid).forEach((el) => el.onclick = () => select(el.dataset.id));
   // 체크박스: 카드 선택(상세) 이벤트와 분리(stopPropagation) — 일괄 생성 대상 토글.
   $$(".card-pick", grid).forEach((cb) => cb.onclick = (e) => { e.stopPropagation(); togglePick(cb.dataset.id, cb.checked); });
+  // 즐겨찾기 ★: 상세 선택과 분리. 즐겨찾기 필터가 켜져 있으면 즉시 목록 갱신.
+  $$(".card-fav", grid).forEach((b) => b.onclick = (e) => {
+    e.stopPropagation();
+    const on = toggleFav(b.dataset.id);
+    b.classList.toggle("is-fav", on);
+    b.setAttribute("aria-pressed", on);
+    if (state.favOnly) apply();
+  });
   updateBatchBar();
   if (state.selected) $(`.card[data-id="${cssEsc(state.selected)}"]`)?.classList.add("sel");
   else if (slice.length) queueMicrotask(() => select(slice[0].id));
@@ -225,6 +231,14 @@ function renderGrid() {
 const cssEsc = (s) => s.replace(/["\\]/g, "\\$&");
 function kindLabel(kind) {
   return kind === "skill" ? "자산" : kind === "agent" ? "요원" : kind === "mcp" ? "모듈" : "자산";
+}
+
+/* ---------- 즐겨찾기 (localStorage 영속) ---------- */
+// 토글 후 현재 즐겨찾기 여부를 반환. 저장 실패(용량/프라이빗 모드)는 무시하고 메모리 상태는 유지.
+function toggleFav(id) {
+  if (state.fav.has(id)) state.fav.delete(id); else state.fav.add(id);
+  try { localStorage.setItem(FAV_KEY, JSON.stringify([...state.fav])); } catch {}
+  return state.fav.has(id);
 }
 
 /* ---------- 일괄 이미지 생성 (체크박스 선택 → 순차 처리) ---------- */
@@ -304,9 +318,12 @@ function select(id) {
     <div class="bigcard r-${it.rarity} animate__animated animate__fadeInRight" style="--rc:${r.c}">
       <div class="bi"><div class="bart">${art}</div>
         <div class="bmeta">
-          <div class="kind">${it.kind === "skill" ? "기밀 자산" : it.kind === "agent" ? "작전 요원" : "지원 모듈"}${it.installed ? ' · <span style="color:var(--r-rare)">설치됨</span>' : ""}</div>
+          <div class="kind">${it.kind}${it.installed ? ' · <span style="color:var(--r-rare)">installed</span>' : ""}</div>
           <h3>${esc(dispName(it))}</h3>
-          <span class="rarity-pill" style="background:${r.g};color:${r.c}">${r.ko} · ${it.score}점</span>
+          <div class="bmeta-bottom">
+            <span class="rarity-pill" style="background:${r.g};color:${r.c}">${r.ko} · ${it.score}점</span>
+            <button class="btn sm doc-more" type="button" onclick="LO.openDoc('${esc(it.id)}')" title="전체 내용 보기">더보기 ⤢</button>
+          </div>
         </div></div>
     </div>
     ${state.lang === "ko" && it.translated && it.descKo ? `<div class="desc">${esc(it.descKo)}</div><details class="orig"><summary>원문 보기</summary><div class="desc dim">${esc(it.description) || "설명이 없습니다."}</div></details>`
@@ -343,14 +360,7 @@ function select(id) {
         ${dupGroup.length ? `<button class="btn sm" onclick="LO.compare('${esc(it.id)}')">우세 분석</button>` : ""}
       </div>
     </div>
-    <div class="doc-section">
-      <div class="doc-section-head">
-        <span class="doc-section-title">전체 내용</span>
-        <button class="btn sm doc-more" type="button" onclick="LO.openDoc('${esc(it.id)}')" title="GitBook 스타일 팝업으로 크게 보기">더보기 ⤢</button>
-      </div>
-      <div class="doc-inline markdown-body" id="detailDoc"><div class="doc-loading">전체 내용 불러오는 중…</div></div>
-    </div>`;
-  loadDetailDoc(it.id);
+  `;
 }
 
 // 상세 패널 하단에 원본 전체 내용을 인라인 렌더(캐시). 실패 시 안내만.
@@ -687,6 +697,7 @@ function bind() {
     state.rarity = c.dataset.rarity; apply();
   });
   $("#sortSel").onchange = (e) => { state.sort = e.target.value; apply(); };
+  $("#favOnly").onclick = (e) => { state.favOnly = !state.favOnly; e.target.classList.toggle("on", state.favOnly); apply(); };
   $("#dupOnly").onclick = (e) => { state.dupOnly = !state.dupOnly; e.target.classList.toggle("on", state.dupOnly); apply(); };
   $("#equipOnly").onclick = (e) => { state.equipOnly = !state.equipOnly; e.target.classList.toggle("on", state.equipOnly); apply(); };
   let t; $("#search").oninput = (e) => { clearTimeout(t); t = setTimeout(() => { state.q = e.target.value.trim(); apply(); }, 180); };

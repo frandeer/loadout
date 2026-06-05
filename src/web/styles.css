@@ -382,8 +382,8 @@ body.theme-dark {
 .card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(46, 115, 223, .14); }
 .card.sel { box-shadow: 0 0 0 2px var(--color-primary), var(--shadow-card); }
 .card-pick {
-  position: absolute; top: 8px; left: 8px; z-index: 8;
-  width: 18px; height: 18px; cursor: pointer;
+  position: absolute; top: 8px; left: 8px; z-index: 5;
+  width: 17px; height: 17px; margin: 0; cursor: pointer;
   accent-color: var(--rc); opacity: .55; transition: opacity .15s;
 }
 .card-pick:hover, .card-pick:checked { opacity: 1; }
@@ -400,21 +400,37 @@ body.theme-dark {
   border: 1px solid var(--color-hairline); border-radius: 11px;
   background: var(--color-panel);
 }
-.card-header {
-  display: flex; justify-content: space-between; align-items: center;
-  min-height: 50px; padding: 11px 13px 9px;
-  background: var(--card-header-bg);
-  border-bottom: 1px solid var(--color-hairline);
-  border-left: 3px solid var(--rc);
+/* 타이틀 행: 즐겨찾기 ★ + 이름 */
+.nm-row {
+  display: flex; align-items: baseline; gap: 5px;
 }
-.card-meta { display: flex; flex-direction: column; gap: 3px; text-align: left; }
-.rarity-class { font-size: 12px; font-weight: 900; color: var(--rc); letter-spacing: .5px; }
-.kind-text { font-size: 12px; font-weight: 750; color: var(--text-muted); }
-.card-status { display: flex; align-items: center; justify-content: center; height: 12px; }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 6px var(--rc); }
-.card:not(.is-equipped) .status-dot { opacity: 0; box-shadow: none; }
+.nm-row .nm { flex: 1; margin-bottom: 0 !important; }
+.card-fav {
+  flex: none; width: 16px; height: 16px; padding: 0; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: none; cursor: pointer;
+  color: var(--text-muted); opacity: .45;
+  transition: opacity .15s, color .15s, transform .12s;
+  align-self: center; position: relative; top: 1px;
+}
+.card-fav svg { width: 14px; height: 14px; display: block; }
+.card-fav:hover { opacity: 1; transform: scale(1.15); }
+.card-fav.is-fav { opacity: 1; color: #facc15; }
+.card-fav.is-fav svg { fill: #facc15; }
+.card-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.kind-tag {
+  font-size: 11px; font-weight: 700; line-height: 1;
+  padding: 4px 9px; border-radius: 5px;
+  color: var(--text-muted); background: color-mix(in srgb, var(--rc) 10%, var(--color-panel));
+  border: 1px solid color-mix(in srgb, var(--rc) 18%, var(--color-hairline));
+  white-space: nowrap;
+}
+.kind-tag[data-kind="skill"] { color: #6ea8fe; background: rgba(110,168,254,.12); border-color: rgba(110,168,254,.25); }
+.kind-tag[data-kind="agent"] { color: #f59e0b; background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.25); }
+.kind-tag[data-kind="mcp"]   { color: #34d399; background: rgba(52,211,153,.12); border-color: rgba(52,211,153,.25); }
 .newbadge {
-  min-height: 20px; display: inline-flex; align-items: center; margin-left: auto;
+  position: absolute; top: 8px; left: 8px; z-index: 5;
+  min-height: 20px; display: inline-flex; align-items: center;
   padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; line-height: 1;
   color: var(--accent-strong); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-hairline));
 }
@@ -479,6 +495,7 @@ body.theme-dark {
 .bmeta { padding: 14px; }
 .bmeta .kind { color: var(--color-primary); font-size: 10px; font-weight: 900; }
 .bigcard h3 { margin: 6px 0 8px; font-size: 21px; line-height: 1.1; color: var(--text-primary); overflow-wrap: anywhere; }
+.bmeta-bottom { display: flex; align-items: center; gap: 8px; }
 .rarity-pill { display: inline-block; padding: 5px 9px; border-radius: var(--radius-sm); font-size: 10px; font-weight: 950; letter-spacing: .08em; background: var(--color-panel-high); color: var(--rc); }
 .detail > .desc { margin: 12px 0 14px; color: var(--text-secondary); font-size: 14px; line-height: 1.62; }
 .desc.dim { color: var(--text-muted); font-size: 12px; }
