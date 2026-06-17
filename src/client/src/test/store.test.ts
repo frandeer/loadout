@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useStore } from "../hooks/useStore";
+import { isEquippable, KIND_LABELS } from "../types";
 import type { Item } from "../types";
 
 function makeItem(overrides: Partial<Item> = {}): Item {
@@ -62,6 +63,24 @@ describe("useStore", () => {
     expect(useStore.getState().filtered()[0].kind).toBe("agent");
   });
 
+  it("filters by memory kind and treats it as read-only (no equip)", () => {
+    const items = [
+      makeItem({ kind: "skill" }),
+      makeItem({ kind: "memory", layer: "index", tags: ["memory"] }),
+      makeItem({ kind: "memory", layer: "note", tags: ["memory"] }),
+    ];
+    useStore.setState({ items });
+    useStore.getState().setFilter("kind", "memory");
+    const result = useStore.getState().filtered();
+    expect(result.length).toBe(2);
+    expect(result.every((i) => i.kind === "memory")).toBe(true);
+    // 기억 카드는 장착 개념이 없는 읽기 전용 — 뱃지 라벨 "기억"
+    expect(result.every((i) => !isEquippable(i.kind))).toBe(true);
+    expect(KIND_LABELS.memory).toBe("기억");
+    // 기존 kind는 장착 가능 — 분기 미파손 확인
+    expect(isEquippable("skill")).toBe(true);
+  });
+
   it("filters by search query", () => {
     const items = [
       makeItem({ name: "alpha-tool", description: "useful" }),
@@ -110,5 +129,25 @@ describe("useStore", () => {
     useStore.setState({ items });
     useStore.getState().setFilter("equipOnly", true);
     expect(useStore.getState().filtered().length).toBe(1);
+  });
+
+  it("savePreset returns the new preset id and stores it (for OMC export)", async () => {
+    useStore.setState({ slots: { build: "x" }, presets: {} });
+    const id = await useStore.getState().savePreset("코딩팀");
+    expect(typeof id).toBe("string");
+    expect(useStore.getState().presets[id]).toBeTruthy();
+    expect(useStore.getState().presets[id].name).toBe("코딩팀");
+  });
+
+  it("loadPreset drops unknown keys (key hygiene)", () => {
+    // 레거시/오염 데이터: 정상 role.key + 한국어 라벨 키 + 알 수 없는 키 혼입
+    const dirty = { analyst: "a", scout: "b", "분석관": "x", legacy: "y" } as Record<string, string | null>;
+    useStore.setState({ presets: { t1: { name: "오염", slots: dirty, at: 1 } }, slots: {} });
+    useStore.getState().loadPreset("t1");
+    const loaded = useStore.getState().slots;
+    expect(loaded["분석관"]).toBeUndefined();
+    expect(loaded["legacy"]).toBeUndefined();
+    expect(loaded.analyst).toBe("a");
+    expect(loaded.scout).toBe("b");
   });
 });

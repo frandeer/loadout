@@ -1,7 +1,34 @@
 import { create } from "zustand";
 import type { Item, IndexData, FilterState } from "../types";
 import { loadFavorites, saveFavorites } from "../lib/utils";
+import { ROLES } from "../lib/traits";
 import { api } from "../lib/api";
+
+/* ── 작전 편성 상태 ──
+   slots(작업 중 편성)는 localStorage, presets(저장된 팀)는 서버 data/teams.json 영속. */
+export type OpsSlots = Record<string, string | null>; // roleKey → itemId
+export interface OpsPreset {
+  name: string;
+  slots: OpsSlots;
+  at: number;
+  elo?: number; // 서버(teams.json) 영속 Elo — A/B 대전 결과로 갱신
+}
+
+const OPS_KEY = "loadout-ops";
+
+function loadOps(): { slots: OpsSlots; presets: Record<string, OpsPreset> } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OPS_KEY) || "{}");
+    return { slots: raw.slots || {}, presets: raw.presets || {} };
+  } catch {
+    return { slots: {}, presets: {} };
+  }
+}
+
+function saveOps(slots: OpsSlots) {
+  // presets는 서버가 진실의 원천 — localStorage에는 slots만 남긴다.
+  localStorage.setItem(OPS_KEY, JSON.stringify({ slots }));
+}
 
 interface AppState {
   items: Item[];
@@ -15,6 +42,9 @@ interface AppState {
   loading: boolean;
   engines: string[];
 
+  slots: OpsSlots;
+  presets: Record<string, OpsPreset>;
+
   setFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   setSelected: (id: string | null) => void;
   toggleFavorite: (id: string) => void;
@@ -24,6 +54,11 @@ interface AppState {
   setTheme: (t: "light" | "dark") => void;
   loadData: () => Promise<void>;
   reloadData: () => Promise<void>;
+
+  assignSlot: (role: string, id: string | null) => void;
+  savePreset: (name: string) => Promise<string>;
+  loadPreset: (id: string) => void;
+  removePreset: (id: string) => void;
 
   filtered: () => Item[];
 }
@@ -43,10 +78,12 @@ export const useStore = create<AppState>((set, get) => ({
   selected: null,
   favorites: loadFavorites(),
   picked: new Set<string>(),
-  lang: "en",
-  theme: (localStorage.getItem("loadout-theme") as "light" | "dark") || "light",
+  lang: "ko",
+  theme: "dark",
   loading: true,
   engines: ["heuristic"],
+
+  ...loadOps(),
 
   setFilter: (key, value) =>
     set((s) => ({ filters: { ...s.filters, [key]: value } })),
@@ -88,6 +125,17 @@ export const useStore = create<AppState>((set, get) => ({
     } catch {
       set({ loading: false });
     }
+    // 팀 프리셋: 서버에서 로드. 서버가 비어 있고 예전 localStorage 프리셋이 있으면 1회 이관.
+    try {
+      const t = await api.getTeams();
+      let presets = t.teams || {};
+      const local = get().presets;
+      if (!Object.keys(presets).length && Object.keys(local).length) {
+        presets = local;
+        api.saveTeams(presets).catch(() => {});
+      }
+      set({ presets });
+    } catch {}
   },
 
   reloadData: async () => {
@@ -96,6 +144,45 @@ export const useStore = create<AppState>((set, get) => ({
       set({ items: data.items, meta: data });
     } catch {}
   },
+
+  assignSlot: (role, id) =>
+    set((s) => {
+      const slots = { ...s.slots };
+      // 같은 요원이 다른 슬롯에 있으면 그 슬롯을 비운다(1인 1직책).
+      if (id) for (const k of Object.keys(slots)) if (slots[k] === id) slots[k] = null;
+      slots[role] = id;
+      saveOps(slots);
+      return { slots };
+    }),
+
+  // 서버(data/teams.json) 저장 완료를 await한 뒤 id를 resolve한다.
+  // (export 등 후속 요청이 저장 완료 전에 도착해 404가 나는 레이스 방지)
+  savePreset: async (name) => {
+    const id = `team-${Date.now().toString(36)}`;
+    const presets = { ...get().presets, [id]: { name, slots: { ...get().slots }, at: Date.now() } };
+    set({ presets });
+    try { await api.saveTeams(presets); } catch {}
+    return id;
+  },
+
+  loadPreset: (id) =>
+    set((s) => {
+      const p = s.presets[id];
+      if (!p) return {};
+      // 키 위생: ROLES의 알려진 role.key만 남기고 레거시/외부 비정상 키는 버린다.
+      const slots: OpsSlots = {};
+      for (const r of ROLES) slots[r.key] = p.slots[r.key] ?? null;
+      saveOps(slots);
+      return { slots };
+    }),
+
+  removePreset: (id) =>
+    set((s) => {
+      const presets = { ...s.presets };
+      delete presets[id];
+      api.saveTeams(presets).catch(() => {});
+      return { presets };
+    }),
 
   filtered: () => {
     const { items, filters, favorites } = get();

@@ -22,20 +22,21 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className={`relative max-h-[85vh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl ${
+        className={`hud-frame relative max-h-[85vh] overflow-y-auto border border-line bg-panel p-6 ${
           wide ? "w-full max-w-3xl" : "w-full max-w-lg"
         }`}
+        style={{ "--hud-c": "var(--color-signal-dim)" } as React.CSSProperties}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-white">{title}</h3>
+          <h3 className="text-lg font-bold text-ink">{title}</h3>
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
+            className="p-1 font-mono text-ink-dim transition hover:text-ink"
           >
             ✕
           </button>

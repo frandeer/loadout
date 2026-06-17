@@ -9,10 +9,12 @@
     "scan": "node src/scan.mjs",
     "start": "node src/server.mjs",
     "dev": "node src/scan.mjs && node src/server.mjs",
+    "cardart": "node src/cardart.mjs",
     "client:dev": "cd src/client && bun run dev",
     "client:build": "cd src/client && bun run build"
   },
   "optionalDependencies": {
-    "chrome-remote-interface": "^0.33.0"
+    "chrome-remote-interface": "^0.33.0",
+    "playwright": "^1.48.0"
   }
 }

@@ -1,161 +1,92 @@
 import { useStore } from "../hooks/useStore";
-import { RARITY_CONFIG, SORT_OPTIONS } from "../types";
-import type { Kind, Rarity, SortKey } from "../types";
+import type { AppView } from "../App";
 
-const KIND_TABS: { key: Kind | "all"; label: string }[] = [
-  { key: "all", label: "전체" },
-  { key: "skill", label: "Skill" },
-  { key: "agent", label: "Agent" },
-  { key: "mcp", label: "MCP" },
-];
-
-const RARITY_TABS: { key: Rarity | "all"; label: string }[] = [
-  { key: "all", label: "ALL" },
-  ...Object.entries(RARITY_CONFIG).map(([k, v]) => ({
-    key: k as Rarity,
-    label: v.ko,
-  })),
+const VIEW_TABS: { key: AppView; label: string; code: string }[] = [
+  { key: "deck", label: "덱", code: "01" },
+  { key: "ops", label: "작전 준비", code: "02" },
+  { key: "inventory", label: "인벤토리", code: "03" },
+  { key: "forge", label: "포지", code: "04" },
 ];
 
 interface HeaderProps {
+  view: AppView;
+  onSetView: (v: AppView) => void;
   onOpenSources: () => void;
-  onToggleFormation: () => void;
-  showFormation: boolean;
 }
 
-export function Header({ onOpenSources, onToggleFormation, showFormation }: HeaderProps) {
-  const { meta, filters, setFilter, theme, setTheme, lang, setLang } = useStore();
+export function Header({ view, onSetView, onOpenSources }: HeaderProps) {
+  const { meta, lang, setLang, items } = useStore();
+  const equippedCount = items.filter((i) => i.equipped).length;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/80 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1800px] items-center gap-4 px-4 py-3">
-        <h1 className="shrink-0 text-lg font-bold tracking-tight text-white">
-          <span className="text-amber-400">LOADOUT</span>
-          <span className="ml-1.5 text-xs font-normal text-zinc-500">
-            {meta ? `${meta.total.toLocaleString()} assets` : ""}
-          </span>
-        </h1>
-
-        <div className="flex flex-1 items-center gap-2">
-          <input
-            type="search"
-            placeholder="검색..."
-            value={filters.q}
-            onChange={(e) => setFilter("q", e.target.value)}
-            className="h-8 w-48 rounded-md border border-zinc-700 bg-zinc-900 px-3 text-sm text-white placeholder:text-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30 lg:w-64"
-          />
-
-          <div className="flex gap-0.5 rounded-lg bg-zinc-900 p-0.5">
-            {KIND_TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setFilter("kind", t.key)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                  filters.kind === t.key
-                    ? "bg-amber-500/20 text-amber-400"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+    <header className="sticky top-0 z-50 border-b border-line bg-void/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1800px] items-stretch gap-6 px-5">
+        {/* 마크 */}
+        <div className="flex items-center gap-3 py-3">
+          <div className="hud-frame flex h-9 w-9 items-center justify-center bg-panel2 font-mono text-sm font-semibold text-signal" style={{ "--hud-c": "var(--color-signal-dim)" } as React.CSSProperties}>
+            L
           </div>
-
-          <select
-            value={filters.rarity}
-            onChange={(e) => setFilter("rarity", e.target.value as Rarity | "all")}
-            className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-white"
-          >
-            {RARITY_TABS.map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filters.sort}
-            onChange={(e) => setFilter("sort", e.target.value as SortKey)}
-            className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-white"
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.key} value={o.key}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <div className="leading-tight">
+            <div className="text-sm font-bold tracking-[0.18em] text-ink">LOADOUT</div>
+            <div className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+              black-orchid console
+            </div>
+          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <ToggleBtn
-            active={filters.dupOnly}
-            onClick={() => setFilter("dupOnly", !filters.dupOnly)}
-            label="중복"
-          />
-          <ToggleBtn
-            active={filters.equipOnly}
-            onClick={() => setFilter("equipOnly", !filters.equipOnly)}
-            label="장착"
-          />
-          <ToggleBtn
-            active={filters.favOnly}
-            onClick={() => setFilter("favOnly", !filters.favOnly)}
-            label="★"
-          />
+        {/* 뷰 탭 */}
+        <nav className="flex flex-1 items-stretch gap-1">
+          {VIEW_TABS.map((t) => {
+            const active = view === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => onSetView(t.key)}
+                className={`relative flex items-center gap-2 px-4 text-sm transition ${
+                  active ? "text-signal" : "text-ink-dim hover:text-ink"
+                }`}
+              >
+                <span className="font-mono text-[10px] text-ink-faint">{t.code}</span>
+                <span className={active ? "font-semibold" : "font-medium"}>{t.label}</span>
+                {active && (
+                  <span className="absolute inset-x-3 bottom-0 h-0.5 bg-signal shadow-[0_0_8px_rgba(61,245,165,0.6)]" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
 
-          <button
-            onClick={onToggleFormation}
-            className={`h-8 rounded-md border px-2.5 text-xs font-medium transition ${
-              showFormation
-                ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
-                : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            포메이션
-          </button>
+        {/* 상태 + 유틸 */}
+        <div className="flex items-center gap-4 py-3">
+          <div className="hidden items-center gap-4 font-mono text-[11px] text-ink-dim md:flex">
+            <span>
+              <span className="text-ink-faint">자산 </span>
+              <span className="text-ink">{meta ? meta.total.toLocaleString() : "—"}</span>
+            </span>
+            <span>
+              <span className="text-ink-faint">투입 </span>
+              <span className="text-signal">{equippedCount}</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-signal-dim">
+              <span className="blink inline-block h-1.5 w-1.5 rounded-full bg-signal" />
+              ONLINE
+            </span>
+          </div>
           <button
             onClick={onOpenSources}
-            className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-400 hover:text-white"
+            className="hud-frame bg-panel2 px-3 py-1.5 text-xs text-ink-dim transition hover:text-ink"
           >
-            소스
+            소스 관리
           </button>
           <button
             onClick={() => setLang(lang === "ko" ? "en" : "ko")}
-            className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-400 hover:text-white"
+            className="font-mono text-[11px] text-ink-faint transition hover:text-ink"
+            title="표시 언어 전환"
           >
-            {lang === "ko" ? "한국어" : "EN"}
-          </button>
-          <button
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-400 hover:text-white"
-          >
-            {theme === "dark" ? "☀" : "☾"}
+            {lang === "ko" ? "KO" : "EN"}
           </button>
         </div>
       </div>
     </header>
-  );
-}
-
-function ToggleBtn({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`h-8 rounded-md border px-2.5 text-xs font-medium transition ${
-        active
-          ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
-          : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-      }`}
-    >
-      {label}
-    </button>
   );
 }

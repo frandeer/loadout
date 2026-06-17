@@ -188,6 +188,18 @@ function parseFrontmatter(text) {
   return fm;
 }
 
+// semver 폴더명 비교용. "4.14.5" > "4.14.1" > "4.13.5". 선행 v 허용.
+const SEMVER_RE = /^v?(\d+)\.(\d+)\.(\d+)/;
+function cmpSemver(a, b) {
+  const pa = a.match(SEMVER_RE), pb = b.match(SEMVER_RE);
+  if (!pa || !pb) return 0;
+  for (let i = 1; i <= 3; i++) {
+    const d = Number(pa[i]) - Number(pb[i]);
+    if (d) return d;
+  }
+  return 0;
+}
+
 async function walk(dir, onFile, depth = 0) {
   let entries;
   try {
@@ -209,10 +221,22 @@ async function walk(dir, onFile, depth = 0) {
   // repo가 내부에 같은 스킬을 .cursor/.kiro 미러로 수십 벌 복제해도(또한 top-level
   // 엔트리포인트와도 중복) 카드 1장(gstack)으로만 잡힌다. 디스크는 안 건드림.
   if (hasSkillMd) return;
+  // 같은 부모 아래 semver 버전 폴더가 여러 개면 최신 1개만 내려간다 — 플러그인
+  // 캐시가 4.13.5/4.14.1/4.14.5 식으로 구버전을 쌓아둬 모든 스킬이 N벌씩 잡히는
+  // 걸 1벌로 접는다(설치된 최신본만 카드화). 디스크는 안 건드림.
+  const verDirs = entries.filter(
+    (e) => e.isDirectory() && !e.name.startsWith(".") && SEMVER_RE.test(e.name),
+  );
+  let staleVersions = null;
+  if (verDirs.length > 1) {
+    const latest = verDirs.reduce((a, b) => (cmpSemver(a.name, b.name) >= 0 ? a : b));
+    staleVersions = new Set(verDirs.filter((e) => e !== latest).map((e) => e.name));
+  }
   for (const e of entries) {
     if (e.isDirectory()) {
       if (cfg.ignoreDirs.includes(e.name)) continue;
       if (e.name.startsWith(".")) continue;
+      if (staleVersions && staleVersions.has(e.name)) continue;
       if (depth > 12) continue;
       await walk(join(dir, e.name), onFile, depth + 1);
     }
@@ -272,13 +296,19 @@ function computeStats({ repo, size, mtimeMs, freshMs, fm, kind, refCount }) {
   // 문장 수(1~5문장이 읽기 좋음). 0~8.
   const sentences = (desc.match(/[.!?。]/g) || []).length;
   const sentScore = Math.min(8, sentences * 2);
+  // description 품질 보정(bbojjak: "스킬 발견은 description이 전부"). 기존 로직에 가산.
+  let descAdj = 0;
+  if (!desc || dlen < 20) descAdj -= 15;                                       // 없거나 너무 짧음
+  if (dlen >= 20 && dlen <= 250 && /use when|when (you|the)|~할 때|사용/i.test(desc)) descAdj += 10; // 적정 길이 + 트리거
+  if (dlen > 600) descAdj -= 5;                                                // 장황
   const clarity = clamp(
     (fm.name ? 20 : 0) +
       (desc ? 14 : 0) +
       lenScore +
       sentScore +
       (/use when|사용|when to|예시|example|trigger/i.test(desc) ? 16 : 0) +
-      (/[A-Z가-힣]/.test(desc.slice(0, 1)) ? 4 : 0) // 대문자/한글로 시작(정돈됨)
+      (/[A-Z가-힣]/.test(desc.slice(0, 1)) ? 4 : 0) + // 대문자/한글로 시작(정돈됨)
+      descAdj
   );
   const weight = clamp(Math.min(99, sizeKb * 2.2)); // 클수록 무거움(비용)
   return { popularity, freshness, power, clarity, weight };
@@ -298,6 +328,44 @@ function rarityOf(stats, ai) {
   else if (score >= 55) rarity = "rare";
   else if (score >= 40) rarity = "uncommon";
   return { score, rarity };
+}
+
+// ---------- 코스트(컨텍스트 토큰 비용 추정) & 리스크(보안 신호) ----------
+// "장착 항목 수 = 컨텍스트 비용" 하네스 원칙의 게임화. 콘텐츠에서만 유도(멱등).
+const COST_CAP = 20000;
+
+// skill/agent: 콘텐츠 바이트/4 ≈ 토큰. content 없으면 sizeBytes 폴백.
+function computeContentCost(content, sizeBytes) {
+  const bytes = content ? Buffer.byteLength(content, "utf8") : (sizeBytes || 0);
+  return Math.min(COST_CAP, Math.ceil(bytes / 4));
+}
+
+// mcp: 도구 스키마가 컨텍스트에 들어가므로 베이스가 큼.
+function computeMcpCost(meta) {
+  const cost = 800 + (meta?.args?.length ?? 0) * 100 + (meta?.env?.length ?? 0) * 50;
+  return Math.min(COST_CAP, cost);
+}
+
+// 콘텐츠 정규식 보안 신호. 해당 키만 포함, 없으면 [].
+const RISK_NETWORK = /curl\s+http|fetch\(|axios|https?:\/\/(?!github\.com|docs\.|raw\.githubusercontent)/i;
+const RISK_SHELL = /rm\s+-rf|sudo\s|chmod\s+777|curl[^\n]*\|\s*(ba)?sh/i;
+const RISK_CREDS = /api[_-]?key|secret[_-]?key|password|token\s*=/i;
+
+function detectRisks(content) {
+  const risks = [];
+  if (!content) return risks;
+  if (RISK_NETWORK.test(content)) risks.push("network");
+  if (RISK_SHELL.test(content)) risks.push("shell");
+  if (RISK_CREDS.test(content)) risks.push("creds");
+  return risks;
+}
+
+// mcp: 명령 실행 자체가 위험이나 과잉 경고 금지. env에 KEY/TOKEN/SECRET 있으면 creds만.
+function detectMcpRisks(meta) {
+  const risks = [];
+  const envKeys = (meta?.env || []).join(" ");
+  if (/key|token|secret/i.test(envKeys)) risks.push("creds");
+  return risks;
 }
 
 // 간단 해시(내용 변경 감지용) — djb2
@@ -357,6 +425,8 @@ async function handleSkill(rootPath, file) {
     stats,
     score: r.score,
     rarity: r.rarity,
+    cost: computeContentCost(head, st.size),
+    risks: detectRisks(head),
     contentHash: quickHash(head.slice(0, 4000) + st.size),
     nameKey: norm(name),
     image: null,
@@ -395,6 +465,8 @@ async function handleAgent(rootPath, file) {
     stats,
     score: r.score,
     rarity: r.rarity,
+    cost: computeContentCost(head, st.size),
+    risks: detectRisks(head),
     contentHash: quickHash(head.slice(0, 4000) + st.size),
     nameKey: norm(name),
     image: null,
@@ -437,6 +509,7 @@ function mcpItem(name, def, source) {
     mtime: source.mtime ?? 0,
     ...(source.fromCc ? { fromCc: true } : {})
   };
+  const meta = { command: def?.command || null, args: def?.args || [], url: def?.url || null, env: def?.env ? Object.keys(def.env) : [] };
   return {
     id: `mcp/${source.repo || "cc-config"}/${name}`,
     kind: "mcp",
@@ -444,8 +517,10 @@ function mcpItem(name, def, source) {
     description: cmd ? `명령: ${cmd}` : "MCP 서버",
     category: "weapon",
     source: fullSource,
-    meta: { command: def?.command || null, args: def?.args || [], url: def?.url || null, env: def?.env ? Object.keys(def.env) : [] },
+    meta,
     stats, score: r.score, rarity: r.rarity,
+    cost: computeMcpCost(meta),
+    risks: detectMcpRisks(meta),
     contentHash: quickHash(JSON.stringify(def)),
     nameKey: norm(name), image: null, equipped: false
   };
@@ -463,6 +538,99 @@ async function scanCcMcp() {
         items.push(mcpItem(name, def, { repo: "cc-config", owner: "me", path: cand, root: join(homedir(), ".claude"), fromCc: true }));
       }
     } catch {}
+  }
+}
+
+// ---------- 메모리 카드 ----------
+// "기억" 특성 카드. 소스 = ① 이 프로젝트의 .memory/(scope=local)
+// ② auto-memory ~/.claude/projects/<slug>/memory/*.md(scope=slug). 장착 개념 없음(읽기 전용).
+// 멱등: git 비대상이라 파일 mtime을 신선도로 쓴다(미변경 시 동일). ID는 path-namespaced.
+const MEMORY_FILE_CAP = 200;
+let memoryScanned = 0;
+
+async function handleMemory(file, scope, memRoot) {
+  const content = await readFile(file, "utf8").catch(() => "");
+  const st = await stat(file).catch(() => null);
+  if (!st) return;
+  const fm = parseFrontmatter(content);
+  const base = basename(file);
+  const relPath = relative(memRoot, file).split(sep).join("/");
+  const layer = base.toLowerCase() === "memory.md" ? "index" : "note"; // MEMORY.md=색인, 나머지=노트
+  const name = fm.name || base.replace(/\.md$/i, "");
+  // description: frontmatter 우선, 없으면(MEMORY.md 등) 첫 의미 있는 줄에서 발췌.
+  let description = (fm.description || "").toString();
+  if (!description) {
+    const firstLine = content.split(/\r?\n/).find((l) => l.trim() && !/^---/.test(l)) || "";
+    description = firstLine
+      .replace(/^[\s>#*-]+/, "")              // 리스트/헤딩 마커 제거
+      .replace(/^\[([^\]]+)\]\([^)]*\)/, "$1") // [텍스트](링크) → 텍스트
+      .trim();
+  }
+  // metadata.type(프로젝트/유저 등) 추출 — 간이 frontmatter 파서가 metadata를 평탄 문자열로 합치므로 정규식으로.
+  const metaType = /type:\s*([a-z0-9_-]+)/i.exec(String(fm.metadata || fm.type || ""))?.[1] || null;
+  const stats = computeStats({ repo: scope, size: st.size, mtimeMs: st.mtimeMs, freshMs: st.mtimeMs, fm, kind: "memory", refCount: 0 });
+  const r = rarityOf(stats, null);
+  items.push({
+    id: `_memory/${scope}/${relPath}`,
+    kind: "memory",
+    name,
+    displayName: name,
+    description: description.slice(0, 600),
+    category: "memory",        // 시너지 "기억" 특성용 — TAG_PATTERNS의 memory 매칭 보장
+    layer,
+    source: { repo: scope, owner: "me", path: relPath, root: memRoot, sizeBytes: st.size, mtime: Math.round(st.mtimeMs) },
+    meta: { type: metaType, layer },
+    stats,
+    score: r.score,
+    rarity: r.rarity,
+    cost: computeContentCost(content, st.size),
+    risks: detectRisks(content),
+    contentHash: quickHash(content.slice(0, 4000) + st.size),
+    nameKey: norm(name),
+    image: null,
+    equipped: false
+  });
+}
+
+async function walkMemory(dir, scope, memRoot) {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  entries.sort((a, b) => a.name.localeCompare(b.name)); // 결정적 순서 → 멱등
+  for (const e of entries) {
+    if (memoryScanned >= MEMORY_FILE_CAP) return;
+    const full = join(dir, e.name);
+    if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
+      memoryScanned++;
+      await handleMemory(full, scope, memRoot);
+    } else if (e.isDirectory() && !e.name.startsWith(".")) {
+      await walkMemory(full, scope, memRoot);
+    }
+  }
+}
+
+async function scanMemory() {
+  // ① 프로젝트 .memory/
+  const localMem = join(root, ".memory");
+  if (existsSync(localMem)) await walkMemory(localMem, "local", localMem);
+  // ② auto-memory: ~/.claude/projects/<slug>/memory/*.md (존재하는 slug만, 전체 파일 캡)
+  const projectsDir = join(homedir(), ".claude", "projects");
+  if (existsSync(projectsDir)) {
+    let slugs = [];
+    try {
+      slugs = (await readdir(projectsDir, { withFileTypes: true }))
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .sort(); // 결정적 순서
+    } catch {}
+    for (const slug of slugs) {
+      if (memoryScanned >= MEMORY_FILE_CAP) break;
+      const memDir = join(projectsDir, slug, "memory");
+      if (existsSync(memDir)) await walkMemory(memDir, slug, memDir);
+    }
   }
 }
 
@@ -485,6 +653,7 @@ for (const rootPath of sourceRoots) {
   });
 }
 await scanCcMcp();
+await scanMemory();
 
 // ── 동일 내용 복사본 디듀프 ────────────────────────────────────────────────
 // antigravity-awesome-skills 등은 같은 스킬을 여러 번들 플러그인에 그대로 복제한다.
@@ -538,6 +707,25 @@ for (const [key, arr] of byKey) {
   }
 }
 
+// 특성 태그: 신호 링크(시너지) 시스템용 콘텐츠 기반 멱등 휴리스틱.
+// 키는 클라이언트 src/client/src/lib/traits.ts 의 TRAITS와 동기 유지할 것.
+const TAG_PATTERNS = [
+  ["build", /code|coding|refactor|implement|typescript|python|frontend|component|빌드|구현|코드/i],
+  ["recon", /search|research|browse|crawl|scrape|fetch|explore|web|검색|조사|탐색/i],
+  ["audit", /review|audit|verify|\bqa\b|test|lint|security|검증|리뷰|감사|보안/i],
+  ["archive", /doc|write|wiki|article|pdf|slide|note|memo|문서|기록|작성/i],
+  ["memory", /memory|context|knowledge|recall|learn|기억|메모리|컨텍스트/i],
+  ["deploy", /deploy|ship|release|\bci\b|docker|publish|배포|출시|릴리스/i],
+  ["plan", /plan|design|architect|spec|brainstorm|roadmap|기획|설계|계획|전략/i],
+  ["auto", /loop|cron|schedule|workflow|hook|automat|orchestr|자동|루프|스케줄/i],
+  ["git", /\bgit\b|commit|branch|merge|\bpr\b|github|worktree|커밋|브랜치/i],
+  ["vision", /image|design|\bui\b|\bux\b|visual|screenshot|figma|디자인|이미지|시각/i],
+];
+for (const it of items) {
+  const txt = `${it.name} ${it.displayName} ${it.category || ""} ${it.description}`;
+  it.tags = TAG_PATTERNS.filter(([, re]) => re.test(txt)).map(([k]) => k);
+}
+
 // 등급 재배치: 점수 백분위 기반 카드게임식 피라미드 (대부분 흔하고, 소수만 전설)
 {
   const scored = [...items].sort((a, b) => a.score - b.score);
@@ -574,4 +762,4 @@ const index = {
 
 await mkdir(dataDir, { recursive: true });
 await writeFile(join(dataDir, "index.json"), JSON.stringify(index, null, 0));
-console.log(`✅ 스캔 완료 — skill:${counts.skill || 0} agent:${counts.agent || 0} mcp:${counts.mcp || 0} (중복그룹 ${dupGroups}) → data/index.json`);
+console.log(`✅ 스캔 완료 — skill:${counts.skill || 0} agent:${counts.agent || 0} mcp:${counts.mcp || 0} memory:${counts.memory || 0} (중복그룹 ${dupGroups}) → data/index.json`);

@@ -13,9 +13,12 @@ The codebase and almost all UI/comments are in **Korean**. Match that when editi
 ## Commands
 
 ```bash
-npm run scan      # node src/scan.mjs   → reads sourceRoots, writes data/index.json (idempotent)
-npm start         # node src/server.mjs → SPA + action API at http://localhost:4970 (PORT env overrides)
-npm run dev       # scan then start
+npm run scan          # node src/scan.mjs   → reads sourceRoots, writes data/index.json (idempotent)
+npm start             # node src/server.mjs → SPA + action API at http://localhost:4970 (PORT env overrides)
+npm run dev           # scan then start
+npm run client:build  # React 클라이언트 빌드 → src/client/dist (서버가 이걸 서빙)
+npm run client:dev    # Vite dev 서버(:5173) — /api는 :4970으로 프록시 (npm start 동시 실행 필요)
+cd src/client && npx vitest run   # 클라이언트 단위 테스트
 
 # Batch-generate card art (needs Chrome+login, see image generation below)
 node src/gen-cards.mjs --dry-run --limit=5            # preview selection
@@ -23,7 +26,7 @@ node src/gen-cards.mjs --engine=grok --rarity=legendary --limit=10
 node src/gen-cards.mjs --help
 ```
 
-There is **no build step, no test suite, and no dependencies for the core app** — Node built-ins only (`>=18.18`, ESM). `chrome-remote-interface` is an *optional* dependency used only for image generation.
+The **server/scanner have no build step and no dependencies** — Node built-ins only (`>=18.18`, ESM). `chrome-remote-interface` is an *optional* dependency used only for image generation. The **web client** (`src/client/`) is React 19 + Vite + Tailwind 4 + Zustand; build it once (`client:build`) before `npm start` serves a UI.
 
 Run order matters: `data/index.json` must exist before the server serves anything useful — run `scan` first (or use `dev`). The server warns but starts without it.
 
@@ -35,7 +38,7 @@ Three layers with a strict **read/write split** (see `docs/01-architecture.md`):
 
 2. **State — `data/*.json` (gitignored).** `index.json` = full catalog (written by scan). `loadout.json` = `{ equipped: { id: {at,target} } }` (written by server on equip/unequip). These JSON files *are* the database — no DB, chosen for diff/backup/portability.
 
-3. **Web SPA + thin server.** `src/web/` is vanilla JS/CSS (no framework, no bundler) that fetches `/api/index` and renders the card collection / team formation / inventory. `src/server.mjs` is Node's built-in `http` only (no Express) exposing action endpoints. The SPA does all rendering; the server only performs *actions* (clone, equip, verify, generate, rescan).
+3. **Web SPA + thin server.** `src/client/` is a React 19 + Vite + Tailwind 4 + Zustand SPA ("BLACK-ORCHID 작전 콘솔" 테마, 디자인 토큰은 `src/client/src/index.css`). 4탭 IA: 덱(컬렉션) / 작전 준비(팀 편성 + 신호 링크 시너지, `lib/traits.ts`) / 인벤토리(장착 현황) / 포지(Design Forge). The server serves `src/client/dist` when it exists (fallback `src/web/`). `src/server.mjs` is Node's built-in `http` only (no Express) exposing action endpoints. The SPA does all rendering; the server only performs *actions* (clone, equip, verify, generate, rescan). **API contract: the server is the source of truth — `src/client/src/lib/api.ts` must match `server.mjs` routes/payloads** (e.g. unequip = `POST /api/equip {equip:false}`, sources = `/api/sources/add|remove`).
 
 ### Server endpoints (`src/server.mjs`)
 
