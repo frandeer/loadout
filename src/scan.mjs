@@ -3,7 +3,7 @@
 import { readdir, readFile, stat, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
-import { join, resolve, basename, relative, sep } from "node:path";
+import { join, resolve, basename, dirname, relative, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { loadRoots, expandHome } from "./sources.mjs";
@@ -591,7 +591,10 @@ async function scanCcMcp() {
       for (const [name, def] of Object.entries(mcp)) {
         items.push(mcpItem(name, def, { repo: "cc-config", owner: "unknown", path: basename(p), root: dirname(p), fromCc: true }));
       }
-    } catch {}
+    } catch (e) {
+      // 조용히 삼키면 mcp:0 같은 증상이 원인 없이 나타난다 — 최소한 경고는 남긴다.
+      console.warn(`⚠️  cc-config MCP 파싱 실패(건너뜀): ${p} — ${e.message}`);
+    }
   }
 }
 
