@@ -1,11 +1,16 @@
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useStore } from "../hooks/useStore";
+import { api } from "../lib/api";
+import { Icon } from "./Icon";
+import logoImg from "../assets/bolt-logo.png";
 import type { AppView } from "../App";
+import type { IconName } from "./Icon";
 
-const VIEW_TABS: { key: AppView; label: string; code: string }[] = [
-  { key: "deck", label: "덱", code: "01" },
-  { key: "ops", label: "작전 준비", code: "02" },
-  { key: "inventory", label: "인벤토리", code: "03" },
-  { key: "forge", label: "포지", code: "04" },
+const VIEW_TABS: { key: AppView; label: string; icon: IconName }[] = [
+  { key: "deck", label: "홈", icon: "home" },
+  { key: "ops", label: "작전 준비", icon: "team" },
+  { key: "inventory", label: "인벤토리", icon: "backpack" },
+  { key: "forge", label: "포지", icon: "wrench" },
 ];
 
 interface HeaderProps {
@@ -15,76 +20,154 @@ interface HeaderProps {
 }
 
 export function Header({ view, onSetView, onOpenSources }: HeaderProps) {
-  const { meta, lang, setLang, items } = useStore();
-  const equippedCount = items.filter((i) => i.equipped).length;
+  const { filters, setFilter, setTheme, theme } = useStore();
+  const reloadData = useStore((s) => s.reloadData);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const [rescanning, setRescanning] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const handleRescan = useCallback(async () => {
+    setRescanning(true);
+    try {
+      await api.rescan();
+      await reloadData();
+    } finally {
+      setRescanning(false);
+    }
+  }, [reloadData]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+      if (e.key === "Escape") setSettingsOpen(false);
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClickOutside);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onClickOutside);
+    };
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-void/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1800px] items-stretch gap-6 px-5">
-        {/* 마크 */}
-        <div className="flex items-center gap-3 py-3">
-          <div className="hud-frame flex h-9 w-9 items-center justify-center bg-panel2 font-mono text-sm font-semibold text-signal" style={{ "--hud-c": "var(--color-signal-dim)" } as React.CSSProperties}>
-            L
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-bold tracking-[0.18em] text-ink">LOADOUT</div>
-            <div className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-              black-orchid console
-            </div>
-          </div>
+    <header className="sticky top-0 z-50 border-b border-hairline bg-canvas/90 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1800px] items-center gap-4 px-5 h-14">
+        {/* 로고 */}
+        <div className="flex items-center gap-2 shrink-0">
+          <img src={logoImg} alt="LOADOUT Logo" className="h-8 w-8 object-contain" />
+          <span className="text-base font-black tracking-wide text-ink" style={{ fontFamily: "var(--font-display)" }}>
+            LOADOUT
+          </span>
         </div>
 
-        {/* 뷰 탭 */}
-        <nav className="flex flex-1 items-stretch gap-1">
+        {/* 글로벌 검색 */}
+        <div className="relative flex-1 max-w-xs">
+          <Icon name="search" size="sm" className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+          <input
+            ref={searchRef}
+            type="search"
+            placeholder="에셋, 스킬, MCP 검색..."
+            value={filters.q}
+            onChange={(e) => setFilter("q", e.target.value)}
+            className="h-9 w-full rounded-[10px] bg-surface-soft pl-9 pr-12 text-sm text-ink placeholder:text-muted-soft focus:bg-canvas focus:ring-2 focus:ring-primary/10 focus:outline-none transition-colors"
+          />
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-hairline bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-muted-soft">
+            ⌘K
+          </kbd>
+        </div>
+
+        {/* 메인 탭 */}
+        <nav className="flex items-center">
           {VIEW_TABS.map((t) => {
             const active = view === t.key;
             return (
               <button
                 key={t.key}
                 onClick={() => onSetView(t.key)}
-                className={`relative flex items-center gap-2 px-4 text-sm transition ${
-                  active ? "text-signal" : "text-ink-dim hover:text-ink"
+                className={`relative flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
+                  active
+                    ? "bg-primary-soft text-primary"
+                    : "text-muted hover:text-ink hover:bg-surface-soft"
                 }`}
               >
-                <span className="font-mono text-[10px] text-ink-faint">{t.code}</span>
-                <span className={active ? "font-semibold" : "font-medium"}>{t.label}</span>
-                {active && (
-                  <span className="absolute inset-x-3 bottom-0 h-0.5 bg-signal shadow-[0_0_8px_rgba(61,245,165,0.6)]" />
-                )}
+                <Icon name={t.icon} size="sm" />
+                {t.label}
               </button>
             );
           })}
         </nav>
 
-        {/* 상태 + 유틸 */}
-        <div className="flex items-center gap-4 py-3">
-          <div className="hidden items-center gap-4 font-mono text-[11px] text-ink-dim md:flex">
-            <span>
-              <span className="text-ink-faint">자산 </span>
-              <span className="text-ink">{meta ? meta.total.toLocaleString() : "—"}</span>
-            </span>
-            <span>
-              <span className="text-ink-faint">투입 </span>
-              <span className="text-signal">{equippedCount}</span>
-            </span>
-            <span className="flex items-center gap-1.5 text-signal-dim">
-              <span className="blink inline-block h-1.5 w-1.5 rounded-full bg-signal" />
-              ONLINE
-            </span>
-          </div>
+        {/* 유틸리티 액션 */}
+        <div className="flex items-center gap-2 ml-auto shrink-0">
           <button
             onClick={onOpenSources}
-            className="hud-frame bg-panel2 px-3 py-1.5 text-xs text-ink-dim transition hover:text-ink"
+            className="flex items-center gap-1.5 rounded-lg bg-surface-soft px-3 py-2 text-xs font-semibold text-body hover:bg-hairline transition-colors"
           >
-            소스 관리
+            <Icon name="add" size="sm" /> 새로 추가
           </button>
           <button
-            onClick={() => setLang(lang === "ko" ? "en" : "ko")}
-            className="font-mono text-[11px] text-ink-faint transition hover:text-ink"
-            title="표시 언어 전환"
+            onClick={handleRescan}
+            disabled={rescanning}
+            className="flex items-center gap-1.5 rounded-lg bg-surface-soft px-3 py-2 text-xs font-semibold text-body hover:bg-hairline transition-colors disabled:opacity-50"
           >
-            {lang === "ko" ? "KO" : "EN"}
+            <Icon name="sync" size="sm" className={rescanning ? "animate-spin" : ""} />
+            {rescanning ? "스캔 중..." : "가져오기"}
           </button>
+
+          {/* 설정 */}
+          <div className="relative" ref={settingsRef}>
+            <button
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-soft transition-colors"
+              title="설정"
+            >
+              <Icon name="settings" size="md" />
+            </button>
+            {settingsOpen && (
+              <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-hairline bg-canvas py-1.5 shadow-lg z-50">
+                <button
+                  onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); setSettingsOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
+                >
+                  <Icon name="settings" size="sm" />
+                  {theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
+                </button>
+                <button
+                  onClick={() => { handleRescan(); setSettingsOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
+                >
+                  <Icon name="sync" size="sm" /> 전체 재스캔
+                </button>
+                <button
+                  onClick={() => { onOpenSources(); setSettingsOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
+                >
+                  <Icon name="folder" size="sm" /> 소스 관리
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-soft transition-colors"
+            title="알림"
+          >
+            <Icon name="notification-bell" size="md" />
+          </button>
+
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft">
+            <Icon name="user" size="sm" />
+          </div>
         </div>
       </div>
     </header>

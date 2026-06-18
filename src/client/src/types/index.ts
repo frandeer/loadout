@@ -51,6 +51,7 @@ export interface Item {
   cost?: number;        // 컨텍스트 토큰 비용 추정 (~20000 캡) — 마나 게이지
   risks?: string[];     // "network" | "shell" | "creds" — 위험 신호
   uses?: number;        // 세션 로그 집계 사용 횟수 — 경험치(LV/XP)
+  translated?: boolean;
 }
 
 export interface IndexData {
@@ -125,13 +126,13 @@ export interface FilterState {
   favOnly: boolean;
 }
 
-// BLACK-ORCHID 등급 팔레트 — index.css 토큰과 톤 동기 유지.
-export const RARITY_CONFIG: Record<Rarity, { ko: string; color: string }> = {
-  legendary: { ko: "S-CLASS", color: "#e8b84b" },
-  epic: { ko: "A-CLASS", color: "#b88cf5" },
-  rare: { ko: "B-CLASS", color: "#5ec8e8" },
-  uncommon: { ko: "C-CLASS", color: "#58d68b" },
-  common: { ko: "D-CLASS", color: "#7e948b" },
+// White SaaS 등급 팔레트 — index.css 토큰과 톤 동기 유지.
+export const RARITY_CONFIG: Record<Rarity, { ko: string; color: string; bg: string }> = {
+  legendary: { ko: "S-Class", color: "#F59E0B", bg: "#FFF7ED" },
+  epic:      { ko: "A-Class", color: "#8B5CF6", bg: "#F5F3FF" },
+  rare:      { ko: "B-Class", color: "#3B82F6", bg: "#EFF6FF" },
+  uncommon:  { ko: "C-Class", color: "#64748B", bg: "#F1F5F9" },
+  common:    { ko: "D-Class", color: "#94A3B8", bg: "#F8FAFC" },
 };
 
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [

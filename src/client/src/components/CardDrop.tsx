@@ -3,12 +3,10 @@ import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG } from "../types";
 import type { DropResp, Kind } from "../types";
 import { api } from "../lib/api";
+import { Icon } from "./Icon";
 
-const KIND_LABEL: Record<Kind, string> = { skill: "스킬", agent: "요원", mcp: "장비", memory: "기억" };
+const KIND_LABEL: Record<Kind, string> = { skill: "스킬", agent: "에이전트", mcp: "장비", memory: "메모리" };
 
-/* 카드 드랍 — Hermes식 스킬 자동 생성을 "전투 보상" 메타포로.
-   POST /api/drop {engine?} → 신규 카드. 성공 시 풀스크린 획득 연출,
-   닫으면 인덱스 재조회 + 해당 카드 하이라이트(DetailPanel). */
 export function CardDrop() {
   const { engines, reloadData, setSelected, items } = useStore();
   const [engine, setEngine] = useState(engines[0] ?? "heuristic");
@@ -24,7 +22,7 @@ export function CardDrop() {
     try {
       const resp = await api.drop(engine);
       if (resp.ok && resp.card) {
-        await reloadData(); // 새 카드를 덱에 반영
+        await reloadData();
         setNote(resp.note);
         setDropped(resp.card);
       } else {
@@ -41,10 +39,9 @@ export function CardDrop() {
     const id = dropped?.id;
     setDropped(null);
     setNote(undefined);
-    if (id) setSelected(id); // 덱에서 해당 카드 하이라이트
+    if (id) setSelected(id);
   };
 
-  // 새 카드의 전체 데이터(등급 등)는 재조회 후 store에서 조회.
   const full = dropped ? items.find((i) => i.id === dropped.id) : undefined;
   const r = full ? RARITY_CONFIG[full.rarity] : RARITY_CONFIG.legendary;
 
@@ -54,7 +51,7 @@ export function CardDrop() {
         value={engine}
         onChange={(e) => setEngine(e.target.value)}
         aria-label="드랍 엔진"
-        className="h-8 border border-line bg-panel2 px-2 font-mono text-[11px] text-ink-dim focus:border-signal-dim focus:outline-none"
+        className="h-8 rounded-lg border border-hairline bg-canvas px-2 font-mono text-[11px] text-body focus:border-primary focus:outline-none"
       >
         {engines.map((e) => (
           <option key={e} value={e}>{e}</option>
@@ -63,40 +60,43 @@ export function CardDrop() {
       <button
         onClick={runDrop}
         disabled={dropping}
-        className="hud-frame bg-gold/10 px-4 py-2 font-mono text-xs font-semibold text-gold transition hover:bg-gold/20 disabled:opacity-50"
-        style={{ "--hud-c": "var(--color-gold)" } as React.CSSProperties}
+        className="flex items-center gap-1.5 rounded-lg bg-accent-orange-soft px-4 py-2 text-xs font-bold text-accent-orange transition hover:bg-accent-orange/20 disabled:opacity-50"
         title="최근 세션의 해결 패턴을 스킬 카드로 추출합니다"
       >
-        {dropping ? "전투 보상 분석 중…" : "카드 드랍"}
+        <Icon name="lightning" size="xs" /> {dropping ? "분석 중…" : "카드 드랍"}
       </button>
-      {error && <span className="font-mono text-[11px] text-danger">{error}</span>}
+      {error && <span className="text-[11px] text-accent-rose">{error}</span>}
 
       {dropped && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={closeReveal}
           data-testid="card-drop-reveal"
         >
           <div
-            className="card-drop drop-glow hud-frame relative w-full max-w-sm border bg-panel p-6 text-center"
-            style={{ "--hud-c": r.color, "--drop-glow": `${r.color}66`, borderColor: r.color } as React.CSSProperties}
+            className="reveal relative w-full max-w-sm rounded-2xl border-2 bg-canvas p-6 text-center shadow-md"
+            style={{ borderColor: r.color }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">신규 카드 획득!</div>
-            <div className="mt-1 font-mono text-[10px] uppercase tracking-widest" style={{ color: r.color }}>
-              {r.ko} · {KIND_LABEL[dropped.kind]}
+            <div className="flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide text-accent-orange">
+              <Icon name="trophy" size="sm" /> 신규 카드 획득!
+            </div>
+            <div className="mt-1">
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white" style={{ backgroundColor: r.color }}>
+                {r.ko}
+              </span>
+              <span className="ml-2 text-xs text-muted">{KIND_LABEL[dropped.kind]}</span>
             </div>
             <div className="mt-4 text-xl font-bold text-ink">{full?.displayName || dropped.name}</div>
             {full?.description && (
-              <p className="mt-2 line-clamp-2 text-sm text-ink-dim">{full.description}</p>
+              <p className="mt-2 line-clamp-2 text-sm text-muted">{full.description}</p>
             )}
             {note && (
-              <p className="mt-3 border-t border-line pt-3 font-mono text-[10px] text-ink-faint">{note}</p>
+              <p className="mt-3 border-t border-hairline pt-3 text-[10px] text-muted-soft">{note}</p>
             )}
             <button
               onClick={closeReveal}
-              className="hud-frame mt-5 bg-signal/10 px-6 py-2 text-sm font-semibold text-signal transition hover:bg-signal/20"
-              style={{ "--hud-c": "var(--color-signal-dim)" } as React.CSSProperties}
+              className="mt-5 rounded-lg bg-primary px-6 py-2.5 text-sm font-bold text-white transition hover:bg-primary-active"
             >
               덱에 보관
             </button>

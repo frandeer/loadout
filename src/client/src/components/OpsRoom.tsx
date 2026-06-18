@@ -9,13 +9,14 @@ import { ManaGauge } from "./ManaGauge";
 import { TeamEvalPanel } from "./TeamEvalPanel";
 import { TeamAbPanel } from "./TeamAbPanel";
 import { Modal } from "./Modal";
+import { Icon } from "./Icon";
 import type { TeamExportOmcResp } from "../types";
 
 /* 작전 준비실 — BLACK-ORCHID 목업의 구현.
    5개 역할 슬롯에 자산을 배치하면 신호 링크(시너지)가 단계별 발동하고,
    팀 전투력이 실시간 갱신된다. 팀은 프리셋으로 저장/전환. */
 export function OpsRoom() {
-  const { items, slots, presets, assignSlot, savePreset, loadPreset, removePreset, lang, reloadData, setSelected, engines } = useStore();
+  const { items, slots, presets, assignSlot, savePreset, loadPreset, removePreset, reloadData, setSelected, engines } = useStore();
   const [pickingRole, setPickingRole] = useState<string | null>(null);
   const [teamName, setTeamName] = useState("");
   const [deploying, setDeploying] = useState(false);
@@ -36,7 +37,7 @@ export function OpsRoom() {
   const cost = teamCost(members);
   const activeLinks = links.filter((l) => l.tier > 0);
 
-  const displayName = (i: Item) => (lang === "ko" && i.nameKo ? i.nameKo : i.displayName);
+  const displayName = (i: Item) => i.displayName;
 
   // OMC 팀 export — 현재 편성 + 발동 링크를 마크다운으로 클립보드 복사.
   const exportTeam = async () => {
@@ -147,24 +148,24 @@ export function OpsRoom() {
       {/* 작전 헤더 */}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-signal-dim">
-            black-orchid / 작전 준비
+          <div className="text-xs font-bold uppercase tracking-wide text-muted">
+            작전 준비
           </div>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">기밀 작전 자산</h2>
-          <p className="mt-1 text-sm text-ink-dim">
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">팀 편성</h2>
+          <p className="mt-1 text-sm text-muted">
             자산을 역할 슬롯에 배치하면 신호 링크가 연결되고 팀 전투력이 갱신됩니다.
           </p>
         </div>
         <div className="flex items-center gap-6">
           <Metric label="편성 인원" value={`${members.length}/${ROLES.length}`} />
           <Metric label="발동 링크" value={`${activeLinks.length}`} accent />
-          <div className="hud-frame bg-panel2 px-5 py-2.5" style={{ "--hud-c": "var(--color-gold)" } as React.CSSProperties}>
+          <div className="rounded-xl border border-hairline bg-canvas px-5 py-2.5">
             <div className="text-right">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">Team Power</div>
-              <div className="font-mono text-2xl font-semibold text-gold">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-muted">Team Power</div>
+              <div className="font-mono text-2xl font-semibold text-accent-orange">
                 {power.total.toLocaleString()}
                 {power.bonus > 0 && (
-                  <span className="ml-1.5 text-xs text-signal">+{power.bonus}</span>
+                  <span className="ml-1.5 text-xs text-accent-emerald">+{power.bonus}</span>
                 )}
               </div>
             </div>
@@ -187,19 +188,18 @@ export function OpsRoom() {
                 <div
                   key={role.key}
                   onClick={() => setPickingRole(pickingRole === role.key ? null : role.key)}
-                  className={`hud-frame cursor-pointer border bg-panel p-3 transition hover:border-ink-faint ${
-                    pickingRole === role.key ? "border-signal-dim" : "border-line"
+                  className={`cursor-pointer rounded-xl border bg-canvas p-3 transition hover:border-hairline-strong ${
+                    pickingRole === role.key ? "border-primary ring-2 ring-primary/10" : "border-hairline"
                   }`}
-                  style={item ? ({ "--hud-c": r!.color } as React.CSSProperties) : undefined}
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="bg-panel3 px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-signal-dim">
+                    <span className="rounded-md bg-primary-soft px-1.5 py-0.5 text-[10px] font-bold text-primary">
                       {role.label}
                     </span>
                     {item && (
                       <button
                         onClick={(e) => { e.stopPropagation(); assignSlot(role.key, null); }}
-                        className="font-mono text-[10px] text-ink-faint hover:text-danger"
+                        className="text-[10px] text-muted hover:text-accent-rose"
                         title="슬롯 비우기"
                       >
                         해제
@@ -212,13 +212,13 @@ export function OpsRoom() {
                         {displayName(item)}
                       </div>
                       <div className="mt-1 flex items-center gap-1.5">
-                        <span className="font-mono text-[9px]" style={{ color: r!.color }}>{r!.ko}</span>
-                        <span className="font-mono text-[9px] text-ink-faint">{item.score}pt</span>
-                        {!item.equipped && <span className="font-mono text-[9px] text-danger">미투입</span>}
+                        <span className="text-[9px] font-bold" style={{ color: r!.color }}>{r!.ko}</span>
+                        <span className="font-mono text-[9px] text-muted-soft">{item.score}pt</span>
+                        {!item.equipped && <span className="text-[9px] text-accent-rose">미장착</span>}
                       </div>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {traitsOf(item).slice(0, 3).map((t) => (
-                          <span key={t.key} className="border border-line px-1 py-px font-mono text-[9px] text-ink-dim">
+                          <span key={t.key} className="rounded-full bg-surface-soft px-1.5 py-px text-[9px] text-muted">
                             {t.label}
                           </span>
                         ))}
@@ -226,8 +226,8 @@ export function OpsRoom() {
                     </>
                   ) : (
                     <div className="py-2">
-                      <div className="text-sm font-medium text-ink-faint">빈 슬롯</div>
-                      <div className="mt-0.5 text-[11px] text-ink-faint">{role.desc} — 클릭해 배치</div>
+                      <div className="text-sm font-medium text-muted">빈 슬롯</div>
+                      <div className="mt-0.5 text-[11px] text-muted-soft">{role.desc} — 클릭해 배치</div>
                     </div>
                   )}
                 </div>
@@ -244,17 +244,17 @@ export function OpsRoom() {
             />
           )}
 
-          {/* 커버리지 매트릭스: 핵심 작전 영역 결핍 경고 */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 border border-line bg-panel/60 px-3 py-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">커버리지</span>
+          {/* 커버리지 매트릭스 */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-hairline bg-surface-soft px-3 py-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted">커버리지</span>
             {CORE_KEYS.map((key) => {
               const trait = TRAITS.find((t) => t.key === key)!;
               const ok = coveredKeys.has(key);
               return (
                 <span
                   key={key}
-                  className={`border px-2 py-0.5 font-mono text-[10px] ${
-                    ok ? "border-signal-dim/50 bg-signal/5 text-signal" : "border-danger/30 text-danger/70"
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    ok ? "bg-surface-success text-accent-emerald" : "bg-accent-rose/10 text-accent-rose"
                   }`}
                   title={ok ? "팀이 이 영역을 커버합니다" : "이 영역을 커버하는 자산이 없습니다"}
                 >
@@ -269,59 +269,58 @@ export function OpsRoom() {
             <button
               onClick={deploy}
               disabled={!members.length || deploying}
-              className="hud-frame bg-signal/10 px-6 py-2.5 text-sm font-semibold text-signal transition hover:bg-signal/20 disabled:opacity-40"
-              style={{ "--hud-c": "var(--color-signal-dim)" } as React.CSSProperties}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-6 py-2.5 text-sm font-bold text-white transition hover:bg-primary-active disabled:opacity-40"
             >
+              <Icon name="rocket" size="sm" className="text-white" />
               {deploying ? "투입 중..." : "팀 투입 — ~/.claude 일괄 장착"}
             </button>
             <button
               onClick={swapDeploy}
               onBlur={() => setSwapArmed(false)}
               disabled={!members.length || deploying}
-              className={`border px-4 py-2.5 text-sm font-medium transition disabled:opacity-40 ${
+              className={`rounded-lg border px-4 py-2.5 text-sm font-medium transition disabled:opacity-40 ${
                 swapArmed
-                  ? "border-danger/60 bg-danger/10 text-danger"
-                  : "border-line bg-panel2 text-ink-dim hover:text-ink"
+                  ? "border-accent-rose bg-accent-rose/10 text-accent-rose"
+                  : "border-hairline text-body hover:bg-surface-soft"
               }`}
               title="팀 외 장착 자산을 모두 철수하고 이 팀만 투입합니다"
             >
               {swapArmed ? "확인 — 팀 외 전원 철수 + 교체 투입" : "작전 전환"}
             </button>
-            {/* OMC EXPORT — 2모드: 마크다운 복사 / /team 설정 내보내기 */}
-            <div className="flex items-stretch">
+            <div className="flex items-stretch rounded-lg overflow-hidden">
               <button
                 onClick={exportTeam}
                 disabled={!members.length}
-                className="border border-gold/40 bg-gold/5 px-4 py-2.5 font-mono text-xs text-gold transition hover:bg-gold/15 disabled:opacity-40"
+                className="border border-accent-orange/40 bg-accent-orange-soft px-4 py-2.5 text-xs font-semibold text-accent-orange transition hover:bg-accent-orange/15 disabled:opacity-40"
                 title="현재 편성을 마크다운으로 클립보드에 복사"
               >
-                {exported ? "복사됨 ✓" : "마크다운 복사"}
+                <Icon name="clipboard" size="xs" /> {exported ? "복사됨 ✓" : "마크다운 복사"}
               </button>
               <button
                 onClick={exportConfig}
                 disabled={!members.length || cfgBusy}
-                className="border border-l-0 border-gold/40 bg-gold/5 px-4 py-2.5 font-mono text-xs text-gold transition hover:bg-gold/15 disabled:opacity-40"
+                className="border border-l-0 border-accent-orange/40 bg-accent-orange-soft px-4 py-2.5 text-xs font-semibold text-accent-orange transition hover:bg-accent-orange/15 disabled:opacity-40"
                 title="현재 편성을 저장하고 /team 파이프라인 설정 파일(omc.jsonc·team-command.md)로 내보냅니다"
               >
-                {cfgBusy ? "변환 중..." : "/team 설정 내보내기"}
+                <Icon name="external-link" size="xs" /> {cfgBusy ? "변환 중..." : "/team 설정 내보내기"}
               </button>
             </div>
-            {deployMsg && <span className="font-mono text-xs text-signal-dim">{deployMsg}</span>}
-            {cfgError && <span className="font-mono text-xs text-danger">{cfgError}</span>}
+            {deployMsg && <span className="text-xs font-medium text-accent-emerald">{deployMsg}</span>}
+            {cfgError && <span className="text-xs font-medium text-accent-rose">{cfgError}</span>}
 
             <div className="ml-auto flex items-center gap-2">
               <input
                 value={teamName}
                 onChange={(e) => setTeamName(e.target.value)}
                 placeholder="팀 이름 — 예: 강력한 코딩팀"
-                className="h-9 w-52 border border-line bg-panel2 px-3 text-sm text-ink placeholder:text-ink-faint focus:border-signal-dim focus:outline-none"
+                className="h-9 w-52 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink placeholder:text-muted-soft focus:border-primary focus:outline-none"
               />
               <button
                 onClick={() => { if (teamName.trim()) { savePreset(teamName.trim()); setTeamName(""); } }}
                 disabled={!teamName.trim() || !members.length}
-                className="border border-line bg-panel2 px-4 py-2 text-sm text-ink-dim transition hover:text-ink disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-body transition hover:bg-surface-soft disabled:opacity-40"
               >
-                작전 저장
+                <Icon name="save" size="sm" /> 작전 저장
               </button>
             </div>
           </div>
@@ -329,27 +328,27 @@ export function OpsRoom() {
           {/* 팀 프리셋 */}
           {Object.keys(presets).length > 0 && (
             <div className="mt-5">
-              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">저장된 작전</h3>
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">저장된 작전</h3>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(presets).sort((a, b) => b[1].at - a[1].at).map(([id, p]) => {
                   const pm = Object.values(p.slots).filter(Boolean).map((mid) => byId.get(mid!)).filter(Boolean) as Item[];
                   const pp = teamPower(pm);
                   return (
-                    <div key={id} className="hud-frame group flex items-center gap-3 border border-line bg-panel px-3 py-2">
+                    <div key={id} className="group flex items-center gap-3 rounded-lg border border-hairline bg-canvas px-3 py-2 transition hover:border-primary">
                       <button onClick={() => loadPreset(id)} className="text-left" title="이 팀 불러오기">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-semibold text-ink group-hover:text-signal">{p.name}</span>
+                          <span className="text-sm font-semibold text-ink group-hover:text-primary">{p.name}</span>
                           {typeof p.elo === "number" && (
-                            <span className="border border-gold/40 bg-gold/5 px-1 py-px font-mono text-[9px] text-gold" title="A/B 대전 누적 Elo">
+                            <span className="rounded-full bg-accent-orange-soft px-1.5 py-px text-[9px] font-semibold text-accent-orange" title="A/B 대전 누적 Elo">
                               Elo {p.elo}
                             </span>
                           )}
                         </div>
-                        <div className="font-mono text-[10px] text-ink-faint">
+                        <div className="text-[10px] text-muted">
                           {pm.length}명 · {pp.total.toLocaleString()}pt
                         </div>
                       </button>
-                      <button onClick={() => removePreset(id)} className="font-mono text-[10px] text-ink-faint hover:text-danger" title="삭제">
+                      <button onClick={() => removePreset(id)} className="text-[10px] text-muted hover:text-accent-rose" title="삭제">
                         ✕
                       </button>
                     </div>
@@ -369,14 +368,16 @@ export function OpsRoom() {
           <TeamAbPanel engines={engines} />
         </div>
 
-        {/* 신호 링크 트래커 (TFT 특성 패널) */}
-        <aside className="hud-frame h-fit border border-line bg-panel p-4" style={{ "--hud-c": "var(--color-signal-dim)" } as React.CSSProperties}>
+        {/* 신호 링크 트래커 */}
+        <aside className="h-fit rounded-xl border border-hairline bg-canvas p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">신호 링크</h3>
-            <span className="font-mono text-[10px] text-ink-faint">{activeLinks.length} ACTIVE</span>
+            <h3 className="flex items-center gap-1.5 text-sm font-bold text-primary">
+            <Icon name="linked-nodes" size="sm" /> 신호 링크
+          </h3>
+            <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-primary">{activeLinks.length} ACTIVE</span>
           </div>
           {links.length === 0 ? (
-            <p className="py-4 text-center text-xs text-ink-faint">
+            <p className="py-4 text-center text-xs text-muted">
               자산을 배치하면 링크 신호가 잡힙니다
             </p>
           ) : (
@@ -384,33 +385,32 @@ export function OpsRoom() {
               {links.map((l) => (
                 <div
                   key={l.trait.key}
-                  className={`border px-3 py-2 ${l.tier > 0 ? "link-active border-signal-dim bg-signal/5" : "border-line bg-panel2/50"}`}
+                  className={`rounded-lg border px-3 py-2 ${l.tier > 0 ? "border-primary/30 bg-primary-soft" : "border-hairline bg-surface-soft"}`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-semibold ${l.tier > 0 ? "text-signal" : "text-ink-dim"}`}>
+                    <span className={`text-sm font-semibold ${l.tier > 0 ? "text-primary" : "text-muted"}`}>
                       {l.trait.label}
                       {l.tier > 0 && (
-                        <span className="ml-1.5 font-mono text-[9px] text-gold">{LINK_GRADES[l.tier - 1]}</span>
+                        <span className="ml-1.5 text-[9px] font-bold text-accent-orange">{LINK_GRADES[l.tier - 1]}</span>
                       )}
                     </span>
-                    <span className="font-mono text-[11px] text-ink-faint">
+                    <span className="font-mono text-[11px] text-muted-soft">
                       {l.count}/{l.next ?? LINK_THRESHOLDS[LINK_THRESHOLDS.length - 1]}
                     </span>
                   </div>
-                  {/* 임계치 노치 게이지 */}
-                  <div className="mt-1.5 flex gap-px">
+                  <div className="mt-1.5 flex gap-0.5">
                     {Array.from({ length: LINK_THRESHOLDS[LINK_THRESHOLDS.length - 1] }, (_, i) => (
                       <div
                         key={i}
-                        className="h-1 flex-1"
+                        className="h-1.5 flex-1 rounded-full"
                         style={{
-                          backgroundColor: i < l.count ? "var(--color-signal)" : "var(--color-panel3)",
+                          backgroundColor: i < l.count ? "var(--color-primary)" : "var(--color-hairline)",
                           opacity: i < l.count ? (l.tier > 0 ? 1 : 0.5) : 1,
                         }}
                       />
                     ))}
                   </div>
-                  <div className="mt-1 text-[10px] leading-relaxed text-ink-dim">
+                  <div className="mt-1 text-[10px] leading-relaxed text-muted">
                     {l.tier > 0 ? l.trait.bonus[l.tier - 1] : `${l.next! - l.count}개 더 배치하면 발동`}
                   </div>
                 </div>
@@ -420,19 +420,19 @@ export function OpsRoom() {
         </aside>
       </div>
 
-      {/* /team 설정 내보내기 결과 — omc.jsonc / team-command.md 탭 코드 뷰 */}
+      {/* /team 설정 내보내기 결과 */}
       <Modal open={!!cfgResult} onClose={() => setCfgResult(null)} title="/team 설정 내보내기" wide>
         {cfgResult && (
           <div>
-            <div className="mb-3 flex items-center gap-1 border-b border-line">
+            <div className="mb-3 flex items-center gap-1 border-b border-hairline">
               {(["omc.jsonc", "team-command.md"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setCfgTab(tab)}
                   className={`-mb-px border-b-2 px-3 py-1.5 font-mono text-xs transition ${
                     cfgTab === tab
-                      ? "border-signal text-signal"
-                      : "border-transparent text-ink-dim hover:text-ink"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted hover:text-ink"
                   }`}
                 >
                   {tab}
@@ -440,16 +440,16 @@ export function OpsRoom() {
               ))}
               <button
                 onClick={copyCfgTab}
-                className="ml-auto border border-gold/40 bg-gold/5 px-3 py-1 font-mono text-[11px] text-gold transition hover:bg-gold/15"
+                className="ml-auto rounded-lg bg-primary-soft px-3 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/15"
               >
                 {cfgCopied ? "복사됨 ✓" : "복사"}
               </button>
             </div>
-            <pre className="max-h-[55vh] overflow-auto border border-line bg-void p-3 font-mono text-[11px] leading-relaxed text-ink-dim">
+            <pre className="max-h-[55vh] overflow-auto rounded-lg border border-hairline bg-surface-soft p-3 font-mono text-[11px] leading-relaxed text-body">
               {cfgResult.files[cfgTab]}
             </pre>
-            <div className="mt-2 font-mono text-[10px] text-ink-faint">
-              저장 경로: <span className="text-signal-dim">{cfgResult.dir}</span>
+            <div className="mt-2 text-[10px] text-muted">
+              저장 경로: <span className="font-mono text-primary">{cfgResult.dir}</span>
             </div>
           </div>
         )}
@@ -472,17 +472,17 @@ export function OpsRoom() {
       .slice(0, 30);
 
     return (
-      <div className="hud-frame mt-3 border border-signal-dim bg-panel p-3">
+      <div className="mt-3 rounded-xl border border-primary/30 bg-canvas p-3 shadow-sm">
         <div className="mb-2 flex items-center gap-3">
-          <span className="font-mono text-[11px] tracking-widest text-signal">{roleDef.label} 후보</span>
+          <span className="text-sm font-bold text-primary">{roleDef.label} 후보</span>
           <input
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="검색..."
-            className="h-7 flex-1 border border-line bg-panel2 px-2 text-xs text-ink placeholder:text-ink-faint focus:outline-none"
+            className="h-7 flex-1 rounded-lg border border-hairline bg-surface-soft px-2 text-xs text-ink placeholder:text-muted-soft focus:outline-none"
           />
-          <button onClick={onClose} className="font-mono text-xs text-ink-faint hover:text-ink">✕</button>
+          <button onClick={onClose} className="text-xs text-muted hover:text-ink"><Icon name="close" size="xs" /></button>
         </div>
         <div className="grid max-h-64 gap-1 overflow-y-auto md:grid-cols-2 xl:grid-cols-3">
           {candidates.map(({ item, fit }) => {
@@ -492,18 +492,18 @@ export function OpsRoom() {
                 key={item.id}
                 onClick={() => onPick(item.id)}
                 onDoubleClick={() => setSelected(item.id)}
-                className="flex items-center gap-2 border border-line bg-panel2/60 px-2.5 py-1.5 text-left transition hover:border-signal-dim"
+                className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-soft px-2.5 py-1.5 text-left transition hover:border-primary hover:bg-primary-soft"
               >
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: r.color }} />
                 <span className="flex-1 truncate text-xs text-ink">{displayName(item)}</span>
-                {fit > 0 && <span className="font-mono text-[9px] text-gold" title="역할 적성">적성 {fit}</span>}
-                {item.equipped && <span className="font-mono text-[9px] text-signal">투입중</span>}
-                <span className="font-mono text-[9px] text-ink-faint">{item.score}</span>
+                {fit > 0 && <span className="text-[9px] font-semibold text-accent-orange" title="역할 적성">적성 {fit}</span>}
+                {item.equipped && <span className="text-[9px] font-semibold text-accent-emerald">장착중</span>}
+                <span className="font-mono text-[9px] text-muted-soft">{item.score}</span>
               </button>
             );
           })}
           {candidates.length === 0 && (
-            <div className="col-span-full py-3 text-center text-xs text-ink-faint">후보 없음</div>
+            <div className="col-span-full py-3 text-center text-xs text-muted">후보 없음</div>
           )}
         </div>
       </div>
@@ -514,8 +514,8 @@ export function OpsRoom() {
 function Metric({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="text-right">
-      <div className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">{label}</div>
-      <div className={`font-mono text-xl font-semibold ${accent ? "text-signal" : "text-ink"}`}>{value}</div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-muted">{label}</div>
+      <div className={`font-mono text-xl font-semibold ${accent ? "text-primary" : "text-ink"}`}>{value}</div>
     </div>
   );
 }

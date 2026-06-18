@@ -438,6 +438,19 @@ function buildTranslatePrompt(items) {
   );
 }
 
+function buildContentTranslatePrompt(name, content) {
+  return (
+    `당신은 IT/소프트웨어 문서를 전문으로 번역하는 한국어 번역가입니다.\n` +
+    `다음은 '${name}' 카드의 상세 설명 문서(Markdown 형식)입니다. 이 문서를 자연스럽고 가독성 높은 한국어로 번역해 주세요.\n\n` +
+    `규칙:\n` +
+    `- 마크다운 형식(헤더, 코드 블록, 목록, 굵은 글씨 등)을 그대로 유지하세요.\n` +
+    `- 고유명사/기술 용어(Claude Code, git, react, npm, API 등)나 코드 조각, 명령어는 번역하지 말고 원문 그대로 두세요.\n` +
+    `- 자연스럽고 친숙한 한국어 경어체로 번역해 주세요.\n` +
+    `- 번역 결과만 출력하고, 다른 설명이나 메타 텍스트는 일체 생략하세요.\n\n` +
+    `문서 내용:\n${content}`
+  );
+}
+
 // 항목 배열을 번역. 큰 JSON 한 방 호출은 엔진 타임아웃에 걸리므로,
 // "항목당 1회 호출"(검증된 안정 경로)을 동시성 풀(CONC개)로 돌려 빠르고 견고하게 처리한다.
 // {ok, engine, translations:{id:{name,description}}, failed:number}
@@ -543,7 +556,7 @@ const server = createServer(async (req, res) => {
 
     // --- GET API ---
     if (req.method === "GET" && path === "/api/index") {
-      const idx = INDEX || (await loadIndex());
+      const idx = await loadIndex();
       // 독립적인 디스크 읽기 3개 — 병렬로(순차 await 제거).
       const [lo, cardImgs, tr] = await Promise.all([loadout(), cardImages(), loadTranslations()]);
       for (const it of idx.items) {
@@ -566,16 +579,19 @@ const server = createServer(async (req, res) => {
       const item = idx.items.find((i) => i.id === id);
       if (!item) return json(res, 404, { ok: false, error: "item 없음" });
       // MCP 는 실제 본문 파일이 없는 경우가 많음 → 정의(JSON)를 본문처럼 표시.
+      let content = "";
       if (item.kind === "mcp") {
         const def = item.meta?.def || item.source?.path || "";
-        const md = `# ${item.name}\n\n\`\`\`json\n${JSON.stringify(item.meta || {}, null, 2)}\n\`\`\``;
-        return json(res, 200, { ok: true, id, name: item.name, kind: "mcp", content: md, path: item.source?.path || null });
+        content = `# ${item.name}\n\n\`\`\`json\n${JSON.stringify(item.meta || {}, null, 2)}\n\`\`\``;
+      } else {
+        const file = resolveItemPath(item, loadRoots());
+        if (!file) return json(res, 404, { ok: false, error: "원본 파일을 찾을 수 없습니다.", path: item.source?.path || null });
+        content = await readFile(file, "utf8").catch(() => null);
+        if (content == null) return json(res, 500, { ok: false, error: "파일 읽기 실패" });
       }
-      const file = resolveItemPath(item, loadRoots());
-      if (!file) return json(res, 404, { ok: false, error: "원본 파일을 찾을 수 없습니다.", path: item.source?.path || null });
-      const content = await readFile(file, "utf8").catch(() => null);
-      if (content == null) return json(res, 500, { ok: false, error: "파일 읽기 실패" });
-      return json(res, 200, { ok: true, id, name: item.name, kind: item.kind, content, path: item.source?.path || null });
+      const tr = await loadTranslations();
+      const contentKo = tr[id]?.contentKo || null;
+      return json(res, 200, { ok: true, id, name: item.name, kind: item.kind, content, contentKo, path: item.source?.path || null });
     }
     if (req.method === "GET" && path === "/api/chrome/health") {
       try {
@@ -700,6 +716,59 @@ const server = createServer(async (req, res) => {
         if (t) { it.nameKo = t.name; it.descKo = t.description; it.translated = true; }
       }
       return json(res, 200, { ok: true, engine: r.engine, translations: r.translations, count: Object.keys(r.translations).length });
+    }
+
+    if (req.method === "POST" && path === "/api/translate-content") {
+      let b;
+      try { b = await body(req); }
+      catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      const id = b.id;
+      if (!id) return json(res, 400, { ok: false, error: "id가 필요합니다." });
+
+      const idx = INDEX || (await loadIndex());
+      const item = idx.items.find((i) => i.id === id);
+      if (!item) return json(res, 404, { ok: false, error: "항목을 찾을 수 없습니다." });
+
+      let content = "";
+      if (item.kind === "mcp") {
+        const def = item.meta?.def || item.source?.path || "";
+        content = `# ${item.name}\n\n\`\`\`json\n${JSON.stringify(item.meta || {}, null, 2)}\n\`\`\``;
+      } else {
+        const file = resolveItemPath(item, loadRoots());
+        if (!file) return json(res, 404, { ok: false, error: "원본 파일을 찾을 수 없습니다." });
+        content = await readFile(file, "utf8").catch(() => null);
+        if (content == null) return json(res, 500, { ok: false, error: "파일 읽기 실패" });
+      }
+
+      let engine = normEngine(b.engine === "heuristic" ? null : b.engine);
+      if (!(await checkEngineAvailable(engine))) {
+        const others = await availableEngines();
+        if (!others.length) return json(res, 400, { ok: false, error: "번역 가능한 AI 엔진이 설치되어 있지 않습니다." });
+        engine = others[0];
+      }
+
+      const prompt = buildContentTranslatePrompt(item.displayName || item.name, content);
+      const raw = await runEngine(engine, prompt, TRANSLATE_TIMEOUT);
+      if (!raw) return json(res, 500, { ok: false, error: `${engine}을 통한 본문 번역 실패(타임아웃 또는 엔진 오류)` });
+
+      const tr = await loadTranslations();
+      if (!tr[id]) {
+        tr[id] = {
+          name: item.nameKo || item.name,
+          description: item.descKo || item.description,
+          at: Date.now(),
+          engine,
+        };
+      }
+      tr[id].contentKo = raw.trim();
+      tr[id].at = Date.now();
+      tr[id].engine = engine;
+      await saveTranslations(tr);
+
+      // index.json item sync
+      item.translated = true;
+      
+      return json(res, 200, { ok: true, id, contentKo: tr[id].contentKo });
     }
 
     if (req.method === "POST" && path === "/api/sources/add") {
@@ -880,12 +949,86 @@ const server = createServer(async (req, res) => {
       try { b = await body(req); }
       catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
       if (!b.prompt?.trim()) return json(res, 400, { ok: false, error: "prompt 필드가 필요합니다." });
+
+      const outDir = join(mediaDir, "generated");
+      const requestedEngine = (b.imageEngine || "auto").toLowerCase();
+      let useImageFarm = requestedEngine === "image-farm";
+
+      if (requestedEngine === "auto" || requestedEngine === "chatgpt" || requestedEngine === "grok") {
+        try {
+          const controller = new AbortController();
+          const tId = setTimeout(() => controller.abort(), 600);
+          const farmCheck = await fetch("http://127.0.0.1:4180/api/health", { signal: controller.signal });
+          if (farmCheck.ok) {
+            useImageFarm = true;
+          }
+          clearTimeout(tId);
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      if (useImageFarm) {
+        try {
+          const farmRes = await fetch("http://127.0.0.1:4180/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: b.prompt,
+              count: b.expectedCount || 1,
+              outDir: outDir
+            })
+          });
+          if (!farmRes.ok) {
+            const errData = await farmRes.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${farmRes.status}`);
+          }
+          const farmData = await farmRes.json();
+          if (!farmData.ok || !farmData.images?.length) {
+            throw new Error(farmData.error || "응답 이미지 데이터가 비어 있습니다.");
+          }
+          
+          const images = farmData.images.map((img) => ({ url: `/media/generated/${img.filename}` }));
+          
+          if (b.itemId) {
+            const ext = (farmData.images[0].filename.split(".").pop() || "png").toLowerCase();
+            const name = `card-${imgSlug(b.itemId)}.${ext}`;
+            const destPath = join(outDir, name);
+            const genFilename = farmData.images[0].filename;
+            const genPath = join(outDir, genFilename);
+            
+            if (existsSync(genPath)) {
+              await rm(destPath, { force: true });
+              await rename(genPath, destPath);
+            } else {
+              // 이미지 다운로드 폴백
+              const imgUrl = `http://127.0.0.1:4180/generated/${genFilename}`;
+              const imgRes = await fetch(imgUrl);
+              if (!imgRes.ok) throw new Error(`이미지 다운로드 실패 (HTTP ${imgRes.status})`);
+              const buf = Buffer.from(await imgRes.arrayBuffer());
+              await rm(destPath, { force: true });
+              await writeFile(destPath, buf);
+            }
+            
+            const webPath = `/media/generated/${name}`;
+            images[0] = { url: webPath };
+            await setCardImage(b.itemId, webPath);
+          }
+          
+          return json(res, 200, { ok: true, engine: "image-farm", images });
+        } catch (e) {
+          if (requestedEngine === "image-farm") {
+            return json(res, 503, { ok: false, engine: "image-farm", error: "image-farm 생성 실패: " + e.message });
+          }
+          console.warn("image-farm 감지되었으나 요청 실패하여 내장 엔진 폴백 시도:", e.message);
+        }
+      }
+
       // 디스패처로 ChatGPT/Grok 선택 생성. 저장 경로(outDir)는 항상 media/generated 로 고정.
       let gen;
       try { ({ generate: gen } = await import("../skills/web-image-forge/lib/imagegen.js")); }
       catch (e) { return json(res, 503, { ok: false, error: "이미지 모듈 로드 실패(npm i chrome-remote-interface): " + e.message }); }
-      const engine = (b.imageEngine || "chatgpt").toLowerCase() === "grok" ? "grok" : "chatgpt";
-      const outDir = join(mediaDir, "generated");
+      const engine = requestedEngine === "grok" ? "grok" : "chatgpt";
       try {
         const files = await gen({ engine, prompt: b.prompt, count: b.expectedCount || 1, outDir });
         const images = files.map((f) => ({ url: `/media/generated/${f.filename}` }));

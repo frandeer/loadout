@@ -1,0 +1,961 @@
+{
+  "source": "loadout-icon-sprite.png",
+  "bg_mode": "light",
+  "grid": {
+    "cols": 14,
+    "rows": 14
+  },
+  "size": 128,
+  "icons": [
+    {
+      "name": "bolt-logo",
+      "row": 0,
+      "col": 0
+    },
+    {
+      "name": "home",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "name": "dashboard-grid",
+      "row": 0,
+      "col": 2
+    },
+    {
+      "name": "library-books",
+      "row": 0,
+      "col": 3
+    },
+    {
+      "name": "app-grid",
+      "row": 0,
+      "col": 4
+    },
+    {
+      "name": "list-bullets",
+      "row": 0,
+      "col": 5
+    },
+    {
+      "name": "menu",
+      "row": 0,
+      "col": 6
+    },
+    {
+      "name": "search",
+      "row": 0,
+      "col": 7
+    },
+    {
+      "name": "filter",
+      "row": 0,
+      "col": 8
+    },
+    {
+      "name": "sort",
+      "row": 0,
+      "col": 9
+    },
+    {
+      "name": "add",
+      "row": 0,
+      "col": 10
+    },
+    {
+      "name": "upload",
+      "row": 0,
+      "col": 11
+    },
+    {
+      "name": "download",
+      "row": 0,
+      "col": 12
+    },
+    {
+      "name": "refresh",
+      "row": 0,
+      "col": 13
+    },
+    {
+      "name": "sync",
+      "row": 1,
+      "col": 0
+    },
+    {
+      "name": "settings",
+      "row": 1,
+      "col": 1
+    },
+    {
+      "name": "gear-alt",
+      "row": 1,
+      "col": 2
+    },
+    {
+      "name": "notification-bell",
+      "row": 1,
+      "col": 3
+    },
+    {
+      "name": "user",
+      "row": 1,
+      "col": 4
+    },
+    {
+      "name": "team",
+      "row": 1,
+      "col": 5
+    },
+    {
+      "name": "arrow-left",
+      "row": 1,
+      "col": 6
+    },
+    {
+      "name": "arrow-right",
+      "row": 1,
+      "col": 7
+    },
+    {
+      "name": "arrow-up",
+      "row": 1,
+      "col": 8
+    },
+    {
+      "name": "arrow-down",
+      "row": 1,
+      "col": 9
+    },
+    {
+      "name": "chevron-down",
+      "row": 1,
+      "col": 10
+    },
+    {
+      "name": "chevron-right",
+      "row": 1,
+      "col": 11
+    },
+    {
+      "name": "close",
+      "row": 1,
+      "col": 12
+    },
+    {
+      "name": "kebab-vertical",
+      "row": 1,
+      "col": 13
+    },
+    {
+      "name": "bookmark",
+      "row": 2,
+      "col": 0
+    },
+    {
+      "name": "favorite-star",
+      "row": 2,
+      "col": 1
+    },
+    {
+      "name": "folder",
+      "row": 2,
+      "col": 2
+    },
+    {
+      "name": "file",
+      "row": 2,
+      "col": 3
+    },
+    {
+      "name": "file-alt",
+      "row": 2,
+      "col": 4
+    },
+    {
+      "name": "edit",
+      "row": 2,
+      "col": 5
+    },
+    {
+      "name": "file-s",
+      "row": 2,
+      "col": 6
+    },
+    {
+      "name": "file-a",
+      "row": 2,
+      "col": 7
+    },
+    {
+      "name": "file-b",
+      "row": 2,
+      "col": 8
+    },
+    {
+      "name": "file-c",
+      "row": 2,
+      "col": 9
+    },
+    {
+      "name": "document",
+      "row": 2,
+      "col": 10
+    },
+    {
+      "name": "duplicate",
+      "row": 2,
+      "col": 11
+    },
+    {
+      "name": "copy",
+      "row": 2,
+      "col": 12
+    },
+    {
+      "name": "cut",
+      "row": 2,
+      "col": 13
+    },
+    {
+      "name": "link",
+      "row": 3,
+      "col": 0
+    },
+    {
+      "name": "external-link",
+      "row": 3,
+      "col": 1
+    },
+    {
+      "name": "open-new",
+      "row": 3,
+      "col": 2
+    },
+    {
+      "name": "package",
+      "row": 3,
+      "col": 3
+    },
+    {
+      "name": "cube",
+      "row": 3,
+      "col": 4
+    },
+    {
+      "name": "layers",
+      "row": 3,
+      "col": 5
+    },
+    {
+      "name": "cards",
+      "row": 3,
+      "col": 6
+    },
+    {
+      "name": "id-card",
+      "row": 3,
+      "col": 7
+    },
+    {
+      "name": "toolbox",
+      "row": 3,
+      "col": 8
+    },
+    {
+      "name": "focus",
+      "row": 3,
+      "col": 9
+    },
+    {
+      "name": "selection",
+      "row": 3,
+      "col": 10
+    },
+    {
+      "name": "grid-2x2",
+      "row": 3,
+      "col": 11
+    },
+    {
+      "name": "table",
+      "row": 3,
+      "col": 12
+    },
+    {
+      "name": "rank-badge",
+      "row": 4,
+      "col": 0
+    },
+    {
+      "name": "agent-badge",
+      "row": 4,
+      "col": 1
+    },
+    {
+      "name": "dependency-nodes",
+      "row": 4,
+      "col": 2
+    },
+    {
+      "name": "memory-chip",
+      "row": 4,
+      "col": 3
+    },
+    {
+      "name": "wrench",
+      "row": 4,
+      "col": 4
+    },
+    {
+      "name": "database",
+      "row": 4,
+      "col": 5
+    },
+    {
+      "name": "server",
+      "row": 4,
+      "col": 6
+    },
+    {
+      "name": "cloud",
+      "row": 4,
+      "col": 7
+    },
+    {
+      "name": "browser-window",
+      "row": 4,
+      "col": 8
+    },
+    {
+      "name": "terminal",
+      "row": 4,
+      "col": 9
+    },
+    {
+      "name": "asset-animal",
+      "row": 4,
+      "col": 10
+    },
+    {
+      "name": "code-brackets",
+      "row": 4,
+      "col": 11
+    },
+    {
+      "name": "bookmark-ribbon",
+      "row": 4,
+      "col": 12
+    },
+    {
+      "name": "backpack",
+      "row": 5,
+      "col": 0
+    },
+    {
+      "name": "shield-hex",
+      "row": 5,
+      "col": 1
+    },
+    {
+      "name": "target",
+      "row": 5,
+      "col": 2
+    },
+    {
+      "name": "puzzle",
+      "row": 5,
+      "col": 3
+    },
+    {
+      "name": "tag",
+      "row": 5,
+      "col": 4
+    },
+    {
+      "name": "memory-card",
+      "row": 5,
+      "col": 5
+    },
+    {
+      "name": "layers-alt",
+      "row": 5,
+      "col": 6
+    },
+    {
+      "name": "add-slot",
+      "row": 5,
+      "col": 7
+    },
+    {
+      "name": "expand-corners",
+      "row": 5,
+      "col": 8
+    },
+    {
+      "name": "hierarchy",
+      "row": 5,
+      "col": 9
+    },
+    {
+      "name": "network",
+      "row": 5,
+      "col": 10
+    },
+    {
+      "name": "orbit",
+      "row": 5,
+      "col": 11
+    },
+    {
+      "name": "shirt",
+      "row": 6,
+      "col": 0
+    },
+    {
+      "name": "shirt-dashed",
+      "row": 6,
+      "col": 1
+    },
+    {
+      "name": "save",
+      "row": 6,
+      "col": 2
+    },
+    {
+      "name": "compare-scale",
+      "row": 6,
+      "col": 3
+    },
+    {
+      "name": "docs-duplicate",
+      "row": 6,
+      "col": 4
+    },
+    {
+      "name": "delete",
+      "row": 6,
+      "col": 5
+    },
+    {
+      "name": "clipboard",
+      "row": 6,
+      "col": 6
+    },
+    {
+      "name": "link-alt",
+      "row": 6,
+      "col": 7
+    },
+    {
+      "name": "external-link-alt",
+      "row": 6,
+      "col": 8
+    },
+    {
+      "name": "enter",
+      "row": 6,
+      "col": 9
+    },
+    {
+      "name": "rocket",
+      "row": 6,
+      "col": 10
+    },
+    {
+      "name": "play",
+      "row": 6,
+      "col": 11
+    },
+    {
+      "name": "pause",
+      "row": 6,
+      "col": 12
+    },
+    {
+      "name": "check",
+      "row": 7,
+      "col": 0
+    },
+    {
+      "name": "check-circle",
+      "row": 7,
+      "col": 1
+    },
+    {
+      "name": "error-alert",
+      "row": 7,
+      "col": 2
+    },
+    {
+      "name": "warning",
+      "row": 7,
+      "col": 3
+    },
+    {
+      "name": "info",
+      "row": 7,
+      "col": 4
+    },
+    {
+      "name": "help",
+      "row": 7,
+      "col": 5
+    },
+    {
+      "name": "chat",
+      "row": 7,
+      "col": 6
+    },
+    {
+      "name": "comment",
+      "row": 7,
+      "col": 7
+    },
+    {
+      "name": "mail",
+      "row": 7,
+      "col": 8
+    },
+    {
+      "name": "megaphone",
+      "row": 7,
+      "col": 9
+    },
+    {
+      "name": "flag",
+      "row": 7,
+      "col": 10
+    },
+    {
+      "name": "pin",
+      "row": 7,
+      "col": 11
+    },
+    {
+      "name": "pin-filled",
+      "row": 7,
+      "col": 12
+    },
+    {
+      "name": "eye",
+      "row": 7,
+      "col": 13
+    },
+    {
+      "name": "online-dot",
+      "row": 8,
+      "col": 0
+    },
+    {
+      "name": "offline-dot",
+      "row": 8,
+      "col": 1
+    },
+    {
+      "name": "connected",
+      "row": 8,
+      "col": 2
+    },
+    {
+      "name": "disconnected",
+      "row": 8,
+      "col": 3
+    },
+    {
+      "name": "success-circle",
+      "row": 8,
+      "col": 4
+    },
+    {
+      "name": "error-circle",
+      "row": 8,
+      "col": 5
+    },
+    {
+      "name": "pending-clock",
+      "row": 8,
+      "col": 6
+    },
+    {
+      "name": "loading",
+      "row": 8,
+      "col": 7
+    },
+    {
+      "name": "lock",
+      "row": 8,
+      "col": 8
+    },
+    {
+      "name": "unlock",
+      "row": 8,
+      "col": 9
+    },
+    {
+      "name": "shield",
+      "row": 8,
+      "col": 10
+    },
+    {
+      "name": "shield-check",
+      "row": 8,
+      "col": 11
+    },
+    {
+      "name": "trophy",
+      "row": 8,
+      "col": 12
+    },
+    {
+      "name": "lightning",
+      "row": 9,
+      "col": 0
+    },
+    {
+      "name": "crown",
+      "row": 9,
+      "col": 1
+    },
+    {
+      "name": "medal",
+      "row": 9,
+      "col": 2
+    },
+    {
+      "name": "ribbon-award",
+      "row": 9,
+      "col": 3
+    },
+    {
+      "name": "gem",
+      "row": 9,
+      "col": 4
+    },
+    {
+      "name": "gauge",
+      "row": 9,
+      "col": 5
+    },
+    {
+      "name": "line-chart",
+      "row": 9,
+      "col": 6
+    },
+    {
+      "name": "bar-chart",
+      "row": 9,
+      "col": 7
+    },
+    {
+      "name": "pie-chart",
+      "row": 9,
+      "col": 8
+    },
+    {
+      "name": "activity",
+      "row": 9,
+      "col": 9
+    },
+    {
+      "name": "list-dots",
+      "row": 9,
+      "col": 10
+    },
+    {
+      "name": "timeline",
+      "row": 9,
+      "col": 11
+    },
+    {
+      "name": "connector-line",
+      "row": 9,
+      "col": 12
+    },
+    {
+      "name": "history",
+      "row": 9,
+      "col": 13
+    },
+    {
+      "name": "share-nodes",
+      "row": 10,
+      "col": 0
+    },
+    {
+      "name": "linked-nodes",
+      "row": 10,
+      "col": 1
+    },
+    {
+      "name": "share-alt",
+      "row": 10,
+      "col": 2
+    },
+    {
+      "name": "workflow-nodes",
+      "row": 10,
+      "col": 3
+    },
+    {
+      "name": "tag-purple",
+      "row": 10,
+      "col": 4
+    },
+    {
+      "name": "tag-outline",
+      "row": 10,
+      "col": 5
+    },
+    {
+      "name": "note",
+      "row": 10,
+      "col": 6
+    },
+    {
+      "name": "document-list",
+      "row": 10,
+      "col": 7
+    },
+    {
+      "name": "layers-stack",
+      "row": 10,
+      "col": 8
+    },
+    {
+      "name": "clipboard-list",
+      "row": 10,
+      "col": 9
+    },
+    {
+      "name": "book",
+      "row": 10,
+      "col": 10
+    },
+    {
+      "name": "bug",
+      "row": 10,
+      "col": 11
+    },
+    {
+      "name": "flask",
+      "row": 10,
+      "col": 12
+    },
+    {
+      "name": "r10_c13",
+      "row": 10,
+      "col": 13
+    },
+    {
+      "name": "code",
+      "row": 11,
+      "col": 0
+    },
+    {
+      "name": "code-window",
+      "row": 11,
+      "col": 1
+    },
+    {
+      "name": "code-search",
+      "row": 11,
+      "col": 2
+    },
+    {
+      "name": "git-branch",
+      "row": 11,
+      "col": 3
+    },
+    {
+      "name": "code-shield",
+      "row": 11,
+      "col": 4
+    },
+    {
+      "name": "checklist",
+      "row": 11,
+      "col": 5
+    },
+    {
+      "name": "qa-badge",
+      "row": 11,
+      "col": 6
+    },
+    {
+      "name": "canary",
+      "row": 11,
+      "col": 7
+    },
+    {
+      "name": "launch-rocket",
+      "row": 11,
+      "col": 8
+    },
+    {
+      "name": "rocket-alt",
+      "row": 11,
+      "col": 9
+    },
+    {
+      "name": "web-globe",
+      "row": 11,
+      "col": 10
+    },
+    {
+      "name": "cookie",
+      "row": 11,
+      "col": 11
+    },
+    {
+      "name": "scraper",
+      "row": 11,
+      "col": 12
+    },
+    {
+      "name": "lighthouse",
+      "row": 11,
+      "col": 13
+    },
+    {
+      "name": "speedometer",
+      "row": 12,
+      "col": 0
+    },
+    {
+      "name": "health",
+      "row": 12,
+      "col": 1
+    },
+    {
+      "name": "waveform",
+      "row": 12,
+      "col": 2
+    },
+    {
+      "name": "api",
+      "row": 12,
+      "col": 3
+    },
+    {
+      "name": "plug",
+      "row": 12,
+      "col": 4
+    },
+    {
+      "name": "chain-link",
+      "row": 12,
+      "col": 5
+    },
+    {
+      "name": "puzzle-piece",
+      "row": 12,
+      "col": 6
+    },
+    {
+      "name": "key",
+      "row": 12,
+      "col": 7
+    },
+    {
+      "name": "database-key",
+      "row": 12,
+      "col": 8
+    },
+    {
+      "name": "shield-key",
+      "row": 12,
+      "col": 9
+    },
+    {
+      "name": "shield-x",
+      "row": 12,
+      "col": 10
+    },
+    {
+      "name": "chart-window",
+      "row": 12,
+      "col": 11
+    },
+    {
+      "name": "sitemap",
+      "row": 12,
+      "col": 12
+    },
+    {
+      "name": "stack",
+      "row": 12,
+      "col": 13
+    },
+    {
+      "name": "terminal-window",
+      "row": 13,
+      "col": 0
+    },
+    {
+      "name": "code-settings",
+      "row": 13,
+      "col": 1
+    },
+    {
+      "name": "processor",
+      "row": 13,
+      "col": 2
+    },
+    {
+      "name": "microchip",
+      "row": 13,
+      "col": 3
+    },
+    {
+      "name": "globe",
+      "row": 13,
+      "col": 4
+    },
+    {
+      "name": "monitor",
+      "row": 13,
+      "col": 5
+    },
+    {
+      "name": "mobile",
+      "row": 13,
+      "col": 6
+    },
+    {
+      "name": "tablet",
+      "row": 13,
+      "col": 7
+    },
+    {
+      "name": "command-prompt",
+      "row": 13,
+      "col": 8
+    },
+    {
+      "name": "docker",
+      "row": 13,
+      "col": 9
+    },
+    {
+      "name": "kubernetes",
+      "row": 13,
+      "col": 10
+    },
+    {
+      "name": "cloud-upload",
+      "row": 13,
+      "col": 11
+    },
+    {
+      "name": "cloud-download",
+      "row": 13,
+      "col": 12
+    },
+    {
+      "name": "wireless",
+      "row": 13,
+      "col": 13
+    }
+  ]
+}

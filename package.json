@@ -10,6 +10,7 @@
     "start": "node src/server.mjs",
     "dev": "node src/scan.mjs && node src/server.mjs",
     "cardart": "node src/cardart.mjs",
+    "icons:slice": "python tools/icon_slicer.py docs/icons/loadout-icon-sprite.png --out build/icons --cols 14 --rows 14 --size 128 --names tools/icon-names.json",
     "client:dev": "cd src/client && bun run dev",
     "client:build": "cd src/client && bun run build"
   },

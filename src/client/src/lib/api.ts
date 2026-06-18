@@ -43,7 +43,13 @@ export const api = {
     request<{ ok: boolean }>("/rescan", { method: "POST" }),
 
   getContent: (id: string) =>
-    request<{ content: string }>(`/content?id=${encodeURIComponent(id)}`),
+    request<{ content: string; contentKo?: string; path?: string }>(`/content?id=${encodeURIComponent(id)}`),
+
+  translateContent: (id: string, engine?: string) =>
+    request<{ ok: boolean; id: string; contentKo: string; error?: string }>("/translate-content", {
+      method: "POST",
+      body: JSON.stringify({ id, engine }),
+    }),
 
   // 배치 번역 — 응답은 { translations: { [id]: {name, description} } }.
   translate: (ids: string | string[], engine?: string) =>

@@ -61,6 +61,8 @@ interface AppState {
   removePreset: (id: string) => void;
 
   filtered: () => Item[];
+  panelWidth: number;
+  setPanelWidth: (w: number) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -114,6 +116,21 @@ export const useStore = create<AppState>((set, get) => ({
     localStorage.setItem("loadout-theme", t);
     document.documentElement.dataset.theme = t;
     set({ theme: t });
+  },
+
+  panelWidth: (() => {
+    try {
+      const saved = localStorage.getItem("loadout-panel-width");
+      return saved ? parseInt(saved, 10) : 400;
+    } catch {
+      return 400;
+    }
+  })(),
+  setPanelWidth: (w) => {
+    try {
+      localStorage.setItem("loadout-panel-width", w.toString());
+    } catch {}
+    set({ panelWidth: w });
   },
 
   loadData: async () => {

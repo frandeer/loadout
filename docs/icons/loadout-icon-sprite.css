@@ -1,0 +1,220 @@
+/* LOADOUT icon sprite
+   Sheet: ui_아이콘_라이브러리.png
+   Size: 1254x1254
+   Grid: 14x14
+   Usage: <i class="loi loi-search"></i>
+*/
+.loi {
+  --loi-col: 0;
+  --loi-row: 0;
+  --loi-size: 32px;
+
+  display: inline-block;
+  width: var(--loi-size);
+  height: var(--loi-size);
+  vertical-align: middle;
+  background-image: url("./ui_아이콘_라이브러리.png");
+  background-repeat: no-repeat;
+  background-size: 1400% 1400%;
+  background-position:
+    calc((var(--loi-col) * 100%) / 13)
+    calc((var(--loi-row) * 100%) / 13);
+}
+
+/* optional sizes */
+.loi-xs { --loi-size: 16px; }
+.loi-sm { --loi-size: 20px; }
+.loi-md { --loi-size: 24px; }
+.loi-lg { --loi-size: 32px; }
+.loi-xl { --loi-size: 40px; }
+.loi-tile { --loi-size: 64px; }
+
+.loi-bolt-logo { --loi-col: 0; --loi-row: 0; }
+.loi-home { --loi-col: 1; --loi-row: 0; }
+.loi-dashboard-grid { --loi-col: 2; --loi-row: 0; }
+.loi-library-books { --loi-col: 3; --loi-row: 0; }
+.loi-app-grid { --loi-col: 4; --loi-row: 0; }
+.loi-list-bullets { --loi-col: 5; --loi-row: 0; }
+.loi-menu { --loi-col: 6; --loi-row: 0; }
+.loi-search { --loi-col: 7; --loi-row: 0; }
+.loi-filter { --loi-col: 8; --loi-row: 0; }
+.loi-sort { --loi-col: 9; --loi-row: 0; }
+.loi-add { --loi-col: 10; --loi-row: 0; }
+.loi-upload { --loi-col: 11; --loi-row: 0; }
+.loi-download { --loi-col: 12; --loi-row: 0; }
+.loi-refresh { --loi-col: 13; --loi-row: 0; }
+.loi-sync { --loi-col: 0; --loi-row: 1; }
+.loi-settings { --loi-col: 1; --loi-row: 1; }
+.loi-gear-alt { --loi-col: 2; --loi-row: 1; }
+.loi-notification-bell { --loi-col: 3; --loi-row: 1; }
+.loi-user { --loi-col: 4; --loi-row: 1; }
+.loi-team { --loi-col: 5; --loi-row: 1; }
+.loi-arrow-left { --loi-col: 6; --loi-row: 1; }
+.loi-arrow-right { --loi-col: 7; --loi-row: 1; }
+.loi-arrow-up { --loi-col: 8; --loi-row: 1; }
+.loi-arrow-down { --loi-col: 9; --loi-row: 1; }
+.loi-chevron-down { --loi-col: 10; --loi-row: 1; }
+.loi-chevron-right { --loi-col: 11; --loi-row: 1; }
+.loi-close { --loi-col: 12; --loi-row: 1; }
+.loi-kebab-vertical { --loi-col: 13; --loi-row: 1; }
+.loi-bookmark { --loi-col: 0; --loi-row: 2; }
+.loi-favorite-star { --loi-col: 1; --loi-row: 2; }
+.loi-folder { --loi-col: 2; --loi-row: 2; }
+.loi-file { --loi-col: 3; --loi-row: 2; }
+.loi-file-alt { --loi-col: 4; --loi-row: 2; }
+.loi-edit { --loi-col: 5; --loi-row: 2; }
+.loi-file-s { --loi-col: 6; --loi-row: 2; }
+.loi-file-a { --loi-col: 7; --loi-row: 2; }
+.loi-file-b { --loi-col: 8; --loi-row: 2; }
+.loi-file-c { --loi-col: 9; --loi-row: 2; }
+.loi-document { --loi-col: 10; --loi-row: 2; }
+.loi-duplicate { --loi-col: 11; --loi-row: 2; }
+.loi-copy { --loi-col: 12; --loi-row: 2; }
+.loi-cut { --loi-col: 13; --loi-row: 2; }
+.loi-link { --loi-col: 0; --loi-row: 3; }
+.loi-external-link { --loi-col: 1; --loi-row: 3; }
+.loi-open-new { --loi-col: 2; --loi-row: 3; }
+.loi-package { --loi-col: 3; --loi-row: 3; }
+.loi-cube { --loi-col: 4; --loi-row: 3; }
+.loi-layers { --loi-col: 5; --loi-row: 3; }
+.loi-cards { --loi-col: 6; --loi-row: 3; }
+.loi-id-card { --loi-col: 7; --loi-row: 3; }
+.loi-toolbox { --loi-col: 8; --loi-row: 3; }
+.loi-focus { --loi-col: 9; --loi-row: 3; }
+.loi-selection { --loi-col: 10; --loi-row: 3; }
+.loi-grid-2x2 { --loi-col: 11; --loi-row: 3; }
+.loi-table { --loi-col: 12; --loi-row: 3; }
+.loi-rank-badge { --loi-col: 0; --loi-row: 4; }
+.loi-agent-badge { --loi-col: 1; --loi-row: 4; }
+.loi-dependency-nodes { --loi-col: 2; --loi-row: 4; }
+.loi-memory-chip { --loi-col: 3; --loi-row: 4; }
+.loi-wrench { --loi-col: 4; --loi-row: 4; }
+.loi-database { --loi-col: 5; --loi-row: 4; }
+.loi-server { --loi-col: 6; --loi-row: 4; }
+.loi-cloud { --loi-col: 7; --loi-row: 4; }
+.loi-browser-window { --loi-col: 8; --loi-row: 4; }
+.loi-terminal { --loi-col: 9; --loi-row: 4; }
+.loi-asset-animal { --loi-col: 10; --loi-row: 4; }
+.loi-code-brackets { --loi-col: 11; --loi-row: 4; }
+.loi-bookmark-ribbon { --loi-col: 12; --loi-row: 4; }
+.loi-backpack { --loi-col: 0; --loi-row: 5; }
+.loi-shield-hex { --loi-col: 1; --loi-row: 5; }
+.loi-target { --loi-col: 2; --loi-row: 5; }
+.loi-puzzle { --loi-col: 3; --loi-row: 5; }
+.loi-tag { --loi-col: 4; --loi-row: 5; }
+.loi-memory-card { --loi-col: 5; --loi-row: 5; }
+.loi-layers-alt { --loi-col: 6; --loi-row: 5; }
+.loi-add-slot { --loi-col: 7; --loi-row: 5; }
+.loi-expand-corners { --loi-col: 8; --loi-row: 5; }
+.loi-hierarchy { --loi-col: 9; --loi-row: 5; }
+.loi-network { --loi-col: 10; --loi-row: 5; }
+.loi-orbit { --loi-col: 11; --loi-row: 5; }
+.loi-shirt { --loi-col: 0; --loi-row: 6; }
+.loi-shirt-dashed { --loi-col: 1; --loi-row: 6; }
+.loi-save { --loi-col: 2; --loi-row: 6; }
+.loi-compare-scale { --loi-col: 3; --loi-row: 6; }
+.loi-docs-duplicate { --loi-col: 4; --loi-row: 6; }
+.loi-delete { --loi-col: 5; --loi-row: 6; }
+.loi-clipboard { --loi-col: 6; --loi-row: 6; }
+.loi-link-alt { --loi-col: 7; --loi-row: 6; }
+.loi-external-link-alt { --loi-col: 8; --loi-row: 6; }
+.loi-enter { --loi-col: 9; --loi-row: 6; }
+.loi-rocket { --loi-col: 10; --loi-row: 6; }
+.loi-play { --loi-col: 11; --loi-row: 6; }
+.loi-pause { --loi-col: 12; --loi-row: 6; }
+.loi-check { --loi-col: 0; --loi-row: 7; }
+.loi-check-circle { --loi-col: 1; --loi-row: 7; }
+.loi-error-alert { --loi-col: 2; --loi-row: 7; }
+.loi-warning { --loi-col: 3; --loi-row: 7; }
+.loi-info { --loi-col: 4; --loi-row: 7; }
+.loi-help { --loi-col: 5; --loi-row: 7; }
+.loi-chat { --loi-col: 6; --loi-row: 7; }
+.loi-comment { --loi-col: 7; --loi-row: 7; }
+.loi-mail { --loi-col: 8; --loi-row: 7; }
+.loi-megaphone { --loi-col: 9; --loi-row: 7; }
+.loi-flag { --loi-col: 10; --loi-row: 7; }
+.loi-pin { --loi-col: 11; --loi-row: 7; }
+.loi-pin-filled { --loi-col: 12; --loi-row: 7; }
+.loi-eye { --loi-col: 13; --loi-row: 7; }
+.loi-online-dot { --loi-col: 0; --loi-row: 8; }
+.loi-offline-dot { --loi-col: 1; --loi-row: 8; }
+.loi-connected { --loi-col: 2; --loi-row: 8; }
+.loi-disconnected { --loi-col: 3; --loi-row: 8; }
+.loi-success-circle { --loi-col: 4; --loi-row: 8; }
+.loi-error-circle { --loi-col: 5; --loi-row: 8; }
+.loi-pending-clock { --loi-col: 6; --loi-row: 8; }
+.loi-loading { --loi-col: 7; --loi-row: 8; }
+.loi-lock { --loi-col: 8; --loi-row: 8; }
+.loi-unlock { --loi-col: 9; --loi-row: 8; }
+.loi-shield { --loi-col: 10; --loi-row: 8; }
+.loi-shield-check { --loi-col: 11; --loi-row: 8; }
+.loi-trophy { --loi-col: 12; --loi-row: 8; }
+.loi-lightning { --loi-col: 0; --loi-row: 9; }
+.loi-crown { --loi-col: 1; --loi-row: 9; }
+.loi-medal { --loi-col: 2; --loi-row: 9; }
+.loi-ribbon-award { --loi-col: 3; --loi-row: 9; }
+.loi-gem { --loi-col: 4; --loi-row: 9; }
+.loi-gauge { --loi-col: 5; --loi-row: 9; }
+.loi-line-chart { --loi-col: 6; --loi-row: 9; }
+.loi-bar-chart { --loi-col: 7; --loi-row: 9; }
+.loi-pie-chart { --loi-col: 8; --loi-row: 9; }
+.loi-activity { --loi-col: 9; --loi-row: 9; }
+.loi-list-dots { --loi-col: 10; --loi-row: 9; }
+.loi-timeline { --loi-col: 11; --loi-row: 9; }
+.loi-connector-line { --loi-col: 12; --loi-row: 9; }
+.loi-history { --loi-col: 13; --loi-row: 9; }
+.loi-share-nodes { --loi-col: 0; --loi-row: 10; }
+.loi-linked-nodes { --loi-col: 1; --loi-row: 10; }
+.loi-share-alt { --loi-col: 2; --loi-row: 10; }
+.loi-workflow-nodes { --loi-col: 3; --loi-row: 10; }
+.loi-tag-purple { --loi-col: 4; --loi-row: 10; }
+.loi-tag-outline { --loi-col: 5; --loi-row: 10; }
+.loi-note { --loi-col: 6; --loi-row: 10; }
+.loi-document-list { --loi-col: 7; --loi-row: 10; }
+.loi-layers-stack { --loi-col: 8; --loi-row: 10; }
+.loi-clipboard-list { --loi-col: 9; --loi-row: 10; }
+.loi-book { --loi-col: 10; --loi-row: 10; }
+.loi-bug { --loi-col: 11; --loi-row: 10; }
+.loi-flask { --loi-col: 12; --loi-row: 10; }
+.loi-code { --loi-col: 0; --loi-row: 11; }
+.loi-code-window { --loi-col: 1; --loi-row: 11; }
+.loi-code-search { --loi-col: 2; --loi-row: 11; }
+.loi-git-branch { --loi-col: 3; --loi-row: 11; }
+.loi-code-shield { --loi-col: 4; --loi-row: 11; }
+.loi-checklist { --loi-col: 5; --loi-row: 11; }
+.loi-qa-badge { --loi-col: 6; --loi-row: 11; }
+.loi-canary { --loi-col: 7; --loi-row: 11; }
+.loi-launch-rocket { --loi-col: 8; --loi-row: 11; }
+.loi-rocket-alt { --loi-col: 9; --loi-row: 11; }
+.loi-web-globe { --loi-col: 10; --loi-row: 11; }
+.loi-cookie { --loi-col: 11; --loi-row: 11; }
+.loi-scraper { --loi-col: 12; --loi-row: 11; }
+.loi-lighthouse { --loi-col: 13; --loi-row: 11; }
+.loi-speedometer { --loi-col: 0; --loi-row: 12; }
+.loi-health { --loi-col: 1; --loi-row: 12; }
+.loi-waveform { --loi-col: 2; --loi-row: 12; }
+.loi-api { --loi-col: 3; --loi-row: 12; }
+.loi-plug { --loi-col: 4; --loi-row: 12; }
+.loi-chain-link { --loi-col: 5; --loi-row: 12; }
+.loi-puzzle-piece { --loi-col: 6; --loi-row: 12; }
+.loi-key { --loi-col: 7; --loi-row: 12; }
+.loi-database-key { --loi-col: 8; --loi-row: 12; }
+.loi-shield-key { --loi-col: 9; --loi-row: 12; }
+.loi-shield-x { --loi-col: 10; --loi-row: 12; }
+.loi-chart-window { --loi-col: 11; --loi-row: 12; }
+.loi-sitemap { --loi-col: 12; --loi-row: 12; }
+.loi-stack { --loi-col: 13; --loi-row: 12; }
+.loi-terminal-window { --loi-col: 0; --loi-row: 13; }
+.loi-code-settings { --loi-col: 1; --loi-row: 13; }
+.loi-processor { --loi-col: 2; --loi-row: 13; }
+.loi-microchip { --loi-col: 3; --loi-row: 13; }
+.loi-globe { --loi-col: 4; --loi-row: 13; }
+.loi-monitor { --loi-col: 5; --loi-row: 13; }
+.loi-mobile { --loi-col: 6; --loi-row: 13; }
+.loi-tablet { --loi-col: 7; --loi-row: 13; }
+.loi-command-prompt { --loi-col: 8; --loi-row: 13; }
+.loi-docker { --loi-col: 9; --loi-row: 13; }
+.loi-kubernetes { --loi-col: 10; --loi-row: 13; }
+.loi-cloud-upload { --loi-col: 11; --loi-row: 13; }
+.loi-cloud-download { --loi-col: 12; --loi-row: 13; }
+.loi-wireless { --loi-col: 13; --loi-row: 13; }

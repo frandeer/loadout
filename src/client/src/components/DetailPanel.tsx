@@ -1,24 +1,39 @@
-import { useEffect, useState } from "react";
-import { marked } from "marked";
+import { useEffect, useState, useRef } from "react";
 import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, isEquippable } from "../types";
 import { computeLevel, formatK } from "../lib/utils";
 import { traitsOf, neededTraitKeys, ROLES } from "../lib/traits";
 import type { Item } from "../types";
 import { api } from "../lib/api";
+import { Icon } from "./Icon";
+import { MarkdownView } from "./MarkdownView";
 
 interface DetailPanelProps {
-  /** overlay = 화면 우측 고정 오버레이(기존 동작·좁은 화면/타 탭). docked = 덱 마스터-디테일 우측 고정 컬럼. */
   variant?: "overlay" | "docked";
 }
 
 export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
-  const { items, selected, setSelected, favorites, toggleFavorite, lang, reloadData, slots } =
-    useStore();
+  const {
+    items,
+    selected,
+    setSelected,
+    favorites,
+    toggleFavorite,
+    lang,
+    reloadData,
+    slots,
+    panelWidth,
+    setPanelWidth,
+  } = useStore();
   const [content, setContent] = useState<string>("");
+  const [contentKo, setContentKo] = useState<string>("");
   const [loadingContent, setLoadingContent] = useState(false);
   const [equipping, setEquipping] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [translatingContent, setTranslatingContent] = useState(false);
+  const [activeTab, setActiveTab] = useState<"original" | "ko">("original");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
 
   const item = items.find((i) => i.id === selected);
 
@@ -33,28 +48,71 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   useEffect(() => {
     if (!item) return;
     setContent("");
+    setContentKo("");
+    setActiveTab("original");
     setLoadingContent(true);
     api
       .getContent(item.id)
-      .then((d) => setContent(d.content))
+      .then((d) => {
+        setContent(d.content);
+        if (d.contentKo) {
+          setContentKo(d.contentKo);
+          setActiveTab("ko");
+        }
+      })
       .catch(() => setContent(""))
       .finally(() => setLoadingContent(false));
   }, [item?.id]);
 
+  const currentWidthRef = useRef(panelWidth);
+
+  useEffect(() => {
+    currentWidthRef.current = panelWidth;
+    document.documentElement.style.setProperty('--panel-width', `${panelWidth}px`);
+  }, [panelWidth]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(320, Math.min(900, window.innerWidth - e.clientX));
+      currentWidthRef.current = newWidth;
+      document.documentElement.style.setProperty('--panel-width', `${newWidth}px`);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      setPanelWidth(currentWidthRef.current);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing, setPanelWidth]);
+
+  const startResizing = (mouseDownEvent: React.MouseEvent) => {
+    mouseDownEvent.preventDefault();
+    setIsResizing(true);
+  };
+
   const docked = variant === "docked";
 
-  // docked(덱 데스크톱)는 항상 영역을 확보 — 미선택 시 플레이스홀더.
   if (!item) {
     if (!docked) return null;
     return (
       <div
         data-testid="detail-placeholder"
-        className="hud-frame flex h-full min-h-[360px] flex-col items-center justify-center border border-line bg-panel/40 p-8 text-center"
-        style={{ "--hud-c": "var(--color-line)" } as React.CSSProperties}
+        className="flex h-full min-h-[360px] flex-col items-center justify-center rounded-2xl border border-hairline bg-canvas p-8 text-center"
       >
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">Intel</div>
-        <p className="mt-3 text-sm text-ink-dim">카드를 선택하세요</p>
-        <p className="mt-1 text-xs text-ink-faint">자산을 클릭하면 상세 인텔이 표시됩니다</p>
+        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-soft">
+          <Icon name="eye" size="xl" className="opacity-30" />
+        </div>
+        <p className="text-sm font-semibold text-ink">카드를 선택하세요</p>
+        <p className="mt-1 text-xs text-muted">자산을 클릭하면 상세 정보가 표시됩니다</p>
       </div>
     );
   }
@@ -62,11 +120,10 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const r = RARITY_CONFIG[item.rarity];
   const isFav = favorites.has(item.id);
   const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
-  const name = lang === "ko" && item.nameKo ? item.nameKo : item.displayName;
+  const name = item.displayName;
   const desc = lang === "ko" && item.descKo ? item.descKo : item.description;
   const traits = traitsOf(item);
   const equippable = isEquippable(item.kind);
-  // 현재 작전 편성 기준 — 이 카드를 넣으면 발동 임박(1개 모자람)인 특성 강조용
   const formationMembers = ROLES
     .map((role) => slots[role.key] && items.find((i) => i.id === slots[role.key]))
     .filter(Boolean) as Item[];
@@ -87,9 +144,28 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     setTranslating(true);
     try {
       await api.translate(item.id);
+      const contentRes = await api.translateContent(item.id).catch(() => null);
+      if (contentRes && contentRes.contentKo) {
+        setContentKo(contentRes.contentKo);
+        setActiveTab("ko");
+      }
       await reloadData();
     } catch {}
     setTranslating(false);
+  };
+
+  const handleTranslateContent = async () => {
+    setTranslatingContent(true);
+    try {
+      const res = await api.translateContent(item.id);
+      if (res.ok && res.contentKo) {
+        setContentKo(res.contentKo);
+        setActiveTab("ko");
+      }
+    } catch (e: any) {
+      alert("본문 번역 중 오류가 발생했습니다: " + e.message);
+    }
+    setTranslatingContent(false);
   };
 
   const dupGroup = item.group
@@ -116,203 +192,370 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
       data-testid="detail-panel"
       className={
         docked
-          ? "relative flex h-full flex-col border border-line bg-void/95"
-          : "fixed inset-y-0 right-0 z-[60] flex w-full max-w-md flex-col border-l border-line bg-void/95 backdrop-blur-xl sm:max-w-lg"
+          ? "relative flex h-full flex-col rounded-2xl border border-hairline bg-canvas"
+          : "fixed inset-y-0 right-0 z-[60] flex h-screen w-full max-w-md flex-col border-l border-hairline bg-canvas/98 backdrop-blur-xl sm:max-w-lg"
       }
+      style={docked ? undefined : { width: `${panelWidth}px`, maxWidth: "100%" }}
     >
-      {/* 등급 컬러 엣지 */}
-      <div className="absolute inset-y-0 left-0 w-px" style={{ backgroundColor: r.color, opacity: 0.6 }} />
-
-      <button
-        onClick={() => setSelected(null)}
-        className="absolute right-3 top-3 z-10 p-1.5 font-mono text-ink-dim transition hover:text-ink"
-        title={docked ? "선택 해제" : "닫기"}
+      {/* Resizing Grab Handle — desktop view only */}
+      <div
+        className="absolute inset-y-0 left-0 w-2 cursor-col-resize z-50 select-none group"
+        onMouseDown={startResizing}
+        title="드래그하여 크기 조절"
       >
-        ✕
-      </button>
+        <div className="absolute inset-y-0 left-0 w-[2.5px] bg-transparent group-hover:bg-primary transition-colors duration-150" />
+      </div>
+
+      {isResizing && (
+        <div className="fixed inset-0 z-[100] cursor-col-resize" />
+      )}
+
+      {/* Header Buttons: Korean translation button + close button */}
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+        <button
+          onClick={handleTranslate}
+          disabled={translating}
+          className="flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-canvas px-2.5 text-xs font-bold text-muted transition hover:bg-surface-soft hover:text-body disabled:opacity-50"
+          title="한국어 번역 (이름, 설명, 상세문서)"
+        >
+          <Icon name="translate" size="xs" />
+          {translating ? "번역 중..." : item.translated ? "재번역" : "한국어 번역"}
+        </button>
+        <button
+          onClick={() => setSelected(null)}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-surface-soft hover:text-ink"
+          title={docked ? "선택 해제" : "닫기"}
+        >
+          <Icon name="close" size="sm" />
+        </button>
+      </div>
 
       <div className="flex-1 overflow-y-auto p-5">
-        {/* CLASS 헤더 */}
-        <div className="mb-3 flex items-center gap-2">
-          <span
-            className="hud-frame inline-block px-2 py-0.5 font-mono text-xs font-semibold tracking-[0.15em]"
-            style={{ color: r.color, "--hud-c": r.color } as React.CSSProperties}
-          >
-            {r.ko} · {item.score}pt
-          </span>
-          {item.installed ? (
-            <span className="font-mono text-[10px] text-gold" title="~/.claude 에 이미 설치된 상주 자산">
-              상주 자산
+        {/* 헤더: 등급 + 이름 + 타입 */}
+        <div className="mb-4 pr-32"> {/* pr-32 to prevent overlay with the top buttons */}
+          <div className="mb-2 flex items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+              style={{ backgroundColor: r.color }}
+            >
+              {r.ko}
             </span>
-          ) : item.equipped ? (
-            <span className="flex items-center gap-1.5 font-mono text-[10px] text-signal">
-              <span className="blink inline-block h-1 w-1 rounded-full bg-signal" />
-              투입중
-            </span>
-          ) : null}
+            {item.equipped && (
+              <span className="flex items-center gap-1 rounded-full bg-surface-success px-2.5 py-0.5 text-xs font-semibold text-accent-emerald">
+                <Icon name="check-circle" size="xs" />
+                장착 중
+              </span>
+            )}
+            {item.installed && (
+              <span className="rounded-full bg-accent-orange-soft px-2.5 py-0.5 text-xs font-semibold text-accent-orange">
+                상주
+              </span>
+            )}
+            <span className="ml-auto font-mono text-sm font-bold text-ink">{item.score}pt</span>
+          </div>
+          <h2 className="text-xl font-bold text-ink">{name}</h2>
+          <div className="mt-1 flex items-center gap-2 text-xs text-muted">
+            <span className="rounded-md bg-surface-soft px-1.5 py-0.5 font-medium uppercase">{item.kind === "memory" ? "기억" : item.kind}</span>
+            <span>·</span>
+            <span className="font-mono">Lv.{lvl}</span>
+            <span className="ml-auto text-muted-soft">{item.source.owner}/{item.source.repo}</span>
+          </div>
         </div>
 
+        {/* 이미지 */}
         {item.image && (
-          <div className="hud-frame mb-4 overflow-hidden border border-line" style={{ "--hud-c": `${r.color}66` } as React.CSSProperties}>
+          <div className="mb-4 overflow-hidden rounded-xl">
             <img src={item.image} alt="" className="w-full" />
           </div>
         )}
 
-        <h2 className="mb-1 text-xl font-bold text-ink">{name}</h2>
-        <div className="mb-3 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
-          <span className="border border-line px-1.5 py-0.5 uppercase">{item.kind === "memory" ? "기억" : item.kind}</span>
-          <span>LV.{lvl}</span>
-          <span className="ml-auto">{item.source.owner}/{item.source.repo}</span>
+        {/* 액션 버튼 */}
+        <div className="mb-5 flex gap-2">
+          {equippable ? (
+            <button
+              onClick={handleEquip}
+              disabled={equipping || item.installed}
+              className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${
+                item.installed
+                  ? "bg-surface-soft text-muted"
+                  : item.equipped
+                    ? "border border-hairline bg-canvas text-body hover:border-accent-rose hover:text-accent-rose"
+                    : "bg-primary text-white hover:bg-primary-active"
+              }`}
+            >
+              {item.installed
+                ? "상주 자산"
+                : equipping ? "처리 중..." : item.equipped ? "해제" : "장착하기"}
+            </button>
+          ) : (
+            <div className="flex-1 rounded-lg bg-surface-soft py-2.5 text-center text-sm font-semibold text-muted">
+              읽기 전용
+            </div>
+          )}
+          <button
+            onClick={() => toggleFavorite(item.id)}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg border transition ${
+              isFav ? "border-accent-orange bg-accent-orange-soft text-accent-orange" : "border-hairline text-muted hover:bg-surface-soft"
+            }`}
+          >
+            <Icon name="favorite-star" size="lg" />
+          </button>
         </div>
 
-        {/* 연결 시너지 — 특성별 +1 기여, 현재 편성에서 발동 임박 특성 강조 */}
-        {traits.length > 0 && (
-          <div className="mb-3" data-testid="synergy-inline">
-            <h4 className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">연결 시너지</h4>
+        {/* 설명 */}
+        <div className="mb-5">
+          <p className="text-sm leading-relaxed text-body">{desc}</p>
+          {lang === "ko" && item.descKo && (
+            <details className="mt-2 text-xs text-muted-soft">
+              <summary className="cursor-pointer hover:text-muted">원문 보기</summary>
+              <p className="mt-1">{item.description}</p>
+            </details>
+          )}
+        </div>
+
+        {/* 연결 시너지 */}
+        <div className="mb-5">
+          <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">연결 시너지</h4>
+          {traits.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {traits.map((t) => {
                 const near = nearKeys?.has(t.key);
                 return (
                   <span
                     key={t.key}
-                    className={`border px-2 py-0.5 font-mono text-[10px] ${
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
                       near
-                        ? "border-gold/50 bg-gold/10 text-gold"
-                        : "border-signal-dim/40 bg-signal/5 text-signal-dim"
+                        ? "bg-accent-orange-soft text-accent-orange"
+                        : "bg-surface-soft text-muted"
                     }`}
                     title={near ? "편성에 넣으면 신호 링크 발동 임박" : `연결 시너지 ${t.label} +1`}
                   >
-                    {t.label} +1{near ? " ◂ 임박" : ""}
+                    {t.label} +1{near ? " ◂" : ""}
                   </span>
                 );
               })}
             </div>
-          </div>
-        )}
-
-        <p className="mb-2 text-sm leading-relaxed text-ink">{desc}</p>
-        {lang === "ko" && item.descKo && (
-          <details className="mb-4 text-xs text-ink-faint">
-            <summary className="cursor-pointer hover:text-ink-dim">원문 보기</summary>
-            <p className="mt-1 text-ink-dim">{item.description}</p>
-          </details>
-        )}
-
-        {/* 스탯 */}
-        <div className="mb-5 space-y-2">
-          <h4 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">Stats</h4>
-          {(["popularity", "freshness", "power", "clarity", "weight"] as const).map((k) => (
-            <StatBar key={k} label={STAT_LABELS[k] ?? k} value={item.stats?.[k] ?? 0} color={r.color} />
-          ))}
+          ) : (
+            <span className="text-sm text-muted-soft">특성 없음</span>
+          )}
         </div>
 
-        {/* 코스트 + 위험 신호 */}
-        <div className="mb-5 space-y-2">
-          <div className="flex items-center gap-3">
-            <span className="w-16 text-xs text-ink-dim">코스트</span>
-            <span className="font-mono text-xs text-gold">
+        {/* 스탯 바 */}
+        <div className="mb-5">
+          <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">성능 지표</h4>
+          <div className="space-y-3">
+            {(["popularity", "freshness", "power", "clarity", "weight"] as const).map((k) => (
+              <StatBar key={k} label={STAT_LABELS[k] ?? k} value={item.stats?.[k] ?? 0} color={r.color} />
+            ))}
+          </div>
+        </div>
+
+        {/* 코스트 + 위험 */}
+        <div className="mb-5 space-y-3">
+          <div className="flex items-center justify-between rounded-lg bg-surface-soft px-4 py-3">
+            <span className="flex items-center gap-1.5 text-sm text-muted">
+              <Icon name="gauge" size="xs" /> 컨텍스트 비용
+            </span>
+            <span className="font-mono text-sm font-semibold text-accent-orange">
               {item.cost ? `${formatK(item.cost)} tk` : "—"}
             </span>
-            <span className="font-mono text-[10px] text-ink-faint">컨텍스트 토큰 비용</span>
           </div>
-          <div className="flex items-start gap-3">
-            <span className="w-16 shrink-0 text-xs text-ink-dim">위험</span>
-            <div className="flex flex-wrap gap-1.5">
-              {risks.length > 0 ? (
-                risks.map((rk) => (
-                  <span key={rk} className="border border-danger/50 bg-danger/10 px-2 py-0.5 font-mono text-[10px] text-danger">
+          {risks.length > 0 && (
+            <div className="rounded-lg border border-accent-rose/20 bg-accent-rose/5 px-3 py-2">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-accent-rose">
+                <Icon name="warning" size="xs" /> 위험 신호
+              </span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {risks.map((rk) => (
+                  <span key={rk} className="rounded-full bg-accent-rose/10 px-2 py-0.5 text-[10px] font-medium text-accent-rose">
                     {RISK_LABELS[rk] ?? rk}
                   </span>
-                ))
-              ) : (
-                <span className="font-mono text-[10px] text-ink-faint">위험 신호 없음</span>
-              )}
+                ))}
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* 소스 메타 */}
+        <div className="mb-5 rounded-lg bg-surface-soft p-3 space-y-1.5 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-muted"><Icon name="folder" size="xs" /> 출처</span>
+            <span className="font-mono text-body">{item.source.owner}/{item.source.repo}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-muted"><Icon name="file" size="xs" /> 경로</span>
+            <span className="max-w-[200px] truncate font-mono text-body" title={item.source.path}>{item.source.path}</span>
           </div>
         </div>
 
-        {/* 소스 */}
-        <div className="mb-5 space-y-1 font-mono text-[11px]">
-          <div className="flex justify-between text-ink-dim">
-            <span>소스</span>
-            <span className="text-ink">{item.source.owner}/{item.source.repo}</span>
-          </div>
-          <div className="flex justify-between text-ink-dim">
-            <span>경로</span>
-            <span className="max-w-[220px] truncate text-ink" title={item.source.path}>{item.source.path}</span>
-          </div>
-        </div>
-
+        {/* 중복 그룹 */}
         {dupGroup.length > 0 && (
-          <div className="hud-frame mb-4 border border-line bg-panel p-3 text-xs text-ink-dim">
-            동일 계열 자산 <b className="text-gold">{dupGroup.length + 1}개</b> 감지 — 비교 후 하나만 운용 권장
+          <div className="mb-4 rounded-lg border border-accent-orange/20 bg-accent-orange-soft p-3 text-sm text-body">
+            동일 계열 자산 <b className="text-accent-orange">{dupGroup.length + 1}개</b> 감지 — 비교 후 하나만 운용 권장
           </div>
         )}
-
-        {/* 액션 */}
-        <div className="mb-5 space-y-2">
-          <div className="flex gap-2">
-            {equippable ? (
-              <button
-                onClick={handleEquip}
-                disabled={equipping || item.installed}
-                className={`hud-frame flex-1 py-2.5 text-sm font-semibold transition ${
-                  item.installed
-                    ? "bg-panel2 text-ink-faint"
-                    : item.equipped
-                    ? "bg-panel2 text-ink-dim hover:text-danger"
-                    : "bg-signal/15 text-signal hover:bg-signal/25"
-                }`}
-                style={{ "--hud-c": item.equipped ? "var(--color-line)" : "var(--color-signal-dim)" } as React.CSSProperties}
-              >
-                {item.installed
-                  ? "상주 자산 — 이미 ~/.claude 에 설치됨"
-                  : equipping ? "..." : item.equipped ? "철수 — 장착 해제" : "작전 투입 — ~/.claude 장착"}
-              </button>
-            ) : (
-              <div
-                className="hud-frame flex-1 py-2.5 text-center text-sm font-semibold text-ink-faint bg-panel2"
-                style={{ "--hud-c": "var(--color-line)" } as React.CSSProperties}
-                title="기억은 장착 개념이 없는 읽기 전용 자산입니다"
-              >
-                읽기 전용 — 영속 인텔(기억)
-              </div>
-            )}
-            <button
-              onClick={() => toggleFavorite(item.id)}
-              className={`border border-line px-4 py-2.5 text-sm transition ${
-                isFav ? "bg-gold/10 text-gold" : "bg-panel2 text-ink-dim hover:text-ink"
-              }`}
-            >
-              ★
-            </button>
-          </div>
-          <button
-            onClick={handleTranslate}
-            disabled={translating}
-            className="w-full border border-line bg-panel2 py-2 text-xs text-ink-dim transition hover:text-ink disabled:opacity-50"
-          >
-            {translating ? "번역 중..." : item.nameKo ? "한국어 재번역" : "한국어 번역"}
-          </button>
-        </div>
 
         {/* 원문 문서 */}
         {loadingContent ? (
           <div className="flex h-24 items-center justify-center">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-signal border-t-transparent" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : content ? (
-          <div className="space-y-1">
-            <h4 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">
-              Documentation
-            </h4>
-            <div
-              className="prose prose-invert prose-sm max-w-none text-ink-dim"
-              dangerouslySetInnerHTML={{ __html: marked.parse(content) as string }}
-            />
+          <div>
+            <div className="mb-3 flex items-center justify-between border-b border-hairline pb-2">
+              <h4 className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-muted">
+                <Icon name="file-alt" size="xs" /> 문서
+              </h4>
+              <div className="flex items-center gap-2">
+                {!contentKo && (
+                  <button
+                    onClick={handleTranslateContent}
+                    disabled={translatingContent}
+                    className="flex items-center gap-1 rounded-md bg-accent-orange-soft px-2.5 py-1 text-xs font-semibold text-accent-orange hover:bg-accent-orange/20 transition disabled:opacity-50"
+                  >
+                    <Icon name="translate" size="xs" />
+                    {translatingContent ? "번역 중..." : "본문 번역"}
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center gap-1 rounded-md bg-surface-soft px-2 py-1 text-xs font-semibold text-body hover:bg-surface-hover hover:text-ink transition"
+                >
+                  <Icon name="expand" size="xs" />
+                  자세히 보기
+                </button>
+              </div>
+            </div>
+
+            {contentKo && (
+              <div className="mb-3 flex border-b border-hairline">
+                <button
+                  onClick={() => setActiveTab("original")}
+                  className={`px-4 py-2 text-xs font-bold transition border-b-2 -mb-[2px] ${
+                    activeTab === "original"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted hover:text-body"
+                  }`}
+                >
+                  영어 (Original)
+                </button>
+                <button
+                  onClick={() => setActiveTab("ko")}
+                  className={`px-4 py-2 text-xs font-bold transition border-b-2 -mb-[2px] ${
+                    activeTab === "ko"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted hover:text-body"
+                  }`}
+                >
+                  한국어 (번역)
+                </button>
+                <button
+                  onClick={handleTranslateContent}
+                  disabled={translatingContent}
+                  className="ml-auto flex items-center gap-1 self-center rounded px-2 py-1 text-[10px] font-semibold text-muted hover:bg-surface-soft hover:text-body transition"
+                  title="본문 번역 업데이트"
+                >
+                  <Icon name="translate" size="xs" className="scale-75" />
+                  {translatingContent ? "번역 중..." : "재번역"}
+                </button>
+              </div>
+            )}
+
+            <div className="rounded-xl border border-hairline bg-canvas p-4 text-base md:text-lg leading-relaxed">
+              <div className="prose prose-base max-w-none dark:prose-invert">
+                <MarkdownView size="md" content={activeTab === "ko" && contentKo ? contentKo : content} />
+              </div>
+            </div>
           </div>
         ) : null}
       </div>
+
+      {/* Details Popup Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10 bg-black/50 backdrop-blur-sm">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-transparent"
+            onClick={() => setIsModalOpen(false)}
+          />
+
+          {/* Modal Container */}
+          <div className="relative z-10 flex h-full max-h-[85vh] w-full max-w-4xl flex-col rounded-2xl border border-hairline bg-canvas shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-hairline px-6 py-4 bg-surface-soft/40">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                  <Icon name="file-alt" size="md" />
+                </span>
+                <div>
+                  <span
+                    className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white mb-0.5"
+                    style={{ backgroundColor: r.color }}
+                  >
+                    {r.ko}
+                  </span>
+                  <h3 className="text-xl font-black text-ink">{item.displayName} - 상세 문서</h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-surface-soft hover:text-ink"
+                title="닫기"
+              >
+                <Icon name="close" size="sm" />
+              </button>
+            </div>
+
+            {/* Modal Sub-Header (Tabs inside Modal) */}
+            <div className="flex items-center justify-between border-b border-hairline bg-surface-soft/20 px-6 py-2">
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setActiveTab("original")}
+                  className={`py-2 text-sm font-bold transition border-b-2 -mb-[9px] flex items-center gap-1.5 ${
+                    activeTab === "original"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted hover:text-body"
+                  }`}
+                >
+                  <Icon name="globe" size="xs" />
+                  영어 (Original)
+                </button>
+                {contentKo && (
+                  <button
+                    onClick={() => setActiveTab("ko")}
+                    className={`py-2 text-sm font-bold transition border-b-2 -mb-[9px] flex items-center gap-1.5 ${
+                      activeTab === "ko"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted hover:text-body"
+                    }`}
+                  >
+                    <Icon name="translate" size="xs" />
+                    한국어 (번역)
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleTranslateContent}
+                  disabled={translatingContent}
+                  className="flex items-center gap-1.5 rounded-md bg-accent-orange-soft px-3 py-1.5 text-xs font-bold text-accent-orange hover:bg-accent-orange/20 transition disabled:opacity-50"
+                >
+                  <Icon name="translate" size="xs" />
+                  {translatingContent ? "번역 중..." : contentKo ? "번역 업데이트" : "한국어로 번역"}
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-canvas text-lg md:text-xl leading-relaxed">
+              <div className="prose prose-lg max-w-none dark:prose-invert">
+                <MarkdownView size="lg" content={activeTab === "ko" && contentKo ? contentKo : content} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -320,14 +563,14 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-16 text-xs text-ink-dim">{label}</span>
-      <div className="h-1 flex-1 bg-panel3">
+      <span className="w-14 text-sm text-muted">{label}</span>
+      <div className="h-2 flex-1 rounded-full bg-surface-soft">
         <div
-          className="h-full transition-all duration-500"
-          style={{ width: `${value}%`, backgroundColor: color, boxShadow: `0 0 6px ${color}44` }}
+          className="h-full rounded-full stat-bar-fill"
+          style={{ width: `${value}%`, backgroundColor: color }}
         />
       </div>
-      <span className="w-8 text-right font-mono text-xs text-ink-faint">{value}</span>
+      <span className="w-8 text-right font-mono text-sm font-semibold text-ink">{value}</span>
     </div>
   );
 }

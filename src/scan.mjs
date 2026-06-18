@@ -12,6 +12,11 @@ const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const cfg = JSON.parse(await readFile(join(root, "src/config.json"), "utf8"));
 const dataDir = join(root, "data");
 
+let USAGE = {};
+try {
+  USAGE = JSON.parse(await readFile(join(dataDir, "usage.json"), "utf8")).counts || {};
+} catch {}
+
 // ---------- 유틸 ----------
 const clamp = (n, lo = 0, hi = 99) => Math.max(lo, Math.min(hi, Math.round(n)));
 const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9가-힣]+/g, "");
@@ -26,11 +31,14 @@ const execFileAsync = (cmd, args, opts) =>
 
 // repoDir(절대경로) → Map<relPathInRepo, commitEpochMs>
 const gitMtimeCache = new Map();
+const gitRepoStats = new Map(); // repoDir -> { commitCount, authorCount, hasRemote }
+
 async function getGitMtimeMap(repoDir) {
   if (gitMtimeCache.has(repoDir)) return gitMtimeCache.get(repoDir);
   const map = new Map();
   if (!existsSync(join(repoDir, ".git"))) {
     gitMtimeCache.set(repoDir, map);
+    gitRepoStats.set(repoDir, { commitCount: 0, authorCount: 0, hasRemote: false });
     return map;
   }
   // 'C<epoch>' 헤더 + 해당 커밋에서 변경된 파일 목록. 최신 커밋이 먼저 나오므로
@@ -42,7 +50,7 @@ async function getGitMtimeMap(repoDir) {
   );
   if (out) {
     let curTs = 0;
-    // -z: 레코드가 NUL로 구분됨. 커밋 헤더 줄과 파일경로가 섞여 들어온다.
+    // -z: 레코드가 NUL로 구분됨. 커밋 헤더 줄 and 파일경로가 섞여 들어온다.
     for (const rec of out.split("\0")) {
       if (!rec) continue;
       const lines = rec.split(/\r?\n/);
@@ -57,6 +65,19 @@ async function getGitMtimeMap(repoDir) {
     }
   }
   gitMtimeCache.set(repoDir, map);
+
+  // Repository-level stats to measure project popularity and trust
+  const [commitsOut, authorsOut, remoteOut] = await Promise.all([
+    execFileAsync("git", ["-C", repoDir, "rev-list", "--count", "HEAD"]),
+    execFileAsync("git", ["-C", repoDir, "shortlog", "-sn", "HEAD"]),
+    execFileAsync("git", ["-C", repoDir, "remote", "get-url", "origin"])
+  ]);
+
+  const commitCount = commitsOut ? parseInt(commitsOut.trim(), 10) : 0;
+  const authorCount = authorsOut ? authorsOut.trim().split("\n").filter(Boolean).length : 0;
+  const hasRemote = !!(remoteOut && remoteOut.trim());
+
+  gitRepoStats.set(repoDir, { commitCount, authorCount, hasRemote });
   return map;
 }
 
@@ -259,7 +280,7 @@ function ownerGuess(repo) {
     "claude-skills": "community",
     "supanova-design-skill": "uxjoseph",
     "prompt-master": "nidhinjs",
-    "my-skills": "me",
+    "my-skills": "local",
     "web-image-forge": "loadout"
   };
   return map[repo] || repo.split("__")[0] || "unknown";
@@ -267,11 +288,32 @@ function ownerGuess(repo) {
 
 // ---------- 스탯 ----------
 // freshMs: git 마지막 커밋시각(없으면 파일 mtime). 신선도 계산에 사용.
-function computeStats({ repo, size, mtimeMs, freshMs, fm, kind, refCount }) {
+function computeStats({ repo, size, mtimeMs, freshMs, fm, kind, refCount, repoStats }) {
   const now = Date.now();
   const ageDays = Math.max(0, (now - (freshMs || mtimeMs)) / 86400000);
 
-  const popularity = clamp(cfg.repoPopularity[repo] ?? 50);
+  // 1. Popularity (신뢰도/인기) 계산:
+  // 기본 점수: config의 인기 또는 기본값 30
+  let basePopularity = cfg.repoPopularity[repo] ?? 30;
+  
+  if (repoStats && repoStats.commitCount > 0) {
+    // 커밋 수에 따른 신뢰성 가산 (최대 25점)
+    const commitBonus = Math.min(25, Math.log10(1 + repoStats.commitCount) * 8);
+    // 기여자(작가) 수에 따른 신뢰성 가산 (최대 15점)
+    const authorBonus = Math.min(15, repoStats.authorCount * 3);
+    // 리모트 저장소 연결 여부에 따른 가산 (최대 10점)
+    const remoteBonus = repoStats.hasRemote ? 10 : 0;
+    basePopularity = 30 + commitBonus + authorBonus + remoteBonus;
+  }
+  
+  // 사용 실적에 따른 인기도 가산 (최대 20점)
+  const name = fm.name || "";
+  const nameKey = fm.nameKey || (fm.id ? fm.id.split("/").pop() : "");
+  const uses = USAGE[name.toLowerCase()] ?? USAGE[nameKey] ?? 0;
+  const usageBonus = Math.min(20, uses * 4);
+  
+  const popularity = clamp(basePopularity + usageBonus);
+
   // 신선도: 최근 30일은 만점에 가깝고, 1년(365일)이면 0 근처가 되도록 비선형.
   const freshness = clamp(100 - Math.min(100, Math.pow(ageDays / 365, 0.6) * 100));
   const desc = (fm.description || "").toString();
@@ -310,7 +352,9 @@ function computeStats({ repo, size, mtimeMs, freshMs, fm, kind, refCount }) {
       (/[A-Z가-힣]/.test(desc.slice(0, 1)) ? 4 : 0) + // 대문자/한글로 시작(정돈됨)
       descAdj
   );
-  const weight = clamp(Math.min(99, sizeKb * 2.2)); // 클수록 무거움(비용)
+  
+  // weight: 기본 오버헤드 15에 크기 비례 가산 (최대 99)
+  const weight = clamp(15 + Math.min(84, sizeKb * 3));
   return { popularity, freshness, power, clarity, weight };
 }
 
@@ -408,10 +452,12 @@ async function handleSkill(rootPath, file) {
   }
   const category = deriveCategory({ fm, pathSegs: structSegs, name, description });
   // git 신선도: repo당 1회 배치 맵. relPath에서 repo 세그먼트를 떼면 repo 내부 경로.
-  const gitMap = await getGitMtimeMap(repoDirOf(rootPath, repo));
+  const repoDir = repoDirOf(rootPath, repo);
+  const gitMap = await getGitMtimeMap(repoDir);
   const relInRepo = segs.slice(1).join("/");
   const freshMs = effectiveMtimeMs(gitMap, relInRepo, st.mtimeMs);
-  const stats = computeStats({ repo, size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, kind: "skill", refCount });
+  const repoStats = gitRepoStats.get(repoDir) || { commitCount: 0, authorCount: 0, hasRemote: false };
+  const stats = computeStats({ repo, size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, kind: "skill", refCount, repoStats });
   const r = rarityOf(stats, null);
   items.push({
     id: `${repo}/${relPath}`,
@@ -444,10 +490,12 @@ async function handleAgent(rootPath, file) {
   const relPath = relative(rootPath, file).split(sep).join("/");
   const name = fm.name || basename(file).replace(/\.md$/i, "");
   // git 신선도 (skill과 동일 방식)
-  const gitMap = await getGitMtimeMap(repoDirOf(rootPath, repo));
+  const repoDir = repoDirOf(rootPath, repo);
+  const gitMap = await getGitMtimeMap(repoDir);
   const relInRepo = relPath.split("/").slice(1).join("/");
   const freshMs = effectiveMtimeMs(gitMap, relInRepo, st.mtimeMs);
-  const stats = computeStats({ repo, size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, kind: "agent", refCount: 0 });
+  const repoStats = gitRepoStats.get(repoDir) || { commitCount: 0, authorCount: 0, hasRemote: false };
+  const stats = computeStats({ repo, size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, kind: "agent", refCount: 0, repoStats });
   // 모델 tier로 등급 살짝 가산
   const r = rarityOf(stats, null);
   const tier = (fm.model || "").toLowerCase();
@@ -491,12 +539,18 @@ async function handleMcpFile(rootPath, file) {
 
 function mcpItem(name, def, source) {
   const cmd = def?.command ? `${def.command} ${(def.args || []).join(" ")}`.trim() : (def?.url || "");
-  const stats = {
-    popularity: 60, freshness: 70,
-    power: clamp(40 + (def?.args?.length || 0) * 6 + (def?.url ? 20 : 0)),
-    clarity: clamp(cmd ? 70 : 40),
-    weight: 30
-  };
+  
+  // Real, dynamic stats for MCP
+  const uses = USAGE[name.toLowerCase()] ?? 0;
+  const popularity = clamp(60 + Math.min(25, uses * 4));
+  const ageDays = source.mtime ? Math.max(0, (Date.now() - source.mtime) / 86400000) : null;
+  const freshness = ageDays !== null ? clamp(100 - Math.min(100, Math.pow(ageDays / 365, 0.6) * 100)) : 70;
+  const envCount = def?.env ? Object.keys(def.env).length : 0;
+  const weight = clamp(15 + (def?.args?.length || 0) * 3 + envCount * 4);
+  const power = clamp(30 + (def?.args?.length || 0) * 5 + (def?.url ? 20 : 0));
+  const clarity = clamp(cmd ? 75 : 40);
+  const stats = { popularity, freshness, power, clarity, weight };
+
   const r = rarityOf(stats, null);
   // 스키마 일관성: 모든 MCP item의 source가 {repo,owner,path,sizeBytes,mtime}를 갖도록 보강.
   // sizeBytes는 정의 직렬화 길이로 근사, mtime은 0(시간 비의존 → 멱등).
@@ -533,20 +587,62 @@ async function scanCcMcp() {
     const txt = await readFile(p, "utf8").catch(() => "");
     try {
       const j = JSON.parse(txt);
-      const servers = j.mcpServers || {};
-      for (const [name, def] of Object.entries(servers)) {
-        items.push(mcpItem(name, def, { repo: "cc-config", owner: "me", path: cand, root: join(homedir(), ".claude"), fromCc: true }));
+      const mcp = j.mcpServers || {};
+      for (const [name, def] of Object.entries(mcp)) {
+        items.push(mcpItem(name, def, { repo: "cc-config", owner: "unknown", path: basename(p), root: dirname(p), fromCc: true }));
       }
     } catch {}
   }
 }
 
-// ---------- 메모리 카드 ----------
-// "기억" 특성 카드. 소스 = ① 이 프로젝트의 .memory/(scope=local)
-// ② auto-memory ~/.claude/projects/<slug>/memory/*.md(scope=slug). 장착 개념 없음(읽기 전용).
-// 멱등: git 비대상이라 파일 mtime을 신선도로 쓴다(미변경 시 동일). ID는 path-namespaced.
-const MEMORY_FILE_CAP = 200;
-let memoryScanned = 0;
+// ---------- 색인 생성 & Git 매칭 ----------
+// - ID는 슬러그형 고유 식별자.
+// - 멱등성 보장.
+// - cards.json(배경/설명 일체) 병합은 런타임에 server.mjs가 해 주므로 스캐너는 원본 필드만 구성.
+
+async function getOriginalFolderName(cleanSlug) {
+  const sources = loadRoots();
+  for (const rootPath of sources) {
+    if (!existsSync(rootPath)) continue;
+    const parts = cleanSlug.split("-");
+    let currentPath = rootPath;
+    let i = 0;
+    while (i < parts.length) {
+      if (parts[i] === "") {
+        i++;
+        if (i < parts.length) {
+          const folderName = "." + parts[i];
+          const testPath = join(currentPath, folderName);
+          if (existsSync(testPath)) {
+            currentPath = testPath;
+          } else {
+            currentPath = join(currentPath, parts[i]);
+          }
+        }
+      } else {
+        let found = false;
+        let accumulator = "";
+        for (let j = i; j < parts.length; j++) {
+          accumulator = accumulator ? accumulator + "-" + parts[j] : parts[j];
+          const testPath = join(currentPath, accumulator);
+          if (existsSync(testPath)) {
+            currentPath = testPath;
+            i = j;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          currentPath = join(currentPath, parts[i]);
+        }
+      }
+      i++;
+    }
+    return basename(currentPath);
+  }
+  const parts = cleanSlug.split("-");
+  return parts[parts.length - 1] || cleanSlug;
+}
 
 async function handleMemory(file, scope, memRoot) {
   const content = await readFile(file, "utf8").catch(() => "");
@@ -568,7 +664,9 @@ async function handleMemory(file, scope, memRoot) {
   }
   // metadata.type(프로젝트/유저 등) 추출 — 간이 frontmatter 파서가 metadata를 평탄 문자열로 합치므로 정규식으로.
   const metaType = /type:\s*([a-z0-9_-]+)/i.exec(String(fm.metadata || fm.type || ""))?.[1] || null;
-  const stats = computeStats({ repo: scope, size: st.size, mtimeMs: st.mtimeMs, freshMs: st.mtimeMs, fm, kind: "memory", refCount: 0 });
+  const repoName = getOriginalFolderName(scope);
+  const refCount = (content.match(/\[[^\]]+\]\([^)]+\)/g) || []).length;
+  const stats = computeStats({ repo: repoName, size: st.size, mtimeMs: st.mtimeMs, freshMs: st.mtimeMs, fm, kind: "memory", refCount });
   const r = rarityOf(stats, null);
   items.push({
     id: `_memory/${scope}/${relPath}`,
@@ -578,7 +676,7 @@ async function handleMemory(file, scope, memRoot) {
     description: description.slice(0, 600),
     category: "memory",        // 시너지 "기억" 특성용 — TAG_PATTERNS의 memory 매칭 보장
     layer,
-    source: { repo: scope, owner: "me", path: relPath, root: memRoot, sizeBytes: st.size, mtime: Math.round(st.mtimeMs) },
+    source: { repo: repoName, owner: "local", path: relPath, root: memRoot, sizeBytes: st.size, mtime: Math.round(st.mtimeMs) },
     meta: { type: metaType, layer },
     stats,
     score: r.score,
@@ -591,6 +689,9 @@ async function handleMemory(file, scope, memRoot) {
     equipped: false
   });
 }
+
+const MEMORY_FILE_CAP = 200;
+let memoryScanned = 0;
 
 async function walkMemory(dir, scope, memRoot) {
   let entries;

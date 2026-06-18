@@ -1,16 +1,14 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import type { TeamEvalResult } from "../types";
+import { Icon } from "./Icon";
 
-/* 팀 단위 AI 평가 — 현재 편성을 시나리오에 대해 채점.
-   POST /api/team/verify {teamId?, slots?, scenario?, engine?} → {ok, result}.
-   결과는 BLACK-ORCHID 테마 패널: total 큰 숫자 + 3게이지 + 한국어 총평 + engine 뱃지. */
 export function TeamEvalPanel({
   slots,
   engines,
   teamId,
 }: {
-  slots: Record<string, string | null>; // 역할명 → itemId (서버 평가 프롬프트가 역할명 사용)
+  slots: Record<string, string | null>;
   engines: string[];
   teamId?: string;
 }) {
@@ -45,9 +43,9 @@ export function TeamEvalPanel({
   return (
     <section className="mt-5">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">팀 AI 평가</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wide text-muted">팀 AI 평가</h3>
         {result && (
-          <span className="border border-line bg-panel2 px-2 py-0.5 font-mono text-[9px] text-signal-dim">
+          <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[9px] font-medium text-muted">
             {result.engine}
           </span>
         )}
@@ -58,13 +56,13 @@ export function TeamEvalPanel({
           value={scenario}
           onChange={(e) => setScenario(e.target.value)}
           placeholder="시나리오 — 예: 대규모 리팩토링 작전"
-          className="h-9 w-64 border border-line bg-panel2 px-3 text-sm text-ink placeholder:text-ink-faint focus:border-signal-dim focus:outline-none"
+          className="h-9 w-64 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink placeholder:text-muted-soft focus:border-primary focus:outline-none"
         />
         <select
           value={engine}
           onChange={(e) => setEngine(e.target.value)}
           aria-label="평가 엔진"
-          className="h-9 border border-line bg-panel2 px-2 font-mono text-xs text-ink-dim focus:border-signal-dim focus:outline-none"
+          className="h-9 rounded-lg border border-hairline bg-canvas px-2 font-mono text-xs text-body focus:border-primary focus:outline-none"
         >
           {engines.map((e) => (
             <option key={e} value={e}>{e}</option>
@@ -73,25 +71,24 @@ export function TeamEvalPanel({
         <button
           onClick={evaluate}
           disabled={!hasMembers || loading}
-          className="hud-frame bg-signal/10 px-5 py-2 text-sm font-semibold text-signal transition hover:bg-signal/20 disabled:opacity-40"
-          style={{ "--hud-c": "var(--color-signal-dim)" } as React.CSSProperties}
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2 text-sm font-bold text-white transition hover:bg-primary-active disabled:opacity-40"
         >
+          <Icon name="bar-chart" size="sm" className="text-white" />
           {loading ? "평가 중... (~25s)" : "팀 평가"}
         </button>
-        {error && <span className="font-mono text-xs text-danger">{error}</span>}
+        {error && <span className="text-xs text-accent-rose">{error}</span>}
       </div>
 
       {result && (
         <div
-          className="hud-frame mt-3 border border-line bg-panel p-4"
-          style={{ "--hud-c": "var(--color-gold)" } as React.CSSProperties}
+          className="mt-3 rounded-xl border border-hairline bg-canvas p-4"
           data-testid="team-eval-result"
         >
           <div className="flex flex-wrap items-center gap-6">
             <div className="text-center">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">종합 점수</div>
-              <div className="font-mono text-4xl font-bold text-gold">{result.total}</div>
-              <div className="font-mono text-[9px] text-ink-faint">/ 100</div>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted">종합 점수</div>
+              <div className="font-mono text-4xl font-bold text-accent-orange">{result.total}</div>
+              <div className="text-[9px] text-muted-soft">/ 100</div>
             </div>
             <div className="flex-1 space-y-2">
               <ScoreGauge label="커버리지" value={result.scores.coverage} />
@@ -100,7 +97,7 @@ export function TeamEvalPanel({
             </div>
           </div>
           {result.comment && (
-            <p className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-ink-dim">
+            <p className="mt-3 border-t border-hairline pt-3 text-sm leading-relaxed text-muted">
               {result.comment}
             </p>
           )}
@@ -110,20 +107,19 @@ export function TeamEvalPanel({
   );
 }
 
-/* 단일 스탯 게이지 — 0-100. 80↑ 골드, 50↑ 시그널, 그 외 dim. */
 export function ScoreGauge({ label, value }: { label: string; value: number }) {
   const pct = Math.max(0, Math.min(100, value));
-  const color = pct >= 80 ? "var(--color-gold)" : pct >= 50 ? "var(--color-signal)" : "var(--color-signal-dim)";
+  const color = pct >= 80 ? "var(--color-accent-orange)" : pct >= 50 ? "var(--color-primary)" : "var(--color-muted)";
   return (
     <div className="w-full">
-      <div className="mb-1 flex items-center justify-between font-mono text-[10px]">
-        <span className="uppercase tracking-widest text-ink-faint">{label}</span>
-        <span style={{ color }}>{value}</span>
+      <div className="mb-1 flex items-center justify-between text-[10px]">
+        <span className="font-bold uppercase tracking-wide text-muted">{label}</span>
+        <span className="font-mono font-semibold" style={{ color }}>{value}</span>
       </div>
-      <div className="h-1.5 w-full bg-panel3">
+      <div className="h-2 w-full rounded-full bg-surface-soft">
         <div
-          className="h-full transition-all duration-300"
-          style={{ width: `${pct}%`, backgroundColor: color, boxShadow: `0 0 6px ${color}66` }}
+          className="h-full rounded-full stat-bar-fill"
+          style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
     </div>
