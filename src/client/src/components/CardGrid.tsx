@@ -341,7 +341,7 @@ function AgentRow({ item, onClick }: { item: Item; onClick: () => void }) {
 /* ── 메모리 보관함 카드 ── */
 function MemoryCard({ item, onClick }: { item: Item; onClick: () => void }) {
   const name = item.displayName || "메모리";
-  const repo = item.source.repo;
+  const repo = typeof item.source.repo === "string" ? item.source.repo : "";
   const path = item.source.path;
   const tags = item.tags?.slice(0, 4) ?? [];
 

@@ -258,7 +258,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
             <span className="rounded-md bg-surface-soft px-1.5 py-0.5 font-medium uppercase">{item.kind === "memory" ? "기억" : item.kind}</span>
             <span>·</span>
             <span className="font-mono">Lv.{lvl}</span>
-            <span className="ml-auto text-muted-soft">{item.source.owner}/{item.source.repo}</span>
+            <span className="ml-auto text-muted-soft">{item.source.owner}/{typeof item.source.repo === "string" ? item.source.repo : ""}</span>
           </div>
         </div>
 
@@ -304,11 +304,15 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
         {/* 설명 */}
         <div className="mb-5">
-          <p className="text-sm leading-relaxed text-body">{desc}</p>
+          <div className="text-sm leading-relaxed text-body">
+            <MarkdownView size="sm" content={desc} />
+          </div>
           {lang === "ko" && item.descKo && (
             <details className="mt-2 text-xs text-muted-soft">
               <summary className="cursor-pointer hover:text-muted">원문 보기</summary>
-              <p className="mt-1">{item.description}</p>
+              <div className="mt-1">
+                <MarkdownView size="sm" content={item.description} />
+              </div>
             </details>
           )}
         </div>
@@ -380,7 +384,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         <div className="mb-5 rounded-lg bg-surface-soft p-3 space-y-1.5 text-sm">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-muted"><Icon name="folder" size="xs" /> 출처</span>
-            <span className="font-mono text-body">{item.source.owner}/{item.source.repo}</span>
+            <span className="font-mono text-body">{item.source.owner}/{typeof item.source.repo === "string" ? item.source.repo : ""}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-muted"><Icon name="file" size="xs" /> 경로</span>

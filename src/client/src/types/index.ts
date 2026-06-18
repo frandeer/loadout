@@ -52,6 +52,7 @@ export interface Item {
   risks?: string[];     // "network" | "shell" | "creds" — 위험 신호
   uses?: number;        // 세션 로그 집계 사용 횟수 — 경험치(LV/XP)
   translated?: boolean;
+  meta?: any;
 }
 
 export interface IndexData {

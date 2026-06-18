@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Loadout is a personal manager for Claude Code **skills · agents · MCP servers**, presented as a card game (Pokémon/Hearthstone metaphor). It scans local repos of skills/agents/MCPs, scores each one into game stats + rarity, renders them as cards in a web UI, and lets you "equip" one into `~/.claude/` with a single click so it's usable in Claude Code immediately.
+Loadout is a personal manager for Claude Code **skills · agents · MCP servers**, presented as a looter-shooter loadout game (Destiny/Apex metaphor: collect gear → build your loadout → deploy). It scans local repos of skills/agents/MCPs, scores each one into game stats + rarity, renders them as collectible gear cards in a web UI, and lets you "equip" one into `~/.claude/` with a single click so it's usable in Claude Code immediately.
 
 Pipeline: `clone → scan → catalog (cards) → compare/dedup (AI) → equip → use`.
 

@@ -600,7 +600,7 @@ async function scanCcMcp() {
 // - 멱등성 보장.
 // - cards.json(배경/설명 일체) 병합은 런타임에 server.mjs가 해 주므로 스캐너는 원본 필드만 구성.
 
-async function getOriginalFolderName(cleanSlug) {
+function getOriginalFolderName(cleanSlug) {
   const sources = loadRoots();
   for (const rootPath of sources) {
     if (!existsSync(rootPath)) continue;

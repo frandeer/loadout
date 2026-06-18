@@ -76,7 +76,22 @@ function CodeBlock({
   );
 }
 
+function stripFrontmatter(content: string): string {
+  if (!content) return "";
+  const normalized = content.replace(/\r\n/g, "\n");
+  const trimmed = normalized.trimStart();
+  if (trimmed.startsWith("---")) {
+    const firstDashIndex = trimmed.indexOf("---");
+    const secondDashIndex = trimmed.indexOf("---", firstDashIndex + 3);
+    if (secondDashIndex !== -1) {
+      return trimmed.slice(secondDashIndex + 3).trimStart();
+    }
+  }
+  return content;
+}
+
 export function MarkdownView({ content, className = "", size = "md" }: MarkdownViewProps) {
+  const cleanContent = stripFrontmatter(content);
   const sizes = {
     sm: {
       h1: "text-lg",
@@ -192,7 +207,7 @@ export function MarkdownView({ content, className = "", size = "md" }: MarkdownV
           pre: ({ children }) => <>{children}</>,
         }}
       >
-        {content}
+        {cleanContent}
       </ReactMarkdown>
     </div>
   );

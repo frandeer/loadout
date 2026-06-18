@@ -23,7 +23,12 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
   const isSelected = selected === item.id;
   const isFav = favorites.has(item.id);
   const isPicked = picked.has(item.id);
-  const name = item.kind === "memory" ? item.source.repo : item.displayName;
+  const name =
+    item.kind === "memory"
+      ? typeof item.source.repo === "string"
+        ? item.source.repo
+        : ""
+      : item.displayName;
   const desc = lang === "ko" && item.descKo ? item.descKo : item.description;
   const cat = iconFor(item);
   const traits = traitsOf(item);
@@ -123,8 +128,8 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
           {item.kind === "memory" ? "기억" : item.kind}
         </span>
         {item.kind === "memory" ? (
-          <span className="text-[10px] text-primary truncate max-w-[120px] font-medium" title={`${item.source.repo}/${item.source.path}`}>
-            {item.source.repo}/{item.source.path}
+          <span className="text-[10px] text-primary truncate max-w-[120px] font-medium" title={`${typeof item.source.repo === "string" ? item.source.repo : ""}/${item.source.path}`}>
+            {typeof item.source.repo === "string" ? item.source.repo : ""}/{item.source.path}
           </span>
         ) : (
           traits.slice(0, 2).map((t) => (
