@@ -48,7 +48,9 @@ describe("DetailPanel (docked 마스터-디테일)", () => {
     render(<DetailPanel variant="docked" />);
     expect(screen.getByTestId("detail-panel")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "skill-creator" })).toBeInTheDocument();
-    expect(screen.getByText("S-CLASS · 84pt")).toBeInTheDocument();
+    expect(screen.getAllByText("S-Class").length).toBeGreaterThan(0); // 등급 배지
+    expect(screen.getByText("84pt")).toBeInTheDocument();             // 점수
+    expect(screen.getByText("skill")).toBeInTheDocument();            // kind
     await waitFor(() => expect(api.getContent).toHaveBeenCalled());
   });
 

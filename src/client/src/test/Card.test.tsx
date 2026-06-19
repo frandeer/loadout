@@ -29,29 +29,26 @@ describe("Card 시안 C ②③", () => {
     useStore.setState({ selected: null, favorites: new Set(), picked: new Set(), lang: "ko" });
   });
 
-  it("레어도 컬러 스트립(3px, 등급색) 렌더", () => {
+  it("레어도 배지 — 등급 라벨 + 등급색 렌더", () => {
     render(<Card item={makeItem({ rarity: "legendary" })} />);
-    const strip = screen.getByTestId("rarity-strip");
-    expect(strip).toBeInTheDocument();
-    expect(strip).toHaveStyle({ backgroundColor: RARITY_CONFIG.legendary.color });
+    const badge = screen.getByText("S-Class");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveStyle({ backgroundColor: RARITY_CONFIG.legendary.color });
   });
 
-  it("코스트 보석 — cost 있으면 표시(축약), 없으면 미표시", () => {
-    const { rerender } = render(<Card item={makeItem({ cost: 8000 })} />);
-    expect(screen.getByTestId("cost-gem")).toHaveTextContent("8.0k");
-    rerender(<Card item={makeItem({ cost: undefined })} />);
-    expect(screen.queryByTestId("cost-gem")).toBeNull();
+  it("점수(pt) 렌더", () => {
+    render(<Card item={makeItem({ score: 80 })} />);
+    expect(screen.getByText("80pt")).toBeInTheDocument();
   });
 
-  it("연결 시너지 +1 인라인 + 편성 임박 특성 강조", () => {
-    // 임박 아님 — 일반 시너지 칩
+  it("특성 라벨 렌더 + 편성 임박 시 링크+ 배지", () => {
+    // needKeys 없음 → 특성 라벨만 표시, 링크+ 배지는 없음
     const { rerender } = render(<Card item={makeItem({ tags: ["build"] })} />);
-    const chip = screen.getByTestId("trait-chip");
-    expect(chip).toHaveTextContent("구축 +1");
-    expect(chip.getAttribute("title")).toMatch(/연결 시너지/);
+    expect(screen.getByText("구축")).toBeInTheDocument();
+    expect(screen.queryByText("링크+")).toBeNull();
 
-    // needKeys에 포함 + 미장착 → 강조(임박 타이틀)
+    // needKeys에 특성(build) 포함 + 미장착 → 발동 임박 "링크+" 배지
     rerender(<Card item={makeItem({ tags: ["build"], equipped: false })} needKeys={new Set(["build"])} />);
-    expect(screen.getByTestId("trait-chip").getAttribute("title")).toMatch(/발동 임박/);
+    expect(screen.getByText("링크+")).toBeInTheDocument();
   });
 });

@@ -56,7 +56,9 @@ describe("TeamAbPanel (A/B 대전)", () => {
     const panel = within(screen.getByTestId("team-ab-result"));
     expect(panel.getByText("82")).toBeInTheDocument();
     expect(panel.getByText("75")).toBeInTheDocument();
-    expect(panel.getByTestId("ab-verdict")).toHaveTextContent("🏆");
+    // 승자 표시: 트로피 아이콘(SVG) + 방향 라벨(← 팀 A)
+    expect(panel.getByTestId("ab-verdict").querySelector("svg")).toBeTruthy();
+    expect(panel.getByText("← 팀 A")).toBeInTheDocument();
     // Elo 변동: 1500→1516 / 1500→1484
     expect(panel.getByText("1516")).toBeInTheDocument();
     expect(panel.getByText("1484")).toBeInTheDocument();
