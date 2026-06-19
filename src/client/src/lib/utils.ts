@@ -191,12 +191,12 @@ export function promptFor(preset: string, it: Item, lang: "ko" | "en" = "ko"): s
   return P[preset] || P.card;
 }
 
-// ── 손그림(doodle) 카드 프롬프트 ──────────────────────────────────────────────
-// codex(gpt-image) 경로용. 텍스트 없이 한 눈에 이해되는 손그림 비유 한 장면.
+// ── 카드 아트 프롬프트 ──────────────────────────────────────────────
+// codex-api / codex 경로용. 핵심 의미를 정확하게 전달하는 플랫 일러스트.
 const DOODLE_STYLE =
-  "Hand-drawn doodle illustration on a clean, solid off-white background — NO grid lines, NO paper texture, NO background clutter. " +
-  "BOLD thick black ink outlines and flat, bright, high-contrast fills (minimal soft shading). Friendly and cute. " +
-  "ONE single large, simple metaphor with big clear shapes and very few fine details, composed to stay crisp and legible even as a small thumbnail.";
+  "Clean flat-style illustration on a solid off-white background — NO grid, NO paper texture, NO background clutter. " +
+  "Crisp outlines, flat fills with subtle depth, professional yet approachable. NOT cartoonish or overly cute — think technical illustration meets infographic icon. " +
+  "ONE focused visual metaphor: the single most essential concept, depicted with precision and clarity, legible even as a small thumbnail.";
 
 const RARITY_HIGHLIGHT: Record<Rarity, string> = {
   legendary: "amber/gold",
@@ -223,12 +223,12 @@ export function doodlePrompt(it: Item, lang: "ko" | "en" = "ko"): string {
   const captionLanguage = lang === "ko" ? "Korean" : "English";
   return (
     `${DOODLE_STYLE} Internal reference only, never render as text: tool name "${name}", purpose: ${descEn}.${localizedHint}` +
-    `Interpret the purpose visually. Do not copy the name, description, or any phrase into the image. ` +
-    `Draw one witty, beginner-friendly metaphor scene made from objects and actions that makes what it does instantly understandable. ` +
-    `Add exactly one small, clean bottom caption in ${captionLanguage}: 2-5 plain words, core idea only, no punctuation, not a full sentence. ` +
+    `Think carefully about what this tool ACTUALLY does, then pick the single most accurate visual metaphor — not a generic icon, but something that captures the specific mechanism or workflow. ` +
+    `Depict one clear scene with objects and actions that convey the core function at a glance. ` +
+    `Add exactly one small, clean bottom caption in ${captionLanguage}: 2-4 precise words that name the core action, no punctuation. ` +
     `Use ${hl} only as a small visual accent, not as a marker behind words. ` +
     `Do NOT write the tool name. Do NOT include a title, object label, UI text, speech bubble, command text, code, gauge letters, numbers, logo text, watermark, pseudo-text, or any extra text beyond that one caption. ` +
-    `No outer card border frame, no dark or military tone, no photorealism. 1:1 square.`
+    `No outer card border frame, no dark or military tone, no photorealism. No anthropomorphic characters with faces on objects. 1:1 square.`
   );
 }
 
