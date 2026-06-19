@@ -4,15 +4,17 @@ sources/
 # Vault — ~/.claude에서 가져온(복사한) 스킬/에이전트 원본 보관소(무손실). 버전관리 대상 아님.
 vault/
 
-# 스캔으로 생성되는 인덱스/캐시
-data/
+# 스캔으로 생성되는 인덱스/캐시(index.json·loadout.json·vault.json 등)는 머신별이라 무시.
+# 단, 카드 아트 매핑(card-images.json: itemId→이미지)은 공유 대상이라 추적한다.
+data/*
 !data/.gitkeep
+!data/card-images.json
 
-# Vault 상태 파일(data/ 아래라 이미 무시되지만 명시) — 가져오기/링크/분기 상태
-data/vault.json
-
-# 생성된 카드 아트/다이어그램
-media/generated/
+# 생성된 카드 아트(card-*.png 등)는 공유 대상 — 같은 스킬(같은 itemId)이면 다른 머신에서도
+# 같은 카드가 뜬다(매핑은 data/card-images.json). itemId 없이 만든 워크숍 스크래치(chatgpt-*/
+# grok-*) 출력만 무시한다.
+media/generated/chatgpt-*.png
+media/generated/grok-*.png
 
 # 벤더된 image-farm 의 standalone 출력 디렉토리(평소엔 media/generated 로 저장됨)
 vendor/image-farm/generated/
