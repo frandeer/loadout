@@ -125,6 +125,7 @@ export type SortKey = "score" | "name" | "power" | "freshness" | "popularity" | 
 export interface FilterState {
   kind: Kind | "all";
   rarity: Rarity | "all";
+  category: string;
   q: string;
   sort: SortKey;
   dupOnly: boolean;

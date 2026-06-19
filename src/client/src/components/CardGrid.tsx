@@ -356,7 +356,7 @@ function MemoryCard({ item, onClick }: { item: Item; onClick: () => void }) {
   return (
     <button onClick={onClick} className="flex flex-col rounded-xl border border-hairline bg-surface-card p-3.5 text-left transition hover:border-hairline-strong hover:-translate-y-0.5 w-full">
       <div className="mb-2 flex items-center gap-1.5 text-muted">
-        <Icon name="file-alt" size="sm" />
+        <Icon name="memory-card" size="sm" />
         <span className="text-[10px] uppercase font-bold text-muted-soft">Memory</span>
       </div>
       <h4 className="mb-0.5 text-sm font-bold text-ink truncate w-full">{repo}</h4>

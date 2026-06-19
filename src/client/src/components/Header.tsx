@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
 import { Icon } from "./Icon";
@@ -6,20 +7,21 @@ import logoImg from "../assets/bolt-logo.png";
 import type { AppView } from "../App";
 import type { IconName } from "./Icon";
 
-const VIEW_TABS: { key: AppView; label: string; icon: IconName }[] = [
-  { key: "deck", label: "홈", icon: "home" },
-  { key: "ops", label: "작전 준비", icon: "team" },
-  { key: "inventory", label: "인벤토리", icon: "backpack" },
-  { key: "forge", label: "포지", icon: "wrench" },
+const VIEW_TABS: { key: AppView; path: string; label: string; icon: IconName }[] = [
+  { key: "deck", path: "/deck", label: "홈", icon: "home" },
+  { key: "ops", path: "/ops", label: "작전 준비", icon: "team" },
+  { key: "inventory", path: "/inventory", label: "인벤토리", icon: "backpack" },
+  { key: "forge", path: "/forge", label: "포지", icon: "wrench" },
+  { key: "help", path: "/help", label: "도움말", icon: "help" },
 ];
 
 interface HeaderProps {
-  view: AppView;
-  onSetView: (v: AppView) => void;
   onOpenSources: () => void;
 }
 
-export function Header({ view, onSetView, onOpenSources }: HeaderProps) {
+export function Header({ onOpenSources }: HeaderProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { filters, setFilter, setTheme, theme } = useStore();
   const reloadData = useStore((s) => s.reloadData);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -89,11 +91,12 @@ export function Header({ view, onSetView, onOpenSources }: HeaderProps) {
         {/* 메인 탭 */}
         <nav className="flex items-center">
           {VIEW_TABS.map((t) => {
-            const active = view === t.key;
+            const path = location.pathname === "/" ? "/deck" : location.pathname;
+            const active = path === t.path;
             return (
               <button
                 key={t.key}
-                onClick={() => onSetView(t.key)}
+                onClick={() => navigate(t.path)}
                 className={`relative flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
                   active
                     ? "bg-primary-soft text-primary"

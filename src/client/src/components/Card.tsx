@@ -120,8 +120,15 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
         </div>
       </div>
 
-      {/* 아트 영역 */}
-      {item.image ? (
+      {/* 아트 영역 — memory는 개별 AI 아트 대신 공통 분류 글리프(텍스트 우선). 큰 히어로
+          박스를 쓰지 않아 이름·설명이 카드를 주도하고, "이건 장착 자산이 아니라 기억"임을
+          한눈에 분류한다. */}
+      {item.kind === "memory" ? (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-hairline bg-surface-soft px-3 py-2">
+          <Icon name="memory-card" size="sm" className="text-muted" />
+          <span className="text-[10px] font-bold uppercase tracking-wide text-muted-soft">Memory</span>
+        </div>
+      ) : item.image ? (
         <div className="mb-3 aspect-[4/3] overflow-hidden rounded-lg">
           <img src={item.image} alt="" className="h-full w-full object-cover" loading="lazy" />
         </div>

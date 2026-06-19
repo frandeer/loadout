@@ -16,7 +16,10 @@ const KIND_FILTERS: { key: Kind | "all"; label: string; icon: IconName }[] = [
 export function FilterRail() {
   const { filters, setFilter, meta, items } = useStore();
   const reloadData = useStore((s) => s.reloadData);
+  const visibleCount = useStore((s) => s.filtered().length);
   const [rescanning, setRescanning] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showAllTags, setShowAllTags] = useState(false);
 
   const handleRescan = useCallback(async () => {
     setRescanning(true);
@@ -35,13 +38,16 @@ export function FilterRail() {
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const it of items) for (const t of it.tags ?? []) m.set(t, (m.get(t) ?? 0) + 1);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [items]);
 
-  const sourceCounts = useMemo(() => {
-    const owners = new Map<string, number>();
-    for (const it of items) owners.set(it.source.owner, (owners.get(it.source.owner) ?? 0) + 1);
-    return owners;
+  const categoryCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of items) {
+      const cat = it.category ?? "기타";
+      m.set(cat, (m.get(cat) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [items]);
 
   return (
@@ -54,6 +60,7 @@ export function FilterRail() {
             onClick={() => {
               setFilter("kind", "all");
               setFilter("rarity", "all");
+              setFilter("category", "all");
               setFilter("equipOnly", false);
               setFilter("favOnly", false);
               setFilter("dupOnly", false);
@@ -64,11 +71,26 @@ export function FilterRail() {
             초기화
           </button>
         </div>
+        <p className="-mt-3 text-[11px] text-muted">표시 {visibleCount}개</p>
 
         {/* 유형 */}
         <section>
           <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">유형</h4>
           <div className="space-y-0.5">
+            <button
+              onClick={() => setFilter("kind", "all")}
+              className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                filters.kind === "all"
+                  ? "bg-primary-soft text-primary font-semibold"
+                  : "text-body hover:bg-surface-soft"
+              }`}
+            >
+              <Icon name="app-grid" size="sm" />
+              <span className="flex-1 text-left">전체</span>
+              <span className={`font-mono text-[11px] ${filters.kind === "all" ? "text-primary" : "text-muted-soft"}`}>
+                {items.length}
+              </span>
+            </button>
             {KIND_FILTERS.map((t) => {
               const active = filters.kind === t.key;
               const count = kindCounts[t.key] ?? 0;
@@ -127,24 +149,35 @@ export function FilterRail() {
 
         <div className="h-px bg-hairline" />
 
-        {/* 출처 */}
+        {/* 카테고리 */}
         <section>
-          <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">출처</h4>
+          <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">카테고리</h4>
           <div className="space-y-0.5">
-            {[...sourceCounts.entries()].slice(0, 5).map(([owner, count]) => (
-              <button
-                key={owner}
-                onClick={() => setFilter("q", filters.q === owner ? "" : owner)}
-                className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
-                  filters.q === owner ? "bg-primary-soft text-primary font-semibold" : "text-body hover:bg-surface-soft"
-                }`}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-soft" />
-                <span className="flex-1 text-left truncate">{owner}</span>
-                <span className="font-mono text-[11px] text-muted-soft">{count}</span>
-              </button>
-            ))}
+            {(showAllCategories ? categoryCounts : categoryCounts.slice(0, 8)).map(([cat, count]) => {
+              const active = filters.category === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setFilter("category", active ? "all" : cat)}
+                  className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                    active ? "bg-primary-soft text-primary font-semibold" : "text-body hover:bg-surface-soft"
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-soft" />
+                  <span className="flex-1 text-left truncate">{cat}</span>
+                  <span className="font-mono text-[11px] text-muted-soft">{count}</span>
+                </button>
+              );
+            })}
           </div>
+          {categoryCounts.length > 8 && (
+            <button
+              onClick={() => setShowAllCategories((v) => !v)}
+              className="mt-1 px-2.5 text-[11px] font-medium text-primary hover:underline"
+            >
+              {showAllCategories ? "접기" : `+${categoryCounts.length - 8}개 더`}
+            </button>
+          )}
         </section>
 
         <div className="h-px bg-hairline" />
@@ -191,7 +224,7 @@ export function FilterRail() {
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted">태그</h4>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {tagCounts.map(([tag, count]) => (
+              {(showAllTags ? tagCounts : tagCounts.slice(0, 10)).map(([tag, count]) => (
                 <button
                   key={tag}
                   onClick={() => setFilter("q", filters.q === tag ? "" : tag)}
@@ -206,6 +239,14 @@ export function FilterRail() {
                 </button>
               ))}
             </div>
+            {tagCounts.length > 10 && (
+              <button
+                onClick={() => setShowAllTags((v) => !v)}
+                className="mt-2 text-[11px] font-medium text-primary hover:underline"
+              >
+                {showAllTags ? "접기" : `+${tagCounts.length - 10}개 더`}
+              </button>
+            )}
           </section>
         )}
 
@@ -251,7 +292,7 @@ export function FilterRail() {
 
 function StatusRow({ label, count, color }: { label: string; count: number; color: string }) {
   return (
-    <div className="flex w-full items-center gap-2 px-2.5 py-1.5 text-[13px] text-body">
+    <div className="flex w-full cursor-default items-center gap-2 px-2.5 py-1.5 text-[13px] text-muted">
       <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
       <span className="flex-1 text-left">{label}</span>
       <span className="font-mono text-[11px] text-muted-soft">{count}</span>

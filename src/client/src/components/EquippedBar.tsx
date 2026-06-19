@@ -35,7 +35,7 @@ export function EquippedBar() {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      const name = prompt("로드아웃 이름을 입력하세요:", `로드아웃 ${presetList.length + 1}`);
+      const name = prompt("팀 편성 이름을 입력하세요:", `팀 ${presetList.length + 1}`);
       if (!name) { setSaving(false); return; }
       const id = await savePreset(name);
       setActivePresetId(id);
@@ -57,7 +57,7 @@ export function EquippedBar() {
       <div className="mx-auto flex max-w-[1800px] items-center gap-4 px-5 h-16">
         {/* 프리셋 드롭다운 */}
         <div className="shrink-0 flex items-center gap-2.5">
-          <span className="text-[11px] text-muted-soft hidden sm:inline">로드아웃</span>
+          <span className="text-[11px] text-muted-soft hidden sm:inline">팀 편성</span>
           <div className="relative" ref={presetRef}>
             <button
               onClick={() => setPresetOpen(!presetOpen)}
@@ -126,10 +126,11 @@ export function EquippedBar() {
           <button
             onClick={handleSave}
             disabled={saving}
+            title="현재 작전 준비(팀 편성) 구성을 이름 붙여 저장합니다"
             className="flex items-center gap-1.5 rounded-[10px] bg-primary px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-active disabled:opacity-50"
           >
             <Icon name="save" size="sm" />
-            {saving ? "저장 중..." : "로드아웃 저장"}
+            {saving ? "저장 중..." : "팀 편성 저장"}
           </button>
         </div>
       </div>

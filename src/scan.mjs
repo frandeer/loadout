@@ -172,6 +172,46 @@ function deriveCategory({ fm, pathSegs, name, description }) {
   return inferDomain(name + " " + description) || "general";
 }
 
+// ── 12분류 기능 택소노미 (멱등/결정적) ──
+// item.kind/name/description/tags만 사용. Date.now·랜덤·AI 금지.
+// FIRST-MATCH-WINS: 구체 버킷이 일반 버킷보다 먼저 매칭되도록 순서가 중요.
+// 각 규칙은 명시 이름 집합(set) + 키워드 정규식(name+description+tags) 둘 다로 매칭.
+function classifyItem(item) {
+  const name = (item.name || "").toLowerCase();
+  const hay = `${item.name || ""} ${item.description || ""} ${(item.tags || []).join(" ")}`.toLowerCase();
+
+  // kind 기반 확정 분류(최우선)
+  if (item.kind === "mcp") return "MCP";
+  if (item.kind === "memory") return "메모리·컨텍스트";
+
+  // 우선순위 순 규칙. 이름 앵커(정확 일치)가 키워드 정규식보다 항상 우선한다:
+  //   pass1 = 모든 규칙의 이름 목록(+디자인 'design*' 접두)을 우선순위 순으로 검사
+  //   pass2 = 없으면 키워드 정규식을 우선순위 순으로 검사
+  // → ship→배포, handoff/skillify→자동화 처럼 '이름이 곧 의도'인 항목이 설명 키워드에 끌려가지 않음.
+  const RULES = [
+    { cat: "메모리·컨텍스트", names: ["memory-init", "context-save", "context-restore", "checkpoint", "learn"], re: null },
+    { cat: "보안", names: ["cso", "guard", "careful", "freeze", "unfreeze"], re: /security|guardrail|보안|secret|credential/ },
+    { cat: "리서치·스크래핑", names: ["scrape", "autoresearch", "connect-chrome"], re: /scrape|crawl|research|조사|수집|gather/ },
+    { cat: "이미지·미디어", names: ["web-image-forge", "sprite-icon-slicer", "codex-image", "make-pdf", "slides-grab", "slides-grab-plan", "slides-grab-design", "slides-grab-export"], re: /image|sprite|pdf|slide|icon|미디어|figma-export/ },
+    { cat: "디자인", names: ["diagram", "ui-clone", "prototype", "plan-design-review", "ios-design-review", "design-an-interface"], re: /design|interface|excalidraw|mermaid|와이어프레임/ },
+    { cat: "테스트·QA", names: ["gstack", "gstack-upgrade", "benchmark", "benchmark-models", "canary", "qa", "qa-only", "tdd", "browse", "open-gstack-browser", "setup-browser-cookies", "setup-pre-commit", "ios-qa", "ios-fix", "investigate", "diagnose"], re: /test|qa|debug|benchmark|regression|디버그/ },
+    { cat: "배포·인프라", names: ["ship", "land-and-deploy", "setup-deploy"], re: /deploy|release|ci\/cd|infra|배포/ },
+    { cat: "글쓰기·문서", names: ["document-generate", "document-release", "grill-with-docs", "ubiquitous-language", "doc", "edit-article", "writing-shape", "writing-beats", "writing-fragments", "zoom-out", "hwp-skill", "caveman"], re: /writing|document|문서|article|글쓰기/ },
+    { cat: "기획·PM", names: ["autoplan", "devex-review", "plan-tune", "spec", "plan-devex-review", "office-hours", "plan-ceo-review", "plan-eng-review", "retro", "triage", "to-prd", "to-issues", "setup-matt-pocock-skills", "grill-me", "landing-report"], re: /\bplan\b|prd|spec|기획|roadmap|retro|triage/ },
+    { cat: "자동화·오케스트레이션", names: ["sync-gbrain", "setup-gbrain", "write-a-skill", "git-guardrails-claude-code", "handoff", "omc-reference", "self-harness-loop", "fable-procedure", "pair-agent", "skillify", "health", "obsidian-vault"], re: /agent|orchestrat|harness|automat|workflow|오케스트/ },
+    { cat: "개발·엔지니어링", names: ["review", "codex", "improve-codebase-architecture", "migrate-to-shoehorn", "scaffold-exercises", "request-refactor-plan", "jrebel-hotreload", "jrebel-spring-boot", "ios-sync", "ios-clean", "edit-워크플로"], re: /refactor|codebase|engineer|typescript|spring|개발/ },
+  ];
+
+  for (const r of RULES) {
+    if (r.names.includes(name)) return r.cat;
+    if (r.cat === "디자인" && name.startsWith("design")) return r.cat;
+  }
+  for (const r of RULES) {
+    if (r.re && r.re.test(hay)) return r.cat;
+  }
+  return "기타";
+}
+
 function parseFrontmatter(text) {
   // --- ... --- 블록에서 name/description/model/allowed-tools 추출 (간이 파서)
   const m = text.match(/^﻿?---\s*\r?\n([\s\S]*?)\r?\n---/);
@@ -359,12 +399,12 @@ function computeStats({ repo, size, mtimeMs, freshMs, fm, kind, refCount, repoSt
 }
 
 function rarityOf(stats, ai) {
-  const base =
-    0.25 * stats.popularity +
-    0.2 * stats.power +
-    0.2 * stats.clarity +
-    0.2 * stats.freshness +
-    0.15 * (ai?.usefulness ?? (stats.power + stats.clarity) / 2);
+  // 실측 4스탯은 콘텐츠·git에서 유도(멱등). AI 채점(usefulness)이 있으면 15%를 더하고,
+  // 없으면 빈 슬롯을 (파워+명확도)/2로 채우던 '유령 가중'(이미 반영된 두 스탯의 중복)을 빼고
+  // 4스탯만 정규화한다. 평균값에선 기존과 동일(척도 보존), 파워·명확도 편중만 정직해진다.
+  const real =
+    0.25 * stats.popularity + 0.2 * stats.power + 0.2 * stats.clarity + 0.2 * stats.freshness;
+  const base = ai?.usefulness != null ? real + 0.15 * ai.usefulness : real / 0.85;
   const score = clamp(base);
   let rarity = "common";
   if (score >= 85) rarity = "legendary";
@@ -829,6 +869,10 @@ for (const it of items) {
   const txt = `${it.name} ${it.displayName} ${it.category || ""} ${it.description}`;
   it.tags = TAG_PATTERNS.filter(([, re]) => re.test(txt)).map(([k]) => k);
 }
+
+// 12분류 카테고리 중앙 적용 — 기존 category(weapon/general/ml/agent…)를 덮어쓴다.
+// tags 계산 이후에 둬서 classifyItem이 tags를 참조할 수 있게 한다.
+for (const it of items) it.category = classifyItem(it);
 
 // 등급 재배치: 점수 백분위 기반 카드게임식 피라미드 (대부분 흔하고, 소수만 전설)
 {

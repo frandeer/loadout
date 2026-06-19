@@ -23,7 +23,7 @@ describe("useStore", () => {
     useStore.setState({
       items: [],
       meta: null,
-      filters: { kind: "all", rarity: "all", q: "", sort: "score", dupOnly: false, equipOnly: false, favOnly: false },
+      filters: { kind: "all", rarity: "all", category: "all", q: "", sort: "score", dupOnly: false, equipOnly: false, favOnly: false },
       selected: null,
       favorites: new Set(),
       picked: new Set(),

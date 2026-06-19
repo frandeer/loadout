@@ -71,6 +71,7 @@ export const useStore = create<AppState>((set, get) => ({
   filters: {
     kind: "all",
     rarity: "all",
+    category: "all",
     q: "",
     sort: "score",
     dupOnly: false,
@@ -207,6 +208,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (filters.kind !== "all") xs = xs.filter((i) => i.kind === filters.kind);
     if (filters.rarity !== "all") xs = xs.filter((i) => i.rarity === filters.rarity);
+    if (filters.category !== "all") xs = xs.filter((i) => i.category === filters.category);
     if (filters.dupOnly) xs = xs.filter((i) => i.group);
     if (filters.equipOnly) xs = xs.filter((i) => i.equipped);
     if (filters.favOnly) xs = xs.filter((i) => favorites.has(i.id));

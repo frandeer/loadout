@@ -597,6 +597,12 @@ const LO = {
     btn?.classList.add("animate__animated", "animate__pulse");
     toast("현재 편성과 연결 자산을 임무 패키지로 저장할 준비가 되었습니다.");
   },
+  openHelp() {
+    $("#helpModal").classList.add("open");
+  },
+  closeHelp() {
+    $("#helpModal").classList.remove("open");
+  },
   generate: genImage, loadIntoSlicer, autoGrid, clearSlices,
 };
 window.LO = LO;
@@ -716,10 +722,14 @@ function bind() {
   // 더보기 팝업: position:fixed 가 조상 transform/filter 에 갇히지 않도록 body 직속으로 이동(포털).
   const dm = $("#docModal");
   if (dm && dm.parentElement !== document.body) document.body.appendChild(dm);
-  // 더보기 팝업: 배경 클릭 + ESC 로 닫기.
+  const hm = $("#helpModal");
+  if (hm && hm.parentElement !== document.body) document.body.appendChild(hm);
+  // 더보기 & 도움말 팝업: 배경 클릭 + ESC 로 닫기.
   $("#docModal").onclick = (e) => { if (e.target.id === "docModal") LO.closeDoc(); };
+  $("#helpModal").onclick = (e) => { if (e.target.id === "helpModal") LO.closeHelp(); };
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("#docModal").classList.contains("open")) LO.closeDoc();
+    if (e.key === "Escape" && $("#helpModal").classList.contains("open")) LO.closeHelp();
   });
 }
 

@@ -45,6 +45,7 @@
   <div class="topbar-actions">
     <button class="tbtn" id="themeToggle" onclick="LO.toggleTheme()" title="Light / Dark 테마 전환">Light</button>
     <button class="tbtn" id="srcBtn" onclick="LO.openSources()" title="자산을 가져올 소스(폴더·git) 관리">📂 소스 관리</button>
+    <button class="tbtn" id="helpBtn" onclick="LO.openHelp()" title="로드아웃 도움말 및 작전 지침서">❓ 도움말</button>
   </div>
   <div class="search">
     <span>검색</span><input id="search" placeholder="자산명·설명·저장소 검색 (한/영)">
@@ -250,6 +251,111 @@
 
       <div class="section-title" style="margin-top:18px">등록된 소스 <span class="muted">제거 시 즉시 재스캔</span></div>
       <div class="src-list" id="srcList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 도움말 모달 (로드아웃 사용 설명서) -->
+<div class="modal-bg" id="helpModal">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-h">❓ 로드아웃(Loadout) 작전 지침서
+      <button class="x" onclick="LO.closeHelp()">✕</button>
+    </div>
+    <div class="modal-b markdown-body" style="max-height:75vh; overflow-y:auto; padding:24px 28px;">
+      <h2 style="margin-top:0; border-bottom:2px solid var(--color-primary); padding-bottom:8px; color:var(--color-primary)">🎒 로드아웃(Loadout)이란 무엇인가요?</h2>
+      <p>
+        게임(데스티니, 에이펙스 레전드, 콜 오브 듀티 등)에서 <strong>'로드아웃(Loadout)'</strong>은 전장에 진입하기 전 요원이 장착하는 무기, 방어구, 스킬 세트의 조합을 의미합니다.
+      </p>
+      <p>
+        이 프로젝트는 Claude Code 터미널 환경에서 활용되는 수많은 <strong>스킬(Skill)</strong>, <strong>서브에이전트 요원(Agent)</strong>, <strong>MCP 서버(장비)</strong>를 수집하여 
+        능력치와 등급별로 시각화하고, 단 한 번의 <strong>'장착(Equip)'</strong>으로 로컬 Claude Code 환경에 즉시 연동해 쓸 수 있게 돕는 <strong>개인 임무 자산 관리 대시보드</strong>입니다.
+      </p>
+
+      <h2 style="margin-top:1.8em; border-bottom:1px solid var(--color-hairline); padding-bottom:6px;">⚔️ 3대 핵심 임무 자산</h2>
+      <table style="width:100%; border-collapse:collapse; margin-top:12px;">
+        <thead>
+          <tr style="background:color-mix(in srgb, var(--color-primary) 10%, transparent)">
+            <th style="padding:10px; text-align:left; border:1px solid var(--color-hairline);">자산 유형</th>
+            <th style="padding:10px; text-align:left; border:1px solid var(--color-hairline);">게임 메타포</th>
+            <th style="padding:10px; text-align:left; border:1px solid var(--color-hairline);">실제 기능</th>
+            <th style="padding:10px; text-align:left; border:1px solid var(--color-hairline);">역할 및 작동 원리</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:10px; border:1px solid var(--color-hairline);"><strong>SKILL</strong></td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">🃏 스킬 / 카드</td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">도구 스키마 모음</td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">Claude Code가 실행할 수 있는 명령어 스키마나 도구 세트(<code>SKILL.md</code>)입니다.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px; border:1px solid var(--color-hairline);"><strong>AGENT</strong></td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">🧑‍🤝‍🧑 요원 / 유닛</td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">서브에이전트 정의</td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">특정 전문 도메인(Researcher, Builder 등)을 수행하도록 훈련된 AI 에이전트 설정입니다.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px; border:1px solid var(--color-hairline);"><strong>MCP</strong></td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">⚔️ 무기 / 장비</td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">연동 프로토콜</td>
+            <td style="padding:10px; border:1px solid var(--color-hairline);">외부 도구(API, DB, 파일 등)와 Claude Code를 연동하여 모델의 작업 반경을 확장하는 서버 장비입니다.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 style="margin-top:1.8em; border-bottom:1px solid var(--color-hairline); padding-bottom:6px;">⚡ 등급(Rarity) 및 클래스 시스템</h2>
+      <p>수집된 모든 자산은 완성도와 도구 분량, AI 검증 결과에 따라 등급이 매겨집니다.</p>
+      <ul style="list-style-type:none; padding-left:0;">
+        <li style="margin-bottom:10px;">
+          <span style="display:inline-block; min-width:85px; text-align:center; padding:2px 8px; border-radius:var(--radius-sm); font-size:11px; font-weight:800; background:var(--r-legendary-glow); color:var(--r-legendary); border:1px solid var(--r-legendary); margin-right:8px;">S-CLASS</span>
+          <strong>Legendary (전설)</strong>: 도구 스키마 완성도가 완벽하고 문서 설명이 방대하여 즉시 전력감인 최상급 자산.
+        </li>
+        <li style="margin-bottom:10px;">
+          <span style="display:inline-block; min-width:85px; text-align:center; padding:2px 8px; border-radius:var(--radius-sm); font-size:11px; font-weight:800; background:var(--r-epic-glow); color:var(--r-epic); border:1px solid var(--r-epic); margin-right:8px;">A-CLASS</span>
+          <strong>Epic (에픽)</strong>: 실제 업무에서 높은 활용도와 검증된 동작 안정성을 보장하는 강력한 성능의 자산.
+        </li>
+        <li style="margin-bottom:10px;">
+          <span style="display:inline-block; min-width:85px; text-align:center; padding:2px 8px; border-radius:var(--radius-sm); font-size:11px; font-weight:800; background:var(--r-rare-glow); color:var(--r-rare); border:1px solid var(--r-rare); margin-right:8px;">B-CLASS</span>
+          <strong>Rare (희귀)</strong>: 유용하지만 특수한 환경에 맞춰져 있거나 사소한 문서 보완이 요구되는 자산.
+        </li>
+        <li style="margin-bottom:10px;">
+          <span style="display:inline-block; min-width:85px; text-align:center; padding:2px 8px; border-radius:var(--radius-sm); font-size:11px; font-weight:800; background:var(--r-uncommon-glow); color:var(--r-uncommon); border:1px solid var(--r-uncommon); margin-right:8px;">C-CLASS</span>
+          <strong>Uncommon (고급)</strong>: 단일 기능을 수행하는 간단한 구조의 스펙을 가진 보조 자산.
+        </li>
+        <li style="margin-bottom:10px;">
+          <span style="display:inline-block; min-width:85px; text-align:center; padding:2px 8px; border-radius:var(--radius-sm); font-size:11px; font-weight:800; background:var(--r-common-glow); color:var(--r-common); border:1px solid var(--r-common); margin-right:8px;">D-CLASS</span>
+          <strong>Common (일반)</strong>: 기초적인 구조만 정의되었거나 추가 리팩토링이 필요한 기초 자산.
+        </li>
+      </ul>
+
+      <h2 style="margin-top:1.8em; border-bottom:1px solid var(--color-hairline); padding-bottom:6px;">📊 자산 능력치(Stats) 가이드</h2>
+      <ul>
+        <li><strong>작전력 (Power)</strong>: 자산이 가진 도구의 수, 설명 텍스트 분량, 스키마의 밀도를 고려해 계산한 종합 능력치(⚡)입니다.</li>
+        <li><strong>신뢰도 (Popularity)</strong>: GitHub Star 수 등 자산의 오픈소스 커뮤니티 신뢰 수준을 나타냅니다. (널리 쓰일수록 점수 상승)</li>
+        <li><strong>명확도 (Clarity)</strong>: 설명문과 스키마 명확성을 분석하여, AI가 도구를 혼동 없이 잘 호출할 수 있는 신호 신뢰도를 뜻합니다.</li>
+        <li><strong>신선도 (Freshness)</strong>: 마지막 Git 커밋 일자를 기반으로 계산됩니다. 최근까지 업데이트된 자산일수록 높은 점수를 받습니다.</li>
+        <li><strong>무게 (Weight)</strong>: 토큰 용량과 코드 무거움을 나타냅니다. 비대하지 않고 최적화되어 있을수록 높은 점수(가벼움)를 갖습니다.</li>
+      </ul>
+
+      <h2 style="margin-top:1.8em; border-bottom:1px solid var(--color-hairline); padding-bottom:6px;">🔄 핵심 작전 가이드 (How to Play)</h2>
+      <ol style="padding-left:20px; line-height:1.8;">
+        <li><strong>소스 수집 (📂 소스 관리)</strong>:
+          <br>우측 상단의 <code>📂 소스 관리</code> 메뉴를 통해 로컬의 스킬 폴더 경로를 지정하거나 GitHub URL을 복사해 넣으세요. 프로젝트를 clone 해 오면서 백그라운드 분석기가 즉시 카탈로그로 추가합니다.
+        </li>
+        <li><strong>덱 장착 (🎒 장착)</strong>:
+          <br>수집된 카드 중 마음에 드는 카드를 선택해 상세 정보에서 <strong>🎒 장착(Equip)</strong> 버튼을 누르세요. 
+          실제 로컬 Claude Code 설정 경로(<code>~/.claude/skills</code>)에 Junction 연결이 동적으로 생성되어, 다음번 터미널 실행부터 스킬이 즉시 작동합니다.
+        </li>
+        <li><strong>관제 편성 보드 (Formation Board)</strong>:
+          <br>중앙의 관제 편성 보드에서 5명의 요원 슬롯에 에이전트를 배치하고 작전에 시너지를 낼 스킬들을 조합해 최적의 덱 전력을 평가해 보세요.
+        </li>
+        <li><strong>우세 자산 비교 (AI Verdict)</strong>:
+          <br>여러 저장소에서 가져오다 보면 비슷한 기능이나 중복 스킬이 발생합니다. 우측 하단의 <strong>우세 비교</strong> 기능을 가동해 AI 평가 점수가 높고 작전력이 우수한 자산만을 살리고 중복되는 약한 자산은 <strong>장착 해제</strong>하여 토큰 소비를 아끼세요.
+        </li>
+      </ol>
+      <div class="help-note" style="margin-top:20px;">
+        💡 <strong>작전 팁:</strong> 상세 패널의 각 능력치 명칭에 마우스를 대면 간편 툴팁 설명이 제공됩니다.
+      </div>
     </div>
   </div>
 </div>

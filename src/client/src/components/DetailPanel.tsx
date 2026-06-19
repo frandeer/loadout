@@ -278,8 +278,8 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           </div>
         </div>
 
-        {/* 이미지 */}
-        {item.image && (
+        {/* 이미지 — memory는 개별 AI 아트를 쓰지 않는다(카드와 동일하게 공통 분류 글리프로 통일). */}
+        {item.image && item.kind !== "memory" && (
           <div className="mb-4 overflow-hidden rounded-xl">
             <img src={item.image} alt="" className="w-full" />
           </div>
