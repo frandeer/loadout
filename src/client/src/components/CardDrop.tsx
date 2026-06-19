@@ -7,9 +7,22 @@ import { Icon } from "./Icon";
 
 const KIND_LABEL: Record<Kind, string> = { skill: "스킬", agent: "에이전트", mcp: "장비", memory: "메모리" };
 
-export function CardDrop() {
+interface CardDropProps {
+  /**
+   * 리빌(획득 카드)이 사용자에 의해 닫힐 때 호출 — 부모(예: SourceManager 모달)가
+   * 자신을 닫도록. 드랍 성공 시점이 아니라 리빌이 닫히는 시점에 호출해야 한다:
+   * 부모 모달이 즉시 언마운트되면 CardDrop(과 그 자식인 리빌 오버레이)도 같은 렌더에서
+   * 사라져, 사용자가 "신규 카드 획득!"을 보지 못하고 setSelected도 실행되지 못한다.
+   */
+  onReveal?: () => void;
+}
+
+export function CardDrop({ onReveal }: CardDropProps) {
   const { engines, reloadData, setSelected, items } = useStore();
-  const [engine, setEngine] = useState(engines[0] ?? "heuristic");
+  // 사용자가 명시적으로 고른 엔진만 보관. 미선택이면 라이브 engines[0]로 폴백한다 —
+  // engines가 mount 이후 비동기로 로드되어도(useStore.loadData) 기본값이 갱신되도록.
+  const [picked, setPicked] = useState<string | null>(null);
+  const engine = picked ?? engines[0] ?? "heuristic";
   const [dropping, setDropping] = useState(false);
   const [error, setError] = useState("");
   const [dropped, setDropped] = useState<DropResp["card"] | null>(null);
@@ -40,6 +53,9 @@ export function CardDrop() {
     setDropped(null);
     setNote(undefined);
     if (id) setSelected(id);
+    // 리빌이 닫힌 뒤에야 부모 모달(SourceManager)을 닫는다 — 닫히면서 선택된 카드의
+    // DetailPanel이 라우트 레이어에 열린다(모달 서브트리 밖이라 언마운트 영향 없음).
+    onReveal?.();
   };
 
   const full = dropped ? items.find((i) => i.id === dropped.id) : undefined;
@@ -49,7 +65,7 @@ export function CardDrop() {
     <div className="flex items-center gap-2">
       <select
         value={engine}
-        onChange={(e) => setEngine(e.target.value)}
+        onChange={(e) => setPicked(e.target.value)}
         aria-label="드랍 엔진"
         className="h-8 rounded-lg border border-hairline bg-canvas px-2 font-mono text-[11px] text-body focus:border-primary focus:outline-none"
       >

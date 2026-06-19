@@ -100,8 +100,9 @@ function vaultSnapshot(item) {
 
 const clamp = (n) => Math.max(0, Math.min(99, Math.round(n)));
 
-// ---------- 멀티 엔진 AI judge: claude / codex / gemini / grok (-p) ----------
-// 모두 `<engine> -p "<prompt>"` 헤드리스 호출을 가정. 엔진별 가용성 1회 캐시.
+// ---------- 멀티 엔진 AI judge: claude / agy / codex / gemini / grok ----------
+// 엔진별 비대화형 호출 형태는 buildEngineInvocation 참고(claude=stdin, agy/gemini/grok=-p 인자, codex=exec).
+// 실측: claude·agy·codex 동작 / gemini·grok은 계정·구독 제한으로 실패 시 다른 가용 엔진으로 폴백. 가용성 1회 캐시.
 const ENGINES = ["claude", "codex", "gemini", "grok", "agy"];
 const ENGINE_ALIASES = { google: "gemini", openai: "codex", xai: "grok", anthropic: "claude" };
 // 엔진별 모델 지정 플래그. 이 플래그가 있는 엔진만 model 인자를 인식한다(codex는 미지원이라 제외).
@@ -489,21 +490,41 @@ function buildOmcExport(teamId, team, idx, isUsable) {
 // 원문은 보존하고, 별도 저장소(translations.json)에 한국어 번역본만 적재한다.
 const TRANSLATE_TIMEOUT = 90000;
 
-// 엔진 헤드리스 호출. 프롬프트는 stdin으로 전달한다 — Windows에서 shell을 거치는
-// multi-line `-p "..."` 인자가 첫 줄에서 잘리는 문제를 피하기 위함(stdout 텍스트 반환, 실패시 null).
+// 엔진별 비대화형(헤드리스) 호출 형태가 다르다 — 실측으로 확인:
+//  - claude : `-p`는 불리언 플래그, 프롬프트는 STDIN (멀티라인 안전).
+//  - agy/gemini/grok : `-p`가 프롬프트를 "인자"로 받는다 (`-p "<prompt>"`). stdin 아님.
+//  - codex : `codex exec "<prompt>"` 서브커맨드.
+// model 인자는 MODEL_FLAG가 있는 엔진(claude/agy/gemini/grok)에만 `--model <m>`로 앞에 붙인다(codex 제외).
+// (Windows·shell 경유 시 인자형 멀티라인 프롬프트가 잘릴 수 있으나, 해당 CLI들이 stdin 프롬프트를
+//  지원하지 않으므로 불가피 — 기본/주력 엔진 claude는 stdin을 유지한다.)
+function buildEngineInvocation(engine, prompt, model) {
+  const m = model && MODEL_FLAG[engine] ? [MODEL_FLAG[engine], model] : [];
+  switch (engine) {
+    case "codex": return { args: ["exec", prompt], useStdin: false };
+    case "agy":
+    case "gemini":
+    case "grok":  return { args: [...m, "-p", prompt], useStdin: false };
+    case "claude":
+    default:      return { args: [...m, "-p"], useStdin: true };
+  }
+}
+
 function runEngine(engine, prompt, timeoutMs, model) {
   return new Promise((resolve) => {
     let output = "", settled = false;
     const done = (v) => { if (!settled) { settled = true; resolve(v); } };
-    // model이 주어지고 해당 엔진이 모델 플래그를 지원하면 `--model <name> -p`, 아니면 `-p`만.
-    const args = (model && MODEL_FLAG[engine]) ? [MODEL_FLAG[engine], model, "-p"] : ["-p"];
+    const { args, useStdin } = buildEngineInvocation(engine, prompt, model);
     let proc;
-    try { proc = spawn(engine, args, { stdio: ["pipe", "pipe", "ignore"], shell: process.platform === "win32" }); }
-    catch { return done(null); }
+    try {
+      proc = spawn(engine, args, {
+        stdio: [useStdin ? "pipe" : "ignore", "pipe", "ignore"],
+        shell: process.platform === "win32",
+      });
+    } catch { return done(null); }
     proc.stdout.on("data", (c) => { output += c.toString("utf8"); });
     proc.on("close", () => done(output));
     proc.on("error", () => done(null));
-    try { proc.stdin.write(prompt); proc.stdin.end(); } catch {}
+    if (useStdin) { try { proc.stdin.write(prompt); proc.stdin.end(); } catch {} }
     const timer = setTimeout(() => { try { proc.kill(); } catch {} done(null); }, timeoutMs);
     proc.on("close", () => clearTimeout(timer));
   });

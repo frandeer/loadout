@@ -1,5 +1,5 @@
 import type { Item } from "../types";
-import { traitsOf } from "./traits";
+import { traitsOf, TRAITS } from "./traits";
 
 /* ── 지식 그래프 빌더 (순수 함수, React 비의존) ───────────────────────────
    온톨로지/관계 그래프의 노드·엣지를 계산한다. React Flow가 소비할 형태로 반환.
@@ -21,6 +21,17 @@ export interface GraphNodeData extends Record<string, unknown> {
 export interface GraphEdgeData extends Record<string, unknown> {
   type: GraphEdgeType;
   weight: number;
+  /** trait 엣지: 공유한 특성 key 목록(라벨 렌더용). name 엣지는 빈 배열. */
+  traitKeys: string[];
+}
+
+/** trait key 목록 → 사람이 읽는 라벨 문자열(엣지 호버 라벨용). 최대 3개 + "+N". */
+export function traitEdgeLabel(keys: string[]): string {
+  if (!keys.length) return "";
+  const labelOf = (k: string) => TRAITS.find((t) => t.key === k)?.label ?? k;
+  const shown = keys.slice(0, 3).map(labelOf);
+  const extra = keys.length - shown.length;
+  return extra > 0 ? `${shown.join("·")} +${extra}` : shown.join("·");
 }
 
 export interface GraphNode {
@@ -92,7 +103,13 @@ export function buildGraph(items: Item[], opts: BuildGraphOpts = {}): BuiltGraph
 
   // 무방향 중복 제거 — 같은 쌍을 한 번만 그린다(가장 강한 엣지 타입 우선).
   const edgeMap = new Map<string, GraphEdge>();
-  const addEdge = (a: string, b: string, type: GraphEdgeType, weight: number) => {
+  const addEdge = (
+    a: string,
+    b: string,
+    type: GraphEdgeType,
+    weight: number,
+    traitKeys: string[] = [],
+  ) => {
     if (a === b || !idSet.has(a) || !idSet.has(b)) return;
     const key = undirectedKey(a, b);
     const existing = edgeMap.get(key);
@@ -108,7 +125,7 @@ export function buildGraph(items: Item[], opts: BuildGraphOpts = {}): BuiltGraph
       id: `${type}:${key}`,
       source: s,
       target: t,
-      data: { type, weight },
+      data: { type, weight, traitKeys },
     });
   };
 
@@ -137,9 +154,10 @@ export function buildGraph(items: Item[], opts: BuildGraphOpts = {}): BuiltGraph
     // 1) 후보 쌍의 weight 계산 — 태그 역색인(inverted index)으로 O(n²) 전수 비교를 회피.
     //    같은 태그를 공유하지 않는 쌍은 weight 0이므로 애초에 후보가 아니다.
     //    태그별 버킷에 등장한 자산쌍의 공유 카운트만 누적하면 교집합 크기를 얻는다.
-    type Cand = { a: string; b: string; weight: number };
+    type Cand = { a: string; b: string; weight: number; keys: string[] };
 
     // 태그 → 그 태그를 가진 자산 id 목록(정렬 순서 유지로 결정성 확보).
+    //   tag 자체도 결정적 순회를 위해 정렬해 둔다(공유 key 목록 순서 안정성).
     const byTag = new Map<string, string[]>();
     for (const it of sorted) {
       const tags = tagCache.get(it.id)!;
@@ -150,24 +168,29 @@ export function buildGraph(items: Item[], opts: BuildGraphOpts = {}): BuiltGraph
         else byTag.set(t, [it.id]);
       }
     }
+    const tagKeysSorted = [...byTag.keys()].sort();
 
-    // 공유 태그가 있는 쌍에 대해서만 교집합 weight 누적(undirectedKey로 무방향 집계).
-    const pairWeight = new Map<string, number>();
-    for (const ids of byTag.values()) {
+    // 공유 태그가 있는 쌍에 대해 공유 key 목록을 누적(undirectedKey로 무방향 집계).
+    //   weight = keys.length. 태그를 정렬 순으로 순회해 key 목록도 결정적.
+    const pairKeys = new Map<string, string[]>();
+    for (const tag of tagKeysSorted) {
+      const ids = byTag.get(tag)!;
       if (ids.length < 2) continue; // 단독 태그는 어떤 쌍도 만들지 않음.
       for (let i = 0; i < ids.length; i++) {
         for (let j = i + 1; j < ids.length; j++) {
           const key = undirectedKey(ids[i], ids[j]);
-          pairWeight.set(key, (pairWeight.get(key) ?? 0) + 1);
+          const arr = pairKeys.get(key);
+          if (arr) arr.push(tag);
+          else pairKeys.set(key, [tag]);
         }
       }
     }
 
     const cands: Cand[] = [];
-    for (const [key, w] of pairWeight) {
-      if (w < o.minTraitWeight) continue;
+    for (const [key, keys] of pairKeys) {
+      if (keys.length < o.minTraitWeight) continue;
       const sep = key.indexOf("|");
-      cands.push({ a: key.slice(0, sep), b: key.slice(sep + 1), weight: w });
+      cands.push({ a: key.slice(0, sep), b: key.slice(sep + 1), weight: keys.length, keys });
     }
     // 2) 노드별 상위 N 선정 — 양쪽 노드 중 하나라도 예산이 남으면 보존(undirected).
     //    강한 엣지 우선: weight desc, 그다음 id로 결정적 tie-break.
@@ -183,7 +206,7 @@ export function buildGraph(items: Item[], opts: BuildGraphOpts = {}): BuiltGraph
       const ua = used.get(c.a) ?? 0;
       const ub = used.get(c.b) ?? 0;
       if (ua >= cap && ub >= cap) continue;
-      addEdge(c.a, c.b, "trait", c.weight);
+      addEdge(c.a, c.b, "trait", c.weight, c.keys);
       used.set(c.a, ua + 1);
       used.set(c.b, ub + 1);
     }

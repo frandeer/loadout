@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -31,7 +31,7 @@ import type { Item, Kind } from "../types";
 import { RARITY_CONFIG } from "../types";
 import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
-import { buildGraph, egoFilter, type GraphEdgeType } from "../lib/graph";
+import { buildGraph, egoFilter, traitEdgeLabel, type GraphEdgeType, type GraphEdgeData } from "../lib/graph";
 import { GraphNode, type AssetNode } from "./GraphNode";
 import { Icon } from "./Icon";
 
@@ -50,6 +50,16 @@ const KIND_CHIPS: { key: Kind | "all"; label: string }[] = [
 ];
 
 const nodeTypes = { asset: GraphNode };
+
+/** 엣지 타입별 기본 스타일 — 레이아웃 패스와 호버 복원이 공유(단일 출처). */
+function baseEdgeStyle(type: GraphEdgeType): CSSProperties {
+  const isName = type === "name";
+  return {
+    stroke: EDGE_COLOR[type],
+    strokeWidth: isName ? 2.5 : 1.2,
+    opacity: isName ? 0.85 : 0.5,
+  };
+}
 
 /** 자산이 "지금 ~/.claude 에서 활성"인지 — 기본 스코프의 앵커.
  *  installed(소스가 ~/.claude 하위)는 카탈로그 대부분이 해당돼 의미가 없으므로 제외.
@@ -80,6 +90,10 @@ function GraphCanvas() {
   const [showTrait, setShowTrait] = useState(true);
   const [scope, setScope] = useState<Scope>("ego");
   const [q, setQ] = useState("");
+  // 더블클릭 포커스 모드 — 한 자산의 에고(1홉 이웃)만 남겨 관계를 집중 조사. null=비활성.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  // 호버 강조 — 호버한 노드와 그 이웃만 또렷하게, 나머지는 흐리게. 엣지 라벨도 호버 시 노출.
+  const [hoverId, setHoverId] = useState<string | null>(null);
 
   // ── 다중 선택(React Flow 로컬 — 전역 picked와 분리) ──
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -93,12 +107,18 @@ function GraphCanvas() {
     return xs;
   }, [items, kind, equipOnly]);
 
-  // ── 스코프 적용: ego(장착·상주 + 1홉 이웃) vs all ──
+  // ── 스코프 적용: 포커스(더블클릭 1자산 에고) > all > ego(장착·상주 + 1홉 이웃) ──
   const scopedItems = useMemo(() => {
+    const opts = { showName, showTrait };
+    // 포커스 모드: 더블클릭한 자산의 1홉 에고만. 전체 items에서 빌드해 이웃이 잘리지 않게.
+    //   (equipOnly로 좁힌 prefiltered가 아니라 items 전체에서 이웃을 찾는다.)
+    if (focusId) {
+      const { edges } = buildGraph(items, opts);
+      return egoFilter(items, focusId, 1, opts, edges);
+    }
     if (scope === "all") return prefiltered;
     // ego 스코프: prefiltered 전체 그래프를 한 번만 빌드해 egoFilter에 엣지를 재사용
     //   (egoFilter 내부 중복 buildGraph 회피).
-    const opts = { showName, showTrait };
     // 앵커가 없으면(장착 자산 0) 점수 상위 일부를 시드로 — 빈 캔버스 방지.
     //   equipOnly로 prefiltered가 비면 전체 items에서 시드를 뽑아 빈 화면을 피한다.
     const pool = prefiltered.length ? prefiltered : items;
@@ -118,7 +138,7 @@ function GraphCanvas() {
       .filter((i) => !seedSet.has(i.id))
       .sort((a, b) => (b.score || 0) - (a.score || 0));
     return [...kept, ...rest].slice(0, Math.max(EGO_CAP, kept.length));
-  }, [prefiltered, items, scope, showName, showTrait]);
+  }, [prefiltered, items, scope, showName, showTrait, focusId]);
 
   // ── 그래프 빌드(노드/엣지) — items/필터/스코프/관계토글 변화 시에만 재계산 ──
   const graph = useMemo(
@@ -144,6 +164,22 @@ function GraphCanvas() {
         .map((i) => i.id),
     );
   }, [q, scopedItems]);
+
+  // 인접 맵 — 노드 id → 직접 이웃 id 집합. 호버 강조에서 이웃 판정에 사용.
+  //   graph(노드/엣지)가 바뀔 때만 재계산(호버마다 재계산하지 않음 — 성능).
+  const adjacency = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    const link = (a: string, b: string) => {
+      let s = m.get(a);
+      if (!s) m.set(a, (s = new Set()));
+      s.add(b);
+    };
+    for (const e of graph.edges) {
+      link(e.source, e.target);
+      link(e.target, e.source);
+    }
+    return m;
+  }, [graph]);
 
   // ── d3-force 레이아웃: 그래프(노드 집합/엣지)가 바뀔 때 한 번만 돌린다. ──
   //    드래그 시에는 재실행하지 않음(React Flow가 위치를 관리). ──
@@ -173,15 +209,16 @@ function GraphCanvas() {
     // forceX/Y로 약하게 중심으로 끌어당겨, 엣지 없는 고립 노드가 멀리 날아가
     //   fitView가 과도하게 축소되는 것을 막는다(가독성).
     const sim = forceSimulation(simNodes)
-      .force("charge", forceManyBody().strength(-260))
-      .force("link", forceLink<SimNode, SimulationLinkDatum<SimNode>>(simLinks).distance(78).strength(0.5))
+      .force("charge", forceManyBody().strength(-750))
+      .force("link", forceLink<SimNode, SimulationLinkDatum<SimNode>>(simLinks).distance(150).strength(0.4))
       .force("center", forceCenter(0, 0))
-      .force("x", forceX(0).strength(0.07))
-      .force("y", forceY(0).strength(0.07))
-      .force("collide", forceCollide(46))
+      .force("x", forceX(0).strength(0.04))
+      .force("y", forceY(0).strength(0.04))
+      // collide 반경은 노드 카드 폭(~150px)의 절반+여백 — 노드끼리 겹치지 않게 충분히 띄운다.
+      .force("collide", forceCollide(92).iterations(2))
       .stop();
 
-    sim.tick(260); // 동기 틱 — 위치 확정 후 렌더.
+    sim.tick(300); // 동기 틱 — 위치 확정 후 렌더(간격이 커져 수렴에 틱 ↑).
 
     const rfNodes: AssetNode[] = graph.nodes.map((n, i) => ({
       id: n.id,
@@ -190,27 +227,19 @@ function GraphCanvas() {
       data: n.data,
     }));
 
-    const rfEdges: Edge[] = graph.edges.map((e) => {
-      const type = e.data.type;
-      const isName = type === "name";
-      return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        data: e.data,
-        style: {
-          stroke: EDGE_COLOR[type],
-          strokeWidth: isName ? 2.5 : 1.2,
-          opacity: isName ? 0.85 : 0.5,
-        },
-      };
-    });
+    const rfEdges: Edge[] = graph.edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      data: e.data,
+      style: baseEdgeStyle(e.data.type),
+    }));
 
     setNodes(rfNodes);
     setEdges(rfEdges);
 
     // 레이아웃 직후 화면 맞춤(다음 프레임 — 노드 측정 후). maxZoom으로 소수 노드 과확대 방지.
-    requestAnimationFrame(() => rf.fitView({ padding: 0.25, duration: 300, maxZoom: 1.1 }));
+    requestAnimationFrame(() => rf.fitView({ padding: 0.3, duration: 300, maxZoom: 1.0 }));
   }, [graph, setNodes, setEdges, rf]);
 
   // 검색 매치 하이라이트 — 매치 외 노드를 흐리게, 매치 노드는 또렷하게. matchIds 변화 시.
@@ -236,6 +265,81 @@ function GraphCanvas() {
       );
     }
   }, [matchIds, setNodes, rf]);
+
+  // ── 호버 강조 ───────────────────────────────────────────────────
+  //  호버한 노드 + 직접 이웃만 또렷, 나머지는 흐리게. 입사 엣지를 강조하고
+  //  trait 엣지엔 공유 특성 라벨을 노출. 검색이 활성(matchIds>0)일 땐 검색이
+  //  노드 opacity를 소유하므로 노드는 건드리지 않고 엣지/라벨만 다룬다.
+  //
+  //  레이아웃과 독립: 이 효과는 hoverId 변화 시에만 돌고, lastKeyRef(노드/엣지 id
+  //  집합)는 변하지 않으므로 d3-force 레이아웃을 재실행하지 않는다(호버 안전).
+  //  스타일은 항상 spread-merge — 검색 effect가 설정한 opacity 등을 보존/복원.
+  useEffect(() => {
+    const searching = matchIds.size > 0;
+    // 호버 대상이 현재 그래프에 없으면(스코프/포커스 변경 등 onMouseLeave 미발화) 비활성 취급.
+    //   adjacency에 키가 없는 hoverId는 무시 → "전부 흐림" 버그 방지.
+    const hover = hoverId && adjacency.has(hoverId) ? hoverId : null;
+    const neighbors = hover ? adjacency.get(hover) : undefined;
+    const isLit = (id: string) => id === hover || (neighbors?.has(id) ?? false);
+
+    // 노드: 검색 중이 아닐 때만 opacity를 호버 기준으로 조정.
+    if (!searching) {
+      setNodes((nds) =>
+        nds.map((n) => {
+          const base = n.style ?? {};
+          if (!hover) {
+            // 호버 해제 — 호버가 넣은 opacity만 제거(검색이 없으므로 resting은 opacity 없음).
+            if (base.opacity === undefined) return n;
+            const { opacity: _omit, ...rest } = base;
+            return { ...n, style: rest };
+          }
+          return { ...n, style: { ...base, opacity: isLit(n.id) ? 1 : 0.18 } };
+        }),
+      );
+    }
+
+    // 엣지: 입사 엣지는 강조 + trait 라벨 노출, 나머지는 흐리게. 호버 해제 시 기본 복원.
+    setEdges((eds) =>
+      eds.map((e) => {
+        const type = (e.data as GraphEdgeData | undefined)?.type;
+        const base = type ? baseEdgeStyle(type) : e.style ?? {};
+        if (!hover) {
+          // 복원 — 라벨 제거, 기본 스타일.
+          if (e.label === undefined && e.style?.opacity === base.opacity) return e;
+          return { ...e, style: base, label: undefined };
+        }
+        const incident = e.source === hover || e.target === hover;
+        if (!incident) {
+          return { ...e, style: { ...base, opacity: 0.06 }, label: undefined };
+        }
+        const keys = (e.data as GraphEdgeData | undefined)?.traitKeys ?? [];
+        const label = type === "trait" ? traitEdgeLabel(keys) : undefined;
+        return {
+          ...e,
+          style: { ...base, opacity: 1, strokeWidth: (base.strokeWidth as number) + 0.8 },
+          label: label || undefined,
+          labelShowBg: true,
+          labelBgPadding: [4, 2] as [number, number],
+          labelBgBorderRadius: 4,
+          labelStyle: { fill: "var(--color-body)", fontSize: 9, fontWeight: 600 },
+          labelBgStyle: { fill: "var(--color-canvas)", stroke: EDGE_COLOR.trait, strokeWidth: 0.5 },
+        };
+      }),
+    );
+  }, [hoverId, adjacency, matchIds, setNodes, setEdges]);
+
+  // ── 호버 핸들러 — 드래그/패닝을 깨지 않음(상태만 갱신). ──
+  const onNodeMouseEnter: NodeMouseHandler<AssetNode> = useCallback(
+    (_e, node) => setHoverId(node.id),
+    [],
+  );
+  const onNodeMouseLeave: NodeMouseHandler<AssetNode> = useCallback(() => setHoverId(null), []);
+
+  // ── 더블클릭 → 포커스 모드(해당 자산 에고로 재스코프). ──
+  const onNodeDoubleClick: NodeMouseHandler<AssetNode> = useCallback((_e, node) => {
+    setHoverId(null); // 포커스 진입 시 호버 강조 해제(스코프가 바뀌므로).
+    setFocusId(node.id);
+  }, []);
 
   // ── 노드 클릭 → 전역 DetailPanel 열기(드래그를 깨지 않음 — onNodeClick은 클릭에서만 발화). ──
   const onNodeClick: NodeMouseHandler<AssetNode> = useCallback(
@@ -289,6 +393,17 @@ function GraphCanvas() {
     if (selectedIds.length) setSelected(selectedIds[0]);
   }, [selectedIds, setSelected]);
 
+  // 포커스 모드 대상 자산(칩 라벨용). focusId가 카탈로그에서 사라지면 자동 해제.
+  const focusedItem = useMemo(
+    () => (focusId ? items.find((i) => i.id === focusId) ?? null : null),
+    [focusId, items],
+  );
+  useEffect(() => {
+    if (focusId && !focusedItem) setFocusId(null);
+  }, [focusId, focusedItem]);
+
+  const exitFocus = useCallback(() => setFocusId(null), []);
+
   // 빈 상태.
   if (items.length === 0) {
     return (
@@ -310,6 +425,9 @@ function GraphCanvas() {
       onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}
       onNodeClick={onNodeClick}
+      onNodeDoubleClick={onNodeDoubleClick}
+      onNodeMouseEnter={onNodeMouseEnter}
+      onNodeMouseLeave={onNodeMouseLeave}
       onPaneClick={onPaneClick}
       onSelectionChange={onSelectionChange}
       fitView
@@ -461,6 +579,23 @@ function GraphCanvas() {
           </div>
         </div>
       </Panel>
+
+      {/* ── 포커스 모드 칩(더블클릭 진입 시) — 상단 중앙. 클릭/X로 해제. ── */}
+      {focusedItem && (
+        <Panel position="top-center" className="!mt-3">
+          <button
+            onClick={exitFocus}
+            className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary shadow-md backdrop-blur-xl transition hover:bg-primary hover:text-white"
+            title="포커스 해제"
+          >
+            <Icon name="target" size="xs" />
+            <span className="max-w-[200px] truncate">
+              포커스: {focusedItem.displayName || focusedItem.name}
+            </span>
+            <Icon name="close" size="xs" />
+          </button>
+        </Panel>
+      )}
 
       {/* ── 0 노드(필터 결과 비었을 때) ── */}
       {nodes.length === 0 && (

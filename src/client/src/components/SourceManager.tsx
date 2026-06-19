@@ -3,6 +3,7 @@ import { Modal } from "./Modal";
 import { api } from "../lib/api";
 import { useStore } from "../hooks/useStore";
 import { Icon } from "./Icon";
+import { CardDrop } from "./CardDrop";
 
 interface SourceManagerProps {
   open: boolean;
@@ -124,6 +125,18 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
               <Icon name="add" size="sm" /> 추가
             </button>
           </div>
+        </div>
+
+        {/* 세션에서 스킬 추출 (카드 드랍) */}
+        <div className="rounded-xl border border-hairline bg-canvas p-4">
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <Icon name="lightning" size="xs" className="text-accent-orange" />
+            <span className="text-xs font-bold uppercase tracking-wide text-muted">세션에서 스킬 추출</span>
+          </div>
+          <p className="mb-3 text-xs text-muted-soft">
+            최근 세션에서 자주 쓴 해결 패턴을 새 스킬 카드로 추출합니다.
+          </p>
+          <CardDrop onReveal={onClose} />
         </div>
 
         {/* 소스 목록 */}
