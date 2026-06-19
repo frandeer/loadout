@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, isEquippable } from "../types";
-import { computeLevel, formatK } from "../lib/utils";
+import { computeLevel, formatK, pickDesc } from "../lib/utils";
 import { traitsOf, neededTraitKeys, ROLES } from "../lib/traits";
 import type { Item } from "../types";
 import { api } from "../lib/api";
@@ -13,18 +13,18 @@ interface DetailPanelProps {
 }
 
 export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
-  const {
-    items,
-    selected,
-    setSelected,
-    favorites,
-    toggleFavorite,
-    lang,
-    reloadData,
-    slots,
-    panelWidth,
-    setPanelWidth,
-  } = useStore();
+  // fine-grained 구독 — 전역 store를 통째로 구독하면 filters/picked 같은 무관한 변경에도
+  // DetailPanel이 리렌더된다(큰 문서가 열려 있을 때 필터 클릭이 버벅이는 원인). 쓰는 슬라이스만 구독.
+  const items = useStore((s) => s.items);
+  const selected = useStore((s) => s.selected);
+  const setSelected = useStore((s) => s.setSelected);
+  const favorites = useStore((s) => s.favorites);
+  const toggleFavorite = useStore((s) => s.toggleFavorite);
+  const lang = useStore((s) => s.lang);
+  const reloadData = useStore((s) => s.reloadData);
+  const slots = useStore((s) => s.slots);
+  const panelWidth = useStore((s) => s.panelWidth);
+  const setPanelWidth = useStore((s) => s.setPanelWidth);
   const [content, setContent] = useState<string>("");
   const [contentKo, setContentKo] = useState<string>("");
   const [loadingContent, setLoadingContent] = useState(false);
@@ -133,7 +133,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const isFav = favorites.has(item.id);
   const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
   const name = item.displayName;
-  const desc = lang === "ko" && item.descKo ? item.descKo : item.description;
+  const desc = pickDesc(item, lang);
   const traits = traitsOf(item);
   const equippable = isEquippable(item.kind);
   const formationMembers = ROLES

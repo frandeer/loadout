@@ -3,7 +3,7 @@ import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, KIND_LABELS } from "../types";
 import type { Item, Kind, Rarity } from "../types";
 import { neededTraitKeys } from "../lib/traits";
-import { computeLevel, summarize } from "../lib/utils";
+import { computeLevel, summarize, pickDesc, rarityFrame } from "../lib/utils";
 import { Card } from "./Card";
 import { Icon } from "./Icon";
 
@@ -247,10 +247,18 @@ function CompactCard({ item, lang, onClick }: { item: Item; lang: string; onClic
   const r = RARITY_CONFIG[item.rarity];
   const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
   const name = item.displayName;
-  const desc = lang === "ko" && item.descKo ? item.descKo : item.description;
+  const desc = pickDesc(item, lang);
+  // 조밀 뷰 — 레어도는 테두리 색으로만(글로우는 끔: 인접 카드와 번지지 않게).
+  const frame = rarityFrame(item.rarity, r.color, { glow: false });
 
   return (
-    <button onClick={onClick} className="flex flex-col rounded-xl border border-hairline bg-surface-card p-3 text-left transition hover:border-hairline-strong hover:-translate-y-0.5 hover:shadow-sm">
+    <button
+      onClick={onClick}
+      className={`flex flex-col rounded-xl border bg-surface-card p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+        frame.borderColor ? "" : "border-hairline hover:border-hairline-strong"
+      }`}
+      style={frame.borderColor ? frame : undefined}
+    >
       <div className="mb-2 flex items-center gap-1.5">
         <span className="inline-flex h-[18px] items-center rounded px-1.5 text-[9px] font-bold text-white" style={{ backgroundColor: r.color }}>
           {r.ko.charAt(0)}

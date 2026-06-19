@@ -1,20 +1,28 @@
-import type { Item } from "../types";
+import type { Item, Rarity } from "../types";
+
+/** 아이콘 카테고리 매칭 패턴 — 모듈 로드 시 1회 컴파일(렌더마다 new RegExp 생성 방지). */
+const ICON_PATTERNS: [RegExp, string][] = [
+  [/pdf|doc/, "docs"], [/design/, "design"], [/debug/, "debug"],
+  [/test/, "test"], [/security/, "security"], [/game/, "game"],
+  [/data/, "data"], [/web/, "web"], [/api/, "api"], [/git/, "git"],
+  [/deploy/, "deploy"], [/image/, "image"], [/music|audio/, "audio"],
+  [/video/, "video"], [/ml|ai|model/, "ai"], [/search/, "search"],
+  [/plan/, "plan"], [/write/, "writing"], [/memory/, "memory"],
+  [/slide/, "slides"], [/review/, "review"],
+];
 
 export function iconFor(it: Item): string {
   if (it.kind === "agent") return "agent";
   if (it.kind === "mcp") return "module";
   const t = `${it.name} ${it.category ?? ""} ${it.description}`.toLowerCase();
-  const map: [string, string][] = [
-    ["pdf|doc", "docs"], ["design", "design"], ["debug", "debug"],
-    ["test", "test"], ["security", "security"], ["game", "game"],
-    ["data", "data"], ["web", "web"], ["api", "api"], ["git", "git"],
-    ["deploy", "deploy"], ["image", "image"], ["music|audio", "audio"],
-    ["video", "video"], ["ml|ai|model", "ai"], ["search", "search"],
-    ["plan", "plan"], ["write", "writing"], ["memory", "memory"],
-    ["slide", "slides"], ["review", "review"],
-  ];
-  for (const [k, e] of map) if (new RegExp(k).test(t)) return e;
+  for (const [re, e] of ICON_PATTERNS) if (re.test(t)) return e;
   return "util";
+}
+
+/** 카드 설명의 언어 선택 — ko이고 descKo가 있으면 그걸, 아니면 기본 description.
+ *  Card·CompactCard·DetailPanel에서 동일하게 쓰던 분기를 한 곳으로 모음. */
+export function pickDesc(it: Item, lang: string): string {
+  return lang === "ko" && it.descKo ? it.descKo : it.description;
 }
 
 export function summarize(text: string, max = 110): string {
@@ -28,6 +36,57 @@ export function summarize(text: string, max = 110): string {
   if (stop > 24) s = s.slice(0, stop + 1).trim();
   if (s.length > max) s = s.slice(0, max - 1).trimEnd() + "\u2026";
   return s;
+}
+
+/** hex(#RRGGBB) \u2192 rgba \ubb38\uc790\uc5f4. \ub808\uc5b4\ub3c4 \uc0c9 \ud558\ub098\ub97c \uc54c\ud30c\ub9cc \ubc14\uafd4 \ud14c\ub450\ub9ac\u00b7\ub9c1\u00b7\uae00\ub85c\uc6b0\ub85c \uc7ac\uc0ac\uc6a9\ud55c\ub2e4. */
+export function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** \ub808\uc5b4\ub3c4 \ub4f1\uae09 \u2192 \ud504\ub808\uc784 \uac15\ub3c4(0=common ~ 4=legendary).
+ *  \ub8e8\ud130\uc288\ud130\ucc98\ub7fc \ub4f1\uae09\uc774 \ub192\uc744\uc218\ub85d \ud14c\ub450\ub9ac\uac00 \uc9c4\ud574\uc9c0\uace0 \ubc14\uae65 \uae00\ub85c\uc6b0\uac00 \ubd99\ub294\ub2e4.
+ *  common(D)\uc740 0 \u2192 \ubb34\ucc44\uc0c9 \uae30\ubcf8 hairline\uc744 \uc720\uc9c0\ud574 \ud76c\uadc0 \ub4f1\uae09\uc774 \ub3c4\ub4dc\ub77c\uc9c0\uac8c \ud55c\ub2e4. */
+const RARITY_FRAME_TIER: Record<Rarity, number> = {
+  legendary: 4,
+  epic: 3,
+  rare: 2,
+  uncommon: 1,
+  common: 0,
+};
+
+const EQUIPPED_RING = "0 0 0 1.5px rgba(16, 185, 129, 0.5)"; // accent-emerald, \uc7a5\ucc29 \ud45c\uc2dc
+
+/** \uce74\ub4dc \ub8e8\ud2b8\uc5d0 \uc778\ub77c\uc778\uc73c\ub85c \uc904 \ub808\uc5b4\ub3c4 \ud504\ub808\uc784 \uc2a4\ud0c0\uc77c(borderColor + boxShadow).
+ *  - \uc120\ud0dd(isSelected) \uc0c1\ud0dc\uc5d0\uc11c\ub294 \ud638\ucd9c\ud558\uc9c0 \uc54a\ub294\ub2e4(\uc120\ud0dd \ud14c\ub450\ub9ac\uac00 \uc6b0\uc120).
+ *  - \uc778\ub77c\uc778 boxShadow\ub294 Tailwind ring \uc720\ud2f8\uc744 \ub36e\uc5b4\uc4f0\ubbc0\ub85c, \uc7a5\ucc29 \ub9c1\ub3c4 \uc5ec\uae30\uc11c \ud569\uc131\ud55c\ub2e4.
+ *  - common\uc740 \ube48 \uac1d\uccb4\ub97c \ubc18\ud658 \u2192 \ud638\ucd9c\ubd80\uac00 \uae30\ubcf8 hairline \ud074\ub798\uc2a4\ub85c \ud3f4\ubc31. */
+export function rarityFrame(
+  rarity: Rarity,
+  color: string,
+  opts: { equipped?: boolean; glow?: boolean } = {},
+): { borderColor?: string; boxShadow?: string } {
+  const tier = RARITY_FRAME_TIER[rarity];
+  const shadows: string[] = [];
+  if (opts.equipped) shadows.push(EQUIPPED_RING);
+
+  let borderColor: string | undefined;
+  if (tier > 0) {
+    borderColor = hexToRgba(color, 0.28 + tier * 0.1); // C .38 \u2192 B .48 \u2192 A .58 \u2192 S .68
+    if (!opts.equipped) shadows.push(`0 0 0 1px ${hexToRgba(color, 0.05 + tier * 0.03)}`);
+    if (tier >= 3 && opts.glow !== false) {
+      // epic\u2191 \ubd80\ud130\ub9cc \ubc14\uae65 \uae00\ub85c\uc6b0 \u2014 \ubb35\uc9c1\ud55c "\uc804\ub9ac\ud488" \ub290\ub08c. \uc870\ubc00 \ubdf0\ub294 glow:false\ub85c \ub048\ub2e4.
+      shadows.push(`0 10px ${12 + tier * 4}px ${hexToRgba(color, 0.05 + (tier - 2) * 0.045)}`);
+    }
+  }
+
+  const out: { borderColor?: string; boxShadow?: string } = {};
+  if (borderColor) out.borderColor = borderColor;
+  if (shadows.length) out.boxShadow = shadows.join(", ");
+  return out;
 }
 
 /** 레벨 산출.
@@ -119,10 +178,10 @@ export function promptFor(preset: string, it: Item, lang: "ko" | "en" = "ko"): s
       : "launch blue SHIP lane"
     : "launch blue SHIP lane and orbit green MONITOR lane";
   const identityRule =
-    "Make the asset's purpose recognizable at a glance with ONE single clear, flat, literal icon of what it actually does — a concrete object that matches its name, description and category. Good examples: a browser window for web, a document with 'Aa' and color chips for design, a terminal with code brackets for code, a magnifier over a page for review/search, a shield or lock for security, a bar/line chart or database for data, a stacked server for infra, a glowing node for AI, a plug/connector for an MCP module, an operator badge or small robot for an agent. Pick the single best-fitting object. Keep it simple: one focal subject, clean light background, generous empty space, flat minimal style — never a busy diagram, a pile of objects, or a generic rocket. No readable long text; at most a tiny abstract label.";
+    "Make the asset's purpose recognizable at a glance with ONE single clear, flat, literal icon of what it actually does — a concrete object that matches its name, description and category. Good examples: a document with 'Aa' and color chips for design, a terminal with code brackets for code, a magnifier over a page for review/search, a shield or lock for security, a bar/line chart or database for data, a stacked server for infra, a glowing node for AI, a plug/connector for an MCP module, an operator badge or small robot for an agent, and a browser window ONLY when the asset itself is a browser or web page. Prefer a distinctive silhouette unique to THIS asset so cards stay distinguishable at thumbnail size — do NOT default to a plain browser window for anything merely web-adjacent; choose the more specific object instead. If the name implies an upgrade/version/migration, add a clear directional cue (a bold up-arrow or a small 'v2' version bump) so it reads differently from its base asset. Pick the single best-fitting object. Keep it simple: one focal subject, clean light background, balanced margin, flat minimal style — never a busy diagram, a pile of objects, or a generic rocket. No readable long text; at most a tiny abstract label.";
 
   const P: Record<string, string> = {
-    card: `Simple, clean, flat icon-style card art for this exact Loadout asset: ${subject}. ${identityRule} ${ORBITAL_MONITOR_STYLE}. Compose ONE large, simple central icon that literally depicts what the asset does, centered with calm empty space; use ${laneAccent} only as a restrained accent. Keep it minimal and uncluttered — no dense telemetry, no crowded diagrams, no multiple competing objects. Borderless edge-to-edge graphic, no outer card frame, no generic stock image, no readable long text.`,
+    card: `Simple, clean, flat icon-style card art for this exact Loadout asset: ${subject}. ${identityRule} ${ORBITAL_MONITOR_STYLE}. Compose ONE large, simple central icon that literally depicts what the asset does; size the single subject large and consistent so it fills roughly 70% of the frame with only a comfortable margin — never a tiny object floating in a big empty field. Use ${laneAccent} only as a restrained accent. Keep it minimal and uncluttered — no dense telemetry, no crowded diagrams, no multiple competing objects. Borderless edge-to-edge graphic, no outer card frame, no generic stock image, no readable long text.`,
     icon: `항공우주 운영용 아이콘 시트 1장(4x4 격자, 16개). ${ORBITAL_MONITOR_STYLE}. 각 칸은 로켓, 체크리스트, 업로드 구름, 성능 게이지, 위성, 문서 동기화, 모델 비교, 레이더 상태 아이콘. 균일한 셀 크기, 밝은 배경, 또렷한 파란/초록 라인.`,
     logo: `A premium, modern app logo emblem for a mission-control deck called LOADOUT. One bold central mark: a sleek stylized rocket lifting off along a dotted telemetry arc that curves up to a glowing orbit node with a small satellite, evoking launch then monitor. Palette: launch blue (#2E73DF) and orbit green (#22965A) on a clean white to pale-blue background. Flat geometric crisp vector style with subtle depth and soft shadow, rounded-square app-icon composition, centered with generous padding and balanced negative space, polished and confident like a top tech brand mark. No text, no letters, no words, no military insignia, no clutter. 1:1 square.`,
     bg: `Wide 16:9 SHIP MONITOR dashboard background. ${ORBITAL_MONITOR_STYLE}. Left rocket launch pad impression, center dotted orbital arc, right satellite over earth horizon, plenty of empty central space for UI panels, bright blueprint grid.`,

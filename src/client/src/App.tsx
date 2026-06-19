@@ -42,13 +42,15 @@ export default function App() {
             <CardGrid />
           </main>
 
-          {/* 우측 인스펙터 — 데스크톱 xl 이상 */}
-          <aside
-            style={{ width: `${panelWidth}px` }}
-            className="hidden shrink-0 overflow-y-auto border-l border-hairline bg-canvas xl:block"
-          >
-            <DetailPanel variant="docked" />
-          </aside>
+          {/* 우측 인스펙터 — 카드 선택 시에만 표시(닫으면 카드 영역이 flex-1로 그 공간을 채움) */}
+          {selected && (
+            <aside
+              style={{ width: `${panelWidth}px` }}
+              className="hidden shrink-0 overflow-y-auto border-l border-hairline bg-canvas xl:block"
+            >
+              <DetailPanel variant="docked" />
+            </aside>
+          )}
         </div>
       )}
 

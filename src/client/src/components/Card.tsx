@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import type { Item } from "../types";
 import { RARITY_CONFIG, isEquippable } from "../types";
-import { summarize, computeLevel, computeXp, iconFor } from "../lib/utils";
+import { summarize, computeLevel, computeXp, iconFor, pickDesc, rarityFrame } from "../lib/utils";
 import { traitsOf } from "../lib/traits";
 import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
@@ -14,22 +14,28 @@ interface CardProps {
 }
 
 export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps) {
-  const { selected, setSelected, favorites, toggleFavorite, picked, togglePick, lang, reloadData } = useStore();
+  // 카드별 fine-grained 구독 — 전역 store를 통째로 구독하면 memo가 무력화되어,
+  // 카드 하나를 선택/즐겨찾기/체크할 때 보이는 카드 전부가 리렌더된다. 자기 항목 슬라이스만 구독.
+  const setSelected = useStore((s) => s.setSelected);
+  const toggleFavorite = useStore((s) => s.toggleFavorite);
+  const togglePick = useStore((s) => s.togglePick);
+  const reloadData = useStore((s) => s.reloadData);
+  const lang = useStore((s) => s.lang);
+  const isSelected = useStore((s) => s.selected === item.id);
+  const isFav = useStore((s) => s.favorites.has(item.id));
+  const isPicked = useStore((s) => s.picked.has(item.id));
   const [busy, setBusy] = useState(false);
   const r = RARITY_CONFIG[item.rarity];
   const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
   const xp = computeXp(item.uses);
   const gaugePct = xp ?? Math.min(99, item.stats?.popularity ?? 40);
-  const isSelected = selected === item.id;
-  const isFav = favorites.has(item.id);
-  const isPicked = picked.has(item.id);
   const name =
     item.kind === "memory"
       ? typeof item.source.repo === "string"
         ? item.source.repo
         : ""
       : item.displayName;
-  const desc = lang === "ko" && item.descKo ? item.descKo : item.description;
+  const desc = pickDesc(item, lang);
   const cat = iconFor(item);
   const traits = traitsOf(item);
   const wouldLink = needKeys && !item.equipped && traits.some((t) => needKeys.has(t.key));
@@ -53,7 +59,11 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
     setBusy(false);
   };
 
-  const isS = item.rarity === "legendary";
+  // 레어도 프레임 — 등급↑일수록 테두리/글로우↑(루터슈터 느낌). 선택 시엔 선택 테두리가
+  // 우선이라 생략하고, 장착 emerald 링은 헬퍼가 boxShadow로 합성한다(인라인이 ring 유틸을 덮으므로).
+  const frame: { borderColor?: string; boxShadow?: string } = isSelected
+    ? {}
+    : rarityFrame(item.rarity, r.color, { equipped: item.equipped });
 
   return (
     <div
@@ -61,13 +71,13 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
       className={`reveal group relative cursor-pointer rounded-xl border bg-surface-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
         isSelected
           ? "border-primary ring-2 ring-primary/10"
-          : isS
-            ? "border-accent-orange/40"
+          : frame.borderColor
+            ? ""
             : "border-hairline hover:border-hairline-strong"
-      } ${item.equipped ? "ring-1 ring-accent-emerald/30" : ""}`}
+      }`}
       style={{
         animationDelay: `${Math.min(index, 24) * 18}ms`,
-        ...(isS ? { boxShadow: "0 0 0 1px rgba(245,158,11,0.15), 0 8px 24px rgba(245,158,11,0.08)" } : {}),
+        ...frame,
       }}
     >
       {/* 일괄 선택 체크 */}

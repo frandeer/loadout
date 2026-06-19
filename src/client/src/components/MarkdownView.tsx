@@ -2,7 +2,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github.css";
-import { useState, type ComponentPropsWithoutRef } from "react";
+import { memo, useState, type ComponentPropsWithoutRef } from "react";
 import { Icon } from "./Icon";
 
 interface MarkdownViewProps {
@@ -91,7 +91,10 @@ function stripFrontmatter(content: string): string {
   return content;
 }
 
-export function MarkdownView({ content, className = "", size = "md", onLinkClick }: MarkdownViewProps) {
+// memo: DetailPanel은 store 변경마다 리렌더되는데, 그때마다 react-markdown이 전체 문서를
+// 재파싱하고 rehypeHighlight(구문 강조)를 다시 돌리면 큰 SKILL.md에서 수백 ms 멈춤이 생긴다.
+// content/size/onLinkClick(=stable useState setter)이 그대로면 재파싱을 건너뛴다.
+export const MarkdownView = memo(function MarkdownView({ content, className = "", size = "md", onLinkClick }: MarkdownViewProps) {
   const cleanContent = stripFrontmatter(content);
   const sizes = {
     sm: {
@@ -228,4 +231,4 @@ export function MarkdownView({ content, className = "", size = "md", onLinkClick
       </ReactMarkdown>
     </div>
   );
-}
+});
