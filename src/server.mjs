@@ -40,9 +40,9 @@ async function saveLoadout(lo) { await mkdir(dataDir, { recursive: true }); awai
 // 팀 프리셋: { teams: { id: { name, slots: {role: itemId|null}, at } } } — 작전 준비 화면이 사용.
 async function loadTeams() { try { return JSON.parse(await readFile(join(dataDir, "teams.json"), "utf8")); } catch { return { teams: {} }; } }
 async function saveTeams(t) { await mkdir(dataDir, { recursive: true }); await writeFile(join(dataDir, "teams.json"), JSON.stringify(t, null, 2)); }
-// 사용자 설정(영속): 이미지 생성 엔진 등. 기본 엔진은 codex(브라우저 자동화 우회).
+// 사용자 설정(영속): 이미지 생성 엔진 등. 기본 엔진은 codex-api(원격 API, 가장 안정적).
 const settingsPath = join(dataDir, "settings.json");
-const DEFAULT_SETTINGS = { imageEngine: "codex" };
+const DEFAULT_SETTINGS = { imageEngine: "codex-api" };
 async function loadSettings() { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(await readFile(settingsPath, "utf8")) }; } catch { return { ...DEFAULT_SETTINGS }; } }
 async function saveSettings(s) { await mkdir(dataDir, { recursive: true }); const merged = { ...DEFAULT_SETTINGS, ...s }; await writeFile(settingsPath, JSON.stringify(merged, null, 2)); return merged; }
 // gen-cards.mjs가 생성한 { itemId: "/media/generated/cards/xxx.png" } 매핑
@@ -742,7 +742,7 @@ const server = createServer(async (req, res) => {
       let b;
       try { b = await body(req); }
       catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
-      const allowedEngines = new Set(["codex", "chatgpt", "grok", "image-farm", "auto"]);
+      const allowedEngines = new Set(["codex", "codex-api", "chatgpt", "grok", "image-farm", "auto"]);
       const patch = {};
       if (typeof b.imageEngine === "string" && allowedEngines.has(b.imageEngine.toLowerCase())) {
         patch.imageEngine = b.imageEngine.toLowerCase();
@@ -1094,6 +1094,57 @@ const server = createServer(async (req, res) => {
       if (!requestedEngine || requestedEngine === "default") requestedEngine = (settings.imageEngine || "auto").toLowerCase();
       let useImageFarm = false;
 
+      // ── codex-api 경로 ── 원격 codex-image-api(gpt-image-2)로 HTTP 생성. 브라우저/Python 불필요.
+      if (requestedEngine === "codex-api") {
+        let apiKey = process.env.CODEX_IMAGE_API_KEY;
+        if (!apiKey) try { apiKey = JSON.parse(await readFile(join(dataDir, "secrets.json"), "utf8")).codexImageApiKey; } catch {}
+        if (!apiKey) return json(res, 503, { ok: false, engine: "codex-api", code: "NO_KEY", error: "CODEX_IMAGE_API_KEY 환경변수 또는 data/secrets.json의 codexImageApiKey가 필요합니다." });
+        try {
+          const cfgApi = (await import("./config.json", { with: { type: "json" } })).default.codexApi || {};
+          const baseUrl = cfgApi.url || "https://img-generate.nexterd.com";
+          const timeoutMs = cfgApi.timeoutMs || 120000;
+          await mkdir(outDir, { recursive: true });
+
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+          const apiRes = await fetch(`${baseUrl}/v1/images/generate`, {
+            method: "POST",
+            headers: { "X-API-Key": apiKey, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: b.prompt,
+              aspect_ratio: cfgApi.aspect_ratio || "square",
+              quality: cfgApi.quality || "low",
+            }),
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+
+          if (!apiRes.ok) {
+            const errBody = await apiRes.json().catch(() => ({}));
+            throw new Error(errBody.detail || errBody.error || `HTTP ${apiRes.status}`);
+          }
+          const apiData = await apiRes.json();
+          if (!apiData.success || !apiData.image_url) throw new Error("API 응답에 image_url이 없습니다.");
+
+          // 이미지 다운로드 → media/generated 에 저장
+          const slug = b.itemId ? imgSlug(b.itemId) : imgSlug(b.name || `gen-${Date.now()}`);
+          const name = `card-${slug}.png`;
+          const destPath = join(outDir, name);
+          const imgRes = await fetch(apiData.image_url, { headers: { "X-API-Key": apiKey } });
+          if (!imgRes.ok) throw new Error(`이미지 다운로드 실패 (HTTP ${imgRes.status})`);
+          const buf = Buffer.from(await imgRes.arrayBuffer());
+          await rm(destPath, { force: true });
+          await writeFile(destPath, buf);
+
+          const webPath = `/media/generated/${name}`;
+          if (b.itemId) await setCardImage(b.itemId, webPath);
+          return json(res, 200, { ok: true, engine: "codex-api", images: [{ url: webPath }] });
+        } catch (e) {
+          if (e.name === "AbortError") return json(res, 504, { ok: false, engine: "codex-api", code: "TIMEOUT", error: "codex-api 생성 타임아웃" });
+          return json(res, 503, { ok: false, engine: "codex-api", code: "API_FAIL", error: "codex-api 생성 실패: " + e.message });
+        }
+      }
+
       // ── codex 경로 ── 브라우저 자동화를 거치지 않고 Codex CLI(gpt-image)로 직접 생성.
       if (requestedEngine === "codex") {
         try {
@@ -1102,7 +1153,7 @@ const server = createServer(async (req, res) => {
           const slug = b.itemId ? imgSlug(b.itemId) : imgSlug(b.name || `gen-${Date.now()}`);
           const name = `card-${slug}.png`;
           const destPath = join(outDir, name);
-          await rm(destPath, { force: true }); // 재생성 시 기존 파일 교체(generate.py SKIP 회피)
+          await rm(destPath, { force: true });
           await generateCodexImage({ prompt: b.prompt, outPath: destPath });
           const webPath = `/media/generated/${name}`;
           if (b.itemId) await setCardImage(b.itemId, webPath);

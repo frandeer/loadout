@@ -87,7 +87,7 @@ export const useStore = create<AppState>((set, get) => ({
   theme: "dark",
   loading: true,
   engines: ["heuristic"],
-  imageEngine: "codex",
+  imageEngine: "codex-api",
 
   ...loadOps(),
 

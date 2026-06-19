@@ -20,10 +20,8 @@ export function BatchBar() {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [statusFailed, setStatusFailed] = useState(false);
 
-  // codex 는 병렬 4, 브라우저 계열은 동시 2로 제한.
-  const concurrency = engine === "codex" ? 4 : 2;
+  const CONCURRENCY = 2;
 
-  // Clear status message when selection changes
   useEffect(() => {
     setStatusMsg(null);
   }, [picked.size]);
@@ -46,14 +44,10 @@ export function BatchBar() {
     let done = 0;
     setCurrent(0);
 
-    // codex=4 / 브라우저=2. 브라우저는 farm 탭 풀(poolSize=2)·열린 연결을 고려해 낮게 둔다.
-    const CONCURRENCY = concurrency;
-
     const runOne = async (it: (typeof pickedItems)[number]) => {
       const displayName = lang === "ko" && it.nameKo ? it.nameKo : it.displayName || it.name;
       try {
-        // codex 는 손그림 비유 스타일, 브라우저 계열은 기존 플랫 아이콘 스타일.
-        const prompt = engine === "codex" ? doodlePrompt(it, lang) : promptFor("card", it, lang);
+        const prompt = (engine === "codex" || engine === "codex-api") ? doodlePrompt(it, lang) : promptFor("card", it, lang);
         const res = await api.generate(prompt, {
           itemId: it.id,
           imageEngine: engine,
@@ -73,10 +67,10 @@ export function BatchBar() {
       } finally {
         done++;
         setCurrent(done);
+        await reloadData();
       }
     };
 
-    // 공유 큐에서 하나씩 꺼내 처리하는 워커 N개 → 동시에 최대 CONCURRENCY 개 생성.
     const queue = [...pickedItems];
     const worker = async () => {
       for (let it = queue.shift(); it; it = queue.shift()) {
@@ -88,9 +82,7 @@ export function BatchBar() {
     );
 
     setGenerating(false);
-    await reloadData();
     const icon = failCount === 0 ? "✅" : okCount === 0 ? "❌" : "⚠️";
-    // 긴 에러(경로 등)는 잘라 레이아웃 보호 — 전체는 title(hover)로 확인.
     const shortErr = lastError.length > 240 ? lastError.slice(0, 240) + "…" : lastError;
     setStatusFailed(failCount > 0);
     setStatusMsg(
@@ -133,11 +125,9 @@ export function BatchBar() {
               onChange={(e) => setImageEngine(e.target.value)}
               className="rounded-lg border border-hairline bg-surface-soft px-2 py-1 text-xs text-body outline-none transition focus:border-primary"
             >
-              <option value="codex">Codex (gpt-image · 추천)</option>
+              <option value="codex-api">Codex API (추천)</option>
+              <option value="codex">Codex CLI (로컬)</option>
               <option value="chatgpt">ChatGPT (브라우저)</option>
-              <option value="grok">Grok (브라우저)</option>
-              <option value="image-farm">image-farm</option>
-              <option value="auto">자동 감지</option>
             </select>
           )}
         </div>
@@ -147,7 +137,7 @@ export function BatchBar() {
             <div className="flex items-center gap-2 text-xs font-semibold text-primary">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               <span className="whitespace-nowrap">
-                생성 중 (완료 {current}/{total} · 동시 최대 {concurrency})
+                생성 중 ({current}/{total} 완료)
               </span>
             </div>
           ) : (

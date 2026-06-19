@@ -1,0 +1,26 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "loadout",
+      "optionalDependencies": {
+        "chrome-remote-interface": "^0.33.0",
+        "playwright": "^1.48.0",
+      },
+    },
+  },
+  "packages": {
+    "chrome-remote-interface": ["chrome-remote-interface@0.33.3", "", { "dependencies": { "commander": "2.11.x", "ws": "^7.2.0" }, "bin": { "chrome-remote-interface": "bin/client.js" } }, "sha512-zNnn0prUL86Teru6UCAZ1yU1XeXljHl3gj7OrfPcarEfU62OUU4IujDPdTDW3dAWwRqN3ZMG/Chhkh2gPL/wiw=="],
+
+    "commander": ["commander@2.11.0", "", {}, "sha512-b0553uYA5YAEGgyYIGYROzKQ7X5RAqedkfjiZxwi0kL1g3bOaBNNZfYkzt/CL0umgD5wc9Jec2FbB98CjkMRvQ=="],
+
+    "fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
+
+    "playwright": ["playwright@1.61.0", "", { "dependencies": { "playwright-core": "1.61.0" }, "optionalDependencies": { "fsevents": "2.3.2" }, "bin": { "playwright": "cli.js" } }, "sha512-Z+7BeeqQPRRzklHsVFP4KTGIyMxKUmfeRA4WisM6G3/XW6nwGeX6fX9qYaDa+CiUqpOkb2f6X3nar05R3kSuJQ=="],
+
+    "playwright-core": ["playwright-core@1.61.0", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-caX7TrY3Ml6egyDX0WUcTHDxodl/b51y5wJOdCEA36QviK/s2g081hvmGs8eaE3DWb6NYZQ6BjO/QkNRPenoPA=="],
+
+    "ws": ["ws@7.5.11", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": "^5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-zS54Oen9bITtp7kp2XM3AydrCIq1D+HwJOuH+c+e4LfpL/lotP5osijd+UoMnxwAam1GN8R4KtLAyIrIcBNpiA=="],
+  }
+}

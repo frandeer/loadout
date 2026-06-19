@@ -24,6 +24,12 @@
     "timeoutSec": 300,
     "concurrency": 4
   },
+  "codexApi": {
+    "url": "https://img-generate.nexterd.com",
+    "quality": "low",
+    "aspect_ratio": "square",
+    "timeoutMs": 120000
+  },
   "repoPopularity": {
     "anthropics__skills": 95,
     "antigravity-awesome-skills": 80,

@@ -7,14 +7,19 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
-type EngineKey = "codex" | "chatgpt";
+type EngineKey = "codex-api" | "codex" | "chatgpt";
 
 const ENGINE_OPTIONS: { key: EngineKey; title: string; desc: string; badge?: string }[] = [
   {
-    key: "codex",
-    title: "Codex (gpt-image)",
-    desc: "Codex CLI로 직접 생성. 브라우저(chatgpt.com) 자동화를 거치지 않아 안정적이고 한글 라벨도 잘 그립니다. 카드는 손그림 비유 스타일로 생성됩니다.",
+    key: "codex-api",
+    title: "Codex API (gpt-image-2)",
+    desc: "원격 API로 즉시 생성. 브라우저·Python 설치 없이 HTTP 한 번이면 끝. 가장 안정적이고 빠릅니다.",
     badge: "추천",
+  },
+  {
+    key: "codex",
+    title: "Codex CLI (gpt-image)",
+    desc: "로컬 Codex CLI + Python 스크립트로 생성. 브라우저 자동화를 거치지 않아 안정적이지만 Python 환경이 필요합니다.",
   },
   {
     key: "chatgpt",
@@ -27,8 +32,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const imageEngine = useStore((s) => s.imageEngine);
   const setImageEngine = useStore((s) => s.setImageEngine);
 
-  // codex 외 브라우저 계열(chatgpt/grok/image-farm/auto)은 모두 'chatgpt' 그룹으로 표시.
-  const selected: EngineKey = imageEngine === "codex" ? "codex" : "chatgpt";
+  const selected: EngineKey = imageEngine === "codex-api" ? "codex-api" : imageEngine === "codex" ? "codex" : "chatgpt";
 
   return (
     <Modal open={open} onClose={onClose} title="설정">

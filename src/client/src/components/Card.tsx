@@ -152,10 +152,14 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
             )}
             <button
               onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
-              className={`p-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition ${isFav ? "text-accent-orange" : "text-gray-200 hover:text-white"}`}
+              className={`p-1 transition-colors duration-200 ${
+                isFav
+                  ? "text-yellow-400"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
               aria-label="즐겨찾기"
             >
-              <Icon name="favorite-star" size="sm" />
+              <Icon name="favorite-star" size="sm" className={isFav ? "fill-current" : ""} />
             </button>
           </div>
         </div>

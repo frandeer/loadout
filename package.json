@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "skill·agent·mcp를 게임처럼 모으고 비교하고 장착하는 개인 통합 관리 시스템",
-  "engines": { "node": ">=18.18" },
+  "engines": {
+    "node": ">=18.18"
+  },
   "scripts": {
     "scan": "node src/scan.mjs",
     "start": "node src/server.mjs",
@@ -17,5 +19,6 @@
   "optionalDependencies": {
     "chrome-remote-interface": "^0.33.0",
     "playwright": "^1.48.0"
-  }
+  },
+  "dependencies": {}
 }
