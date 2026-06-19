@@ -59,26 +59,22 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
     setBusy(false);
   };
 
-  // 레어도 프레임 — 등급↑일수록 테두리/글로우↑(루터슈터 느낌). 선택 시엔 선택 테두리가
-  // 우선이라 생략하고, 장착 emerald 링은 헬퍼가 boxShadow로 합성한다(인라인이 ring 유틸을 덮으므로).
-  const frame: { borderColor?: string; boxShadow?: string } = isSelected
-    ? {}
-    : rarityFrame(item.rarity, r.color, { equipped: item.equipped });
+  // 레어도 프레임 — 등급↑일수록 테두리/글로우↑(루터슈터 느낌). 평소엔 등급색 테두리를
+  // 항상 유지하고, 선택 시엔 그 테두리를 따라 빛이 도는 .card-beam 애니메이션을 얹는다.
+  // 장착 상태는 테두리에 섞지 않는다(녹색 링 제거) — 하단 "장착 중" 버튼이 담당.
+  const frame: { borderColor?: string; boxShadow?: string } = rarityFrame(item.rarity, r.color);
 
   return (
     <div
       onClick={() => setSelected(isSelected ? null : item.id)}
-      className={`reveal group relative cursor-pointer rounded-xl border bg-surface-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
-        isSelected
-          ? "border-primary ring-2 ring-primary/10"
-          : frame.borderColor
-            ? ""
-            : "border-hairline hover:border-hairline-strong"
-      }`}
+      className={`reveal group relative cursor-pointer overflow-hidden rounded-xl border bg-surface-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
+        isSelected ? "card-beam" : ""
+      } ${frame.borderColor ? "" : "border-hairline hover:border-hairline-strong"}`}
       style={{
         animationDelay: `${Math.min(index, 24) * 18}ms`,
         ...frame,
-      }}
+        ["--beam-color" as string]: r.color,
+      } as React.CSSProperties}
     >
       {/* 일괄 선택 체크 */}
       <input
@@ -91,59 +87,82 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
         title="일괄 작업에 포함"
       />
 
-      {/* 상단: 등급 배지 + 즐겨찾기 */}
-      <div className="mb-3 flex items-center justify-between">
-        <span
-          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
-          style={{ backgroundColor: r.color }}
-        >
-          {r.ko}
-        </span>
-        <div className="flex items-center gap-1.5">
-          {wouldLink && (
-            <span className="rounded-full bg-accent-orange-soft px-2 py-0.5 text-[10px] font-semibold text-accent-orange" title="장착하면 신호 링크 발동">
-              링크+
-            </span>
-          )}
-          {item.group && (
-            <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] font-medium text-muted">
-              복수
-            </span>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
-            className={`transition ${isFav ? "text-accent-orange" : "text-hairline-strong hover:text-muted"}`}
-            aria-label="즐겨찾기"
-          >
-            <Icon name="favorite-star" size="sm" />
-          </button>
-        </div>
-      </div>
-
       {/* 아트 영역 — memory는 개별 AI 아트 대신 공통 분류 글리프(텍스트 우선). 큰 히어로
           박스를 쓰지 않아 이름·설명이 카드를 주도하고, "이건 장착 자산이 아니라 기억"임을
           한눈에 분류한다. */}
       {item.kind === "memory" ? (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-hairline bg-surface-soft px-3 py-2">
-          <Icon name="memory-card" size="sm" className="text-muted" />
-          <span className="text-[10px] font-bold uppercase tracking-wide text-muted-soft">Memory</span>
-        </div>
-      ) : item.image ? (
-        <div className="mb-3 aspect-[4/3] overflow-hidden rounded-lg">
-          <img src={item.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-hairline bg-surface-soft px-3 py-2">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <Icon name="memory-card" size="sm" className="text-muted shrink-0" />
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-soft shrink-0">Memory</span>
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wide truncate"
+              style={{ color: r.color }}
+              title={`${r.ko} 등급`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+              {r.ko}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {wouldLink && (
+              <span className="rounded-full bg-accent-orange-soft px-2 py-0.5 text-[10px] font-semibold text-accent-orange" title="장착하면 신호 링크 발동">
+                링크+
+              </span>
+            )}
+            {item.group && (
+              <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] font-medium text-muted">
+                복수
+              </span>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
+              className={`transition ${isFav ? "text-accent-orange" : "text-hairline-strong hover:text-muted"}`}
+              aria-label="즐겨찾기"
+            >
+              <Icon name="favorite-star" size="sm" />
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="relative mb-3 flex aspect-[4/3] items-center justify-center rounded-lg" style={{ backgroundColor: r.bg }}>
-          <Icon
-            name={cat === "agent" ? "agent-badge" : cat === "module" ? "wrench" : "bolt-logo"}
-            size="xl"
-            className="opacity-50"
-          />
+        <div className="relative -mx-4 -mt-4 mb-3 aspect-[4/3] overflow-hidden">
+          {item.image ? (
+            <img src={item.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center" style={{ backgroundColor: r.bg }}>
+              <Icon
+                name={cat === "agent" ? "agent-badge" : cat === "module" ? "wrench" : "bolt-logo"}
+                size="xl"
+                className="opacity-50"
+              />
+            </div>
+          )}
+
+          {/* 우상단 오버레이: 배지 및 즐겨찾기 */}
+          <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+            {wouldLink && (
+              <span className="rounded-full bg-accent-orange-soft px-2 py-0.5 text-[10px] font-semibold text-accent-orange" title="장착하면 신호 링크 발동">
+                링크+
+              </span>
+            )}
+            {item.group && (
+              <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] font-medium text-muted">
+                복수
+              </span>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
+              className={`p-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition ${isFav ? "text-accent-orange" : "text-gray-200 hover:text-white"}`}
+              aria-label="즐겨찾기"
+            >
+              <Icon name="favorite-star" size="sm" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 이름 */}
-      <h3 className="mb-0.5 truncate text-[15px] font-semibold text-ink">{name}</h3>
+      {/* 이름 — 카드의 주인공. 살짝 키워 더 또렷하게. 등급은 카드 테두리 색으로 표현. */}
+      <h3 className="mb-0.5 truncate text-[19px] font-bold leading-tight tracking-tight text-ink" title={`${r.ko} 등급`}>{name}</h3>
 
       {/* 타입 + 점수 */}
       <div className="mb-2 flex items-center gap-2">

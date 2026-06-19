@@ -76,7 +76,7 @@ export function rarityFrame(
   let borderColor: string | undefined;
   if (tier > 0) {
     borderColor = hexToRgba(color, 0.28 + tier * 0.1); // C .38 \u2192 B .48 \u2192 A .58 \u2192 S .68
-    if (!opts.equipped) shadows.push(`0 0 0 1px ${hexToRgba(color, 0.05 + tier * 0.03)}`);
+    // \ubcf4\uac15\uc6a9 1px \ub9c1\uc740 \uc81c\uac70 \u2014 1px border\uc640 \uacb9\uccd0 \ud14c\ub450\ub9ac\uac00 2\uc904\ub85c \ubcf4\uc600\ub2e4(\uc0ac\uc774\ub85c \ud770 \ubc30\uacbd\uc774 \ube44\uce68).
     if (tier >= 3 && opts.glow !== false) {
       // epic\u2191 \ubd80\ud130\ub9cc \ubc14\uae65 \uae00\ub85c\uc6b0 \u2014 \ubb35\uc9c1\ud55c "\uc804\ub9ac\ud488" \ub290\ub08c. \uc870\ubc00 \ubdf0\ub294 glow:false\ub85c \ub048\ub2e4.
       shadows.push(`0 10px ${12 + tier * 4}px ${hexToRgba(color, 0.05 + (tier - 2) * 0.045)}`);
@@ -170,7 +170,7 @@ export function promptFor(preset: string, it: Item, lang: "ko" | "en" = "ko"): s
         : "agent/operator"
     : "mission asset";
   const subject = it
-    ? `"${itemName}" ${itemRole}. Category: ${it.category}. Description: ${itemDesc || "No description provided."}. Tools/source clues: ${itemTools || itemSource || "none"}`
+    ? `Internal reference only, never render as text: asset name "${itemName}", type ${itemRole}, category ${it.category}, purpose ${itemDesc || "No description provided."}, clues ${itemTools || itemSource || "none"}`
     : "generic mission asset";
   const laneAccent = it
     ? it.kind === "mcp" || it.rarity === "legendary" || it.rarity === "uncommon"
@@ -178,10 +178,10 @@ export function promptFor(preset: string, it: Item, lang: "ko" | "en" = "ko"): s
       : "launch blue SHIP lane"
     : "launch blue SHIP lane and orbit green MONITOR lane";
   const identityRule =
-    "Make the asset's purpose recognizable at a glance with ONE single clear, flat, literal icon of what it actually does — a concrete object that matches its name, description and category. Good examples: a document with 'Aa' and color chips for design, a terminal with code brackets for code, a magnifier over a page for review/search, a shield or lock for security, a bar/line chart or database for data, a stacked server for infra, a glowing node for AI, a plug/connector for an MCP module, an operator badge or small robot for an agent, and a browser window ONLY when the asset itself is a browser or web page. Prefer a distinctive silhouette unique to THIS asset so cards stay distinguishable at thumbnail size — do NOT default to a plain browser window for anything merely web-adjacent; choose the more specific object instead. If the name implies an upgrade/version/migration, add a clear directional cue (a bold up-arrow or a small 'v2' version bump) so it reads differently from its base asset. Pick the single best-fitting object. Keep it simple: one focal subject, clean light background, balanced margin, flat minimal style — never a busy diagram, a pile of objects, or a generic rocket. No readable long text; at most a tiny abstract label.";
+    "Translate the asset's name and description into a visual metaphor. Do not copy the tool name into the image. Show objects, actions, state changes, before/after cues, arrows, plugs, shields, windows, servers, charts, or other visual symbols that explain the purpose. Make the purpose recognizable at a glance with ONE single clear, flat, literal icon-like scene. Good examples: abstract color chips for design, an unlabeled terminal shape for code, a magnifier over a page for review/search, a shield or lock for security, an unlabeled bar/line chart or database for data, a stacked server for infra, a glowing node for AI, a plug/connector for an MCP module, an operator badge or small robot for an agent, and a browser window ONLY when the asset itself is a browser or web page. Prefer a distinctive silhouette unique to THIS asset so cards stay distinguishable at thumbnail size. If the name implies an upgrade/version/migration, add a clear directional cue like a bold up-arrow, but do not write version text. Pick the single best-fitting visual metaphor. Keep it simple: one focal subject, clean light background, balanced margin, flat minimal style. Text rule: no title, no tool name, no speech bubble, no object labels, no screen text, no command text, no code text, no gauge letters, no numbers, no pseudo-text. Allow exactly one small bottom caption only: 2-5 plain words, core idea only, no punctuation.";
 
   const P: Record<string, string> = {
-    card: `Simple, clean, flat icon-style card art for this exact Loadout asset: ${subject}. ${identityRule} ${ORBITAL_MONITOR_STYLE}. Compose ONE large, simple central icon that literally depicts what the asset does; size the single subject large and consistent so it fills roughly 70% of the frame with only a comfortable margin — never a tiny object floating in a big empty field. Use ${laneAccent} only as a restrained accent. Keep it minimal and uncluttered — no dense telemetry, no crowded diagrams, no multiple competing objects. Borderless edge-to-edge graphic, no outer card frame, no generic stock image, no readable long text.`,
+    card: `Simple, clean, flat icon-style card art for this exact Loadout asset. ${subject}. ${identityRule} ${ORBITAL_MONITOR_STYLE}. Compose ONE large, simple central visual metaphor that depicts what the asset does; size the single subject large and consistent so it fills roughly 70% of the frame with only a comfortable margin — never a tiny object floating in a big empty field. Use ${laneAccent} only as a restrained accent. Keep it minimal and uncluttered — no dense telemetry, no crowded diagrams, no multiple competing objects. Borderless edge-to-edge graphic, no outer card frame, no generic stock image, no title, no tool name. Add only one short bottom caption with the core idea, not a sentence.`,
     icon: `항공우주 운영용 아이콘 시트 1장(4x4 격자, 16개). ${ORBITAL_MONITOR_STYLE}. 각 칸은 로켓, 체크리스트, 업로드 구름, 성능 게이지, 위성, 문서 동기화, 모델 비교, 레이더 상태 아이콘. 균일한 셀 크기, 밝은 배경, 또렷한 파란/초록 라인.`,
     logo: `A premium, modern app logo emblem for a mission-control deck called LOADOUT. One bold central mark: a sleek stylized rocket lifting off along a dotted telemetry arc that curves up to a glowing orbit node with a small satellite, evoking launch then monitor. Palette: launch blue (#2E73DF) and orbit green (#22965A) on a clean white to pale-blue background. Flat geometric crisp vector style with subtle depth and soft shadow, rounded-square app-icon composition, centered with generous padding and balanced negative space, polished and confident like a top tech brand mark. No text, no letters, no words, no military insignia, no clutter. 1:1 square.`,
     bg: `Wide 16:9 SHIP MONITOR dashboard background. ${ORBITAL_MONITOR_STYLE}. Left rocket launch pad impression, center dotted orbital arc, right satellite over earth horizon, plenty of empty central space for UI panels, bright blueprint grid.`,
@@ -189,5 +189,46 @@ export function promptFor(preset: string, it: Item, lang: "ko" | "en" = "ko"): s
     sprite: `Bright blueprint UI sprite sheet, 5x4 grid. ${ORBITAL_MONITOR_STYLE}. Buttons, checklist rows, status chips, telemetry dots, module slots, launch queue badges, orbit monitor badges. Crisp web-ready components.`,
   };
   return P[preset] || P.card;
+}
+
+// ── 손그림(doodle) 카드 프롬프트 ──────────────────────────────────────────────
+// codex(gpt-image) 경로용. 텍스트 없이 한 눈에 이해되는 손그림 비유 한 장면.
+const DOODLE_STYLE =
+  "Hand-drawn doodle illustration on a clean, solid off-white background — NO grid lines, NO paper texture, NO background clutter. " +
+  "BOLD thick black ink outlines and flat, bright, high-contrast fills (minimal soft shading). Friendly and cute. " +
+  "ONE single large, simple metaphor with big clear shapes and very few fine details, composed to stay crisp and legible even as a small thumbnail.";
+
+const RARITY_HIGHLIGHT: Record<Rarity, string> = {
+  legendary: "amber/gold",
+  epic: "violet",
+  rare: "sky blue",
+  uncommon: "light green",
+  common: "light grey",
+};
+
+// description 을 비유 소재로 정리: 끝의 "(...)" 꼬리표·"Use when/this/it ..." 트리거 절 제거 후 첫 문장.
+function cleanDescEn(s: string): string {
+  let t = (s || "").replace(/\s+/g, " ").trim();
+  t = t.replace(/\s*\([^)]*\)\s*$/g, "");
+  t = t.split(/\s+Use\s+(?:when|this|it)\b/i)[0];
+  const first = t.match(/^.*?[.!?](?=\s|$)/);
+  return (first ? first[0] : t).replace(/[.\s]+$/, "").trim();
+}
+
+export function doodlePrompt(it: Item, lang: "ko" | "en" = "ko"): string {
+  const name = it.name;
+  const descEn = cleanDescEn(it.description) || it.category || "a helpful tool";
+  const hl = RARITY_HIGHLIGHT[it.rarity] || "light grey";
+  const localizedHint = lang === "ko" && it.descKo ? ` Korean context for interpretation only, never render as text: ${it.descKo.replace(/\s+/g, " ").trim().slice(0, 90)}. ` : " ";
+  const captionLanguage = lang === "ko" ? "Korean" : "English";
+  return (
+    `${DOODLE_STYLE} Internal reference only, never render as text: tool name "${name}", purpose: ${descEn}.${localizedHint}` +
+    `Interpret the purpose visually. Do not copy the name, description, or any phrase into the image. ` +
+    `Draw one witty, beginner-friendly metaphor scene made from objects and actions that makes what it does instantly understandable. ` +
+    `Add exactly one small, clean bottom caption in ${captionLanguage}: 2-5 plain words, core idea only, no punctuation, not a full sentence. ` +
+    `Use ${hl} only as a small visual accent, not as a marker behind words. ` +
+    `Do NOT write the tool name. Do NOT include a title, object label, UI text, speech bubble, command text, code, gauge letters, numbers, logo text, watermark, pseudo-text, or any extra text beyond that one caption. ` +
+    `No outer card border frame, no dark or military tone, no photorealism. 1:1 square.`
+  );
 }
 

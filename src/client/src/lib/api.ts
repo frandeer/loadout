@@ -22,6 +22,18 @@ export const api = {
   getEngines: () =>
     request<{ engines: string[] }>("/engines").catch(() => ({ engines: ["heuristic"] })),
 
+  // 사용자 설정(영속) — 이미지 생성 엔진 등. 서버 data/settings.json 가 진실의 원천.
+  getSettings: () =>
+    request<{ ok: boolean; settings: { imageEngine: string } }>("/settings").catch(
+      () => ({ ok: false, settings: { imageEngine: "codex" } }),
+    ),
+
+  saveSettings: (settings: { imageEngine?: string }) =>
+    request<{ ok: boolean; settings: { imageEngine: string } }>("/settings", {
+      method: "POST",
+      body: JSON.stringify(settings),
+    }),
+
   // 장착/해제는 단일 /api/equip 엔드포인트 — equip:false 가 해제.
   equip: (id: string) =>
     request<{ ok: boolean; equipped: boolean; installed?: boolean; note?: string }>("/equip", {
@@ -56,6 +68,18 @@ export const api = {
         claudeState?: "link" | "resident" | "absent"; divergent?: boolean; oversized?: boolean;
       }>;
     }>("/vault/status"),
+
+  // 안전 삭제(휴지통 이동, 복구 가능) — confirmName 이 item.name 과 일치해야 서버가 실행.
+  deleteItem: (id: string, confirmName: string, dryRun = false) =>
+    request<{
+      ok: boolean; id: string; kind: string; name: string;
+      removed?: Array<{ what: string; from: string; to: string }>;
+      willRemove?: Array<{ label: string; path: string }>;
+      trashRoot?: string; note?: string; error?: string;
+    }>("/item/delete", {
+      method: "POST",
+      body: JSON.stringify({ id, confirmName, dryRun }),
+    }),
 
   // 분기 해소 — pull(vault→라이브) / push(라이브→vault).
   resolveDivergence: (id: string, choice: "pull" | "push", dryRun = false) =>

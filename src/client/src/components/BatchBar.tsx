@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useStore } from "../hooks/useStore";
 import { Icon } from "./Icon";
 import { api } from "../lib/api";
-import { promptFor } from "../lib/utils";
+import { promptFor, doodlePrompt } from "../lib/utils";
 
 export function BatchBar() {
   const picked = useStore((s) => s.picked);
@@ -10,12 +10,18 @@ export function BatchBar() {
   const lang = useStore((s) => s.lang);
   const clearPicks = useStore((s) => s.clearPicks);
   const reloadData = useStore((s) => s.reloadData);
+  // 엔진은 설정(서버 영속)과 동기화 — 여기서 바꿔도 설정에 반영되고, 설정에서 바꿔도 여기 반영된다.
+  const engine = useStore((s) => s.imageEngine);
+  const setImageEngine = useStore((s) => s.setImageEngine);
 
   const [generating, setGenerating] = useState(false);
   const [current, setCurrent] = useState(0);
   const [total, setTotal] = useState(0);
-  const [engine, setEngine] = useState<"auto" | "image-farm" | "chatgpt" | "grok">("auto");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [statusFailed, setStatusFailed] = useState(false);
+
+  // codex 는 병렬 4, 브라우저 계열은 동시 2로 제한.
+  const concurrency = engine === "codex" ? 4 : 2;
 
   // Clear status message when selection changes
   useEffect(() => {
@@ -40,14 +46,14 @@ export function BatchBar() {
     let done = 0;
     setCurrent(0);
 
-    // farm 탭 풀 크기(POOL_SIZE)에 맞춘 동시 실행 수. 더 올려도 farm 이 FIFO 로
-    // 큐잉하므로 안전하지만, 열린 연결/타임아웃을 줄이려 3으로 둔다.
-    const CONCURRENCY = 3;
+    // codex=4 / 브라우저=2. 브라우저는 farm 탭 풀(poolSize=2)·열린 연결을 고려해 낮게 둔다.
+    const CONCURRENCY = concurrency;
 
     const runOne = async (it: (typeof pickedItems)[number]) => {
       const displayName = lang === "ko" && it.nameKo ? it.nameKo : it.displayName || it.name;
       try {
-        const prompt = promptFor("card", it, lang);
+        // codex 는 손그림 비유 스타일, 브라우저 계열은 기존 플랫 아이콘 스타일.
+        const prompt = engine === "codex" ? doodlePrompt(it, lang) : promptFor("card", it, lang);
         const res = await api.generate(prompt, {
           itemId: it.id,
           imageEngine: engine,
@@ -84,59 +90,83 @@ export function BatchBar() {
     setGenerating(false);
     await reloadData();
     const icon = failCount === 0 ? "✅" : okCount === 0 ? "❌" : "⚠️";
+    // 긴 에러(경로 등)는 잘라 레이아웃 보호 — 전체는 title(hover)로 확인.
+    const shortErr = lastError.length > 240 ? lastError.slice(0, 240) + "…" : lastError;
+    setStatusFailed(failCount > 0);
     setStatusMsg(
       `${icon} 완료 (성공: ${okCount}, 실패: ${failCount})` +
-        (failCount > 0 && lastError ? ` — ${lastError}` : ""),
+        (failCount > 0 && lastError ? ` — ${shortErr}` : ""),
     );
   };
 
   return (
-    <div className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 flex-col gap-2 rounded-xl border border-hairline bg-canvas/95 px-5 py-3 shadow-md backdrop-blur-xl md:flex-row md:items-center">
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-body">
-          <span className="font-bold text-primary">{picked.size}</span>개 선택됨
-        </span>
-
-        {/* 엔진 선택 */}
-        {!generating && (
-          <select
-            value={engine}
-            onChange={(e) => setEngine(e.target.value as any)}
-            className="rounded-lg border border-hairline bg-surface-soft px-2 py-1 text-xs text-body outline-none transition focus:border-primary"
+    <div className="fixed bottom-20 left-1/2 z-50 flex w-[min(92vw,720px)] -translate-x-1/2 flex-col gap-2 rounded-xl border border-hairline bg-canvas/95 px-5 py-3 shadow-md backdrop-blur-xl">
+      {/* 상태/에러 — 컨트롤 위 별도 줄. 길어도 줄바꿈+최대 3줄로 잘라 바 레이아웃을 깨지 않는다(전체는 hover title). */}
+      {!generating && statusMsg && (
+        <div
+          className={`flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ${
+            statusFailed ? "bg-accent-rose/5 text-accent-rose" : "bg-surface-soft text-muted"
+          }`}
+          title={statusMsg}
+        >
+          <span className="line-clamp-3 break-words break-all">{statusMsg}</span>
+          <button
+            onClick={() => setStatusMsg(null)}
+            className="ml-auto shrink-0 opacity-60 transition hover:opacity-100"
+            aria-label="알림 닫기"
           >
-            <option value="auto">자동 감지 (image-farm &gt; ChatGPT)</option>
-            <option value="image-farm">image-farm (추천)</option>
-            <option value="chatgpt">ChatGPT (브라우저)</option>
-            <option value="grok">Grok (브라우저)</option>
-          </select>
-        )}
-      </div>
+            <Icon name="close" size="xs" />
+          </button>
+        </div>
+      )}
 
-      <div className="flex items-center gap-2">
-        {generating ? (
-          <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span>
-              생성 중 (완료 {current}/{total} · 동시 최대 3)
-            </span>
-          </div>
-        ) : (
-          <>
-            {statusMsg && <span className="text-xs text-muted mr-2">{statusMsg}</span>}
-            <button
-              onClick={handleGenerate}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-white transition hover:bg-primary-active"
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="whitespace-nowrap text-sm text-body">
+            <span className="font-bold text-primary">{picked.size}</span>개 선택됨
+          </span>
+
+          {/* 엔진 선택 — 설정과 동기화(영속) */}
+          {!generating && (
+            <select
+              value={engine}
+              onChange={(e) => setImageEngine(e.target.value)}
+              className="rounded-lg border border-hairline bg-surface-soft px-2 py-1 text-xs text-body outline-none transition focus:border-primary"
             >
-              <Icon name="rocket" size="sm" className="text-white" /> 이미지 생성
-            </button>
-            <button
-              onClick={clearPicks}
-              className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted transition hover:bg-surface-soft hover:text-body"
-            >
-              <Icon name="close" size="xs" /> 선택 해제
-            </button>
-          </>
-        )}
+              <option value="codex">Codex (gpt-image · 추천)</option>
+              <option value="chatgpt">ChatGPT (브라우저)</option>
+              <option value="grok">Grok (브라우저)</option>
+              <option value="image-farm">image-farm</option>
+              <option value="auto">자동 감지</option>
+            </select>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {generating ? (
+            <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="whitespace-nowrap">
+                생성 중 (완료 {current}/{total} · 동시 최대 {concurrency})
+              </span>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={handleGenerate}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-white transition hover:bg-primary-active"
+              >
+                <Icon name="rocket" size="sm" className="text-white" /> 이미지 생성
+              </button>
+              <button
+                onClick={clearPicks}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted transition hover:bg-surface-soft hover:text-body"
+              >
+                <Icon name="close" size="xs" /> 선택 해제
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

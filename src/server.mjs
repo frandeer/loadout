@@ -40,6 +40,11 @@ async function saveLoadout(lo) { await mkdir(dataDir, { recursive: true }); awai
 // 팀 프리셋: { teams: { id: { name, slots: {role: itemId|null}, at } } } — 작전 준비 화면이 사용.
 async function loadTeams() { try { return JSON.parse(await readFile(join(dataDir, "teams.json"), "utf8")); } catch { return { teams: {} }; } }
 async function saveTeams(t) { await mkdir(dataDir, { recursive: true }); await writeFile(join(dataDir, "teams.json"), JSON.stringify(t, null, 2)); }
+// 사용자 설정(영속): 이미지 생성 엔진 등. 기본 엔진은 codex(브라우저 자동화 우회).
+const settingsPath = join(dataDir, "settings.json");
+const DEFAULT_SETTINGS = { imageEngine: "codex" };
+async function loadSettings() { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(await readFile(settingsPath, "utf8")) }; } catch { return { ...DEFAULT_SETTINGS }; } }
+async function saveSettings(s) { await mkdir(dataDir, { recursive: true }); const merged = { ...DEFAULT_SETTINGS, ...s }; await writeFile(settingsPath, JSON.stringify(merged, null, 2)); return merged; }
 // gen-cards.mjs가 생성한 { itemId: "/media/generated/cards/xxx.png" } 매핑
 const cardImagesPath = join(dataDir, "card-images.json");
 async function cardImages() { try { return JSON.parse(await readFile(cardImagesPath, "utf8")); } catch { return {}; } }
@@ -730,6 +735,21 @@ const server = createServer(async (req, res) => {
       const avail = await availableEngines();
       return json(res, 200, { engines: ["heuristic", ...avail], all: ENGINES });
     }
+    if (req.method === "GET" && path === "/api/settings") {
+      return json(res, 200, { ok: true, settings: await loadSettings() });
+    }
+    if (req.method === "POST" && path === "/api/settings") {
+      let b;
+      try { b = await body(req); }
+      catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      const allowedEngines = new Set(["codex", "chatgpt", "grok", "image-farm", "auto"]);
+      const patch = {};
+      if (typeof b.imageEngine === "string" && allowedEngines.has(b.imageEngine.toLowerCase())) {
+        patch.imageEngine = b.imageEngine.toLowerCase();
+      }
+      const merged = await saveSettings({ ...(await loadSettings()), ...patch });
+      return json(res, 200, { ok: true, settings: merged });
+    }
     if (req.method === "GET" && path === "/api/sources") {
       // 스킬을 가져오는 소스 루트 목록(폴더/clone된 repo) + 루트별 항목 수.
       await ensureSourcesFile();
@@ -1068,8 +1088,29 @@ const server = createServer(async (req, res) => {
       if (!b.prompt?.trim()) return json(res, 400, { ok: false, error: "prompt 필드가 필요합니다." });
 
       const outDir = join(mediaDir, "generated");
-      const requestedEngine = (b.imageEngine || "auto").toLowerCase();
+      // 엔진: 요청에 명시된 값 > 사용자 설정(settings.json) > auto. "default"는 설정값으로 해석.
+      const settings = await loadSettings();
+      let requestedEngine = (b.imageEngine || "").toLowerCase();
+      if (!requestedEngine || requestedEngine === "default") requestedEngine = (settings.imageEngine || "auto").toLowerCase();
       let useImageFarm = false;
+
+      // ── codex 경로 ── 브라우저 자동화를 거치지 않고 Codex CLI(gpt-image)로 직접 생성.
+      if (requestedEngine === "codex") {
+        try {
+          const { generateCodexImage } = await import("./codexgen.mjs");
+          await mkdir(outDir, { recursive: true });
+          const slug = b.itemId ? imgSlug(b.itemId) : imgSlug(b.name || `gen-${Date.now()}`);
+          const name = `card-${slug}.png`;
+          const destPath = join(outDir, name);
+          await rm(destPath, { force: true }); // 재생성 시 기존 파일 교체(generate.py SKIP 회피)
+          await generateCodexImage({ prompt: b.prompt, outPath: destPath });
+          const webPath = `/media/generated/${name}`;
+          if (b.itemId) await setCardImage(b.itemId, webPath);
+          return json(res, 200, { ok: true, engine: "codex", images: [{ url: webPath }] });
+        } catch (e) {
+          return json(res, 503, { ok: false, engine: "codex", code: e.code, error: "codex 생성 실패: " + e.message });
+        }
+      }
 
       if (requestedEngine === "image-farm" || requestedEngine === "auto") {
         // 첫 생성 요청이면 벤더된 image-farm 서버(:4180)+디버그 Chrome 을 자동 기동.
@@ -1290,6 +1331,9 @@ const server = createServer(async (req, res) => {
           st.items[stateKey] = next;
           await vault.saveVaultState(st);
         } catch { /* 상태 기록 실패는 작업 성공을 뒤집지 않음 */ }
+        // 상주→vault 이동은 아이템 id가 바뀐다(옛 ~/.claude id → vault id). 갱신하지 않으면
+        // 메모리 INDEX에 옛 항목이 "상주"로 남아 중복(2개)·오표시된다 → 이동 시 디스크 기준 재스캔.
+        if (result.moved) { await runScan().catch(() => {}); }
       }
       return json(res, result.ok ? 200 : 500, { ok: result.ok, vaultRoot: vault.defaultVaultRoot, ...result });
     }
@@ -1345,6 +1389,38 @@ const server = createServer(async (req, res) => {
         } catch { /* 상태 기록 실패는 작업 성공을 뒤집지 않음 */ }
       }
       return json(res, 200, { ok: true, dryRun, vaultRoot: vault.defaultVaultRoot, ...result });
+    }
+
+    if (req.method === "POST" && path === "/api/item/delete") {
+      // 안전 삭제(휴지통 이동, 복구 가능): { id, confirmName, dryRun }.
+      // confirmName 이 item.name 과 정확히 일치해야만 실행한다(이름 오타 = 거부). dryRun 이면 계획만.
+      let b;
+      try { b = await body(req); }
+      catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      const idx = INDEX || (await loadIndex());
+      const item = idx.items.find((i) => i.id === b.id);
+      if (!item) return json(res, 404, { ok: false, error: "해당 id의 항목을 찾을 수 없습니다." });
+      if (item.kind !== "skill" && item.kind !== "agent") {
+        return json(res, 400, { ok: false, error: "skill/agent만 삭제할 수 있습니다." });
+      }
+      const dryRun = !!b.dryRun;
+      // 이름 재확인: 실삭제(비-dryRun)에서는 정확히 일치해야 한다.
+      if (!dryRun && String(b.confirmName || "").trim() !== String(item.name || "").trim()) {
+        return json(res, 400, { ok: false, error: `이름 확인 불일치 — 삭제하려면 "${item.name}"을(를) 정확히 입력하세요.` });
+      }
+      let liveName = null, recordedVaultPath = null;
+      try { const st = await vault.loadVaultState(); liveName = st.items?.[item.id]?.liveName || vault.originalLiveName(item) || null; recordedVaultPath = st.items?.[item.id]?.vaultPath || null; }
+      catch { liveName = vault.originalLiveName(item) || null; }
+      let result;
+      try { result = await vault.deleteItem(item, { dryRun, liveName, vaultPath: recordedVaultPath }); }
+      catch (e) { return json(res, 500, { ok: false, error: "삭제 실패: " + e.message }); }
+      if (!dryRun && result.ok) {
+        // 영속 상태 정리: vault.json 레코드 + loadout.json 장착 제거 + 메모리 인덱스에서 제외.
+        try { const st = await vault.loadVaultState(); if (st.items[item.id]) { delete st.items[item.id]; await vault.saveVaultState(st); } } catch {}
+        try { const lo = await loadout(); if (lo.equipped[item.id]) { delete lo.equipped[item.id]; await saveLoadout(lo); } } catch {}
+        try { if (INDEX) INDEX.items = INDEX.items.filter((i) => i.id !== item.id); } catch {}
+      }
+      return json(res, result.ok ? 200 : 500, { ok: result.ok, vaultRoot: vault.defaultVaultRoot, ...result });
     }
 
     if (req.method === "POST" && path === "/api/drop") {

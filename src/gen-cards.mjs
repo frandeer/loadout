@@ -232,6 +232,7 @@ async function main() {
       kind: item.kind,
       category: item.category,
       rarity: item.rarity,
+      description: item.description,
     });
 
     process.stdout.write(`${idx} ${item.name} (${item.rarity ?? "?"}) ... `);

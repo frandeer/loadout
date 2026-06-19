@@ -34,6 +34,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const [activeTab, setActiveTab] = useState<"original" | "ko">("original");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const [subPath, setSubPath] = useState<string | null>(null);
   const [files, setFiles] = useState<Array<{ name: string; path: string; size: number }>>([]);
@@ -52,6 +55,8 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     if (!item) return;
     setSubPath(null);
     setFiles([]);
+    setDeleteOpen(false);
+    setDeleteText("");
   }, [item?.id]);
 
   useEffect(() => {
@@ -136,14 +141,17 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const desc = pickDesc(item, lang);
   const traits = traitsOf(item);
   const equippable = isEquippable(item.kind);
+  // vault on/off 토글 대상: vault 관리 항목 또는 ~/.claude 상주 실폴더.
+  const vaultToggleable = item.managed || item.claudeState === "resident";
+  // 상주로 잡히지만 토글 불가(cc-config 등 레거시) → 읽기 전용 "상주 자산".
+  const lockedInstalled = !!item.installed && !vaultToggleable;
   const formationMembers = ROLES
     .map((role) => slots[role.key] && items.find((i) => i.id === slots[role.key]))
     .filter(Boolean) as Item[];
   const nearKeys = formationMembers.length ? neededTraitKeys(formationMembers) : undefined;
 
   const handleEquip = async () => {
-    if (!equippable) return;
-    const vaultToggleable = item.managed || item.claudeState === "resident";
+    if (!equippable || lockedInstalled) return;
     if (item.oversized && item.equipped && !window.confirm(`${item.displayName}는 거대 자산입니다. 끄면 vault로 이동(보관)됩니다. 진행할까요?`)) return;
     setEquipping(true);
     try {
@@ -154,6 +162,24 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
       await reloadData();
     } catch {}
     setEquipping(false);
+  };
+
+  const handleDelete = async () => {
+    if (deleteText.trim() !== item.name) return;
+    setDeleting(true);
+    try {
+      const res = await api.deleteItem(item.id, deleteText.trim());
+      if (res.ok) {
+        setDeleteOpen(false);
+        setSelected(null);
+        await reloadData();
+      } else {
+        alert("삭제 실패: " + (res.error || "알 수 없는 오류"));
+      }
+    } catch (e: any) {
+      alert("삭제 중 오류: " + (e?.message || e));
+    }
+    setDeleting(false);
   };
 
   const handleTranslate = async () => {
@@ -290,18 +316,23 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           {equippable ? (
             <button
               onClick={handleEquip}
-              disabled={equipping || item.installed}
+              disabled={equipping || lockedInstalled}
               className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${
-                item.installed
+                lockedInstalled
                   ? "bg-surface-soft text-muted"
                   : item.equipped
                     ? "border border-hairline bg-canvas text-body hover:border-accent-rose hover:text-accent-rose"
                     : "bg-primary text-white hover:bg-primary-active"
               }`}
+              title={item.claudeState === "resident" ? "해제하면 vault(보관함)로 끌어와 관리합니다" : undefined}
             >
-              {item.installed
+              {lockedInstalled
                 ? "상주 자산"
-                : equipping ? "처리 중..." : item.equipped ? "해제" : "장착하기"}
+                : equipping
+                  ? "처리 중..."
+                  : item.equipped
+                    ? item.claudeState === "resident" ? "해제 (보관함으로)" : "해제"
+                    : "장착하기"}
             </button>
           ) : (
             <div className="flex-1 rounded-lg bg-surface-soft py-2.5 text-center text-sm font-semibold text-muted">
@@ -317,6 +348,55 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
             <Icon name="favorite-star" size="lg" />
           </button>
         </div>
+
+        {/* 위험 구역: 스킬/에이전트 삭제 — 이름 입력 재확인(휴지통 이동, 복구 가능) */}
+        {equippable && (
+          <div className="mb-5">
+            {!deleteOpen ? (
+              <button
+                onClick={() => { setDeleteOpen(true); setDeleteText(""); }}
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-soft transition hover:text-accent-rose"
+              >
+                <Icon name="delete" size="xs" /> 이 자산 삭제
+              </button>
+            ) : (
+              <div className="rounded-lg border border-accent-rose/30 bg-accent-rose/5 p-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-accent-rose">
+                  <Icon name="warning" size="xs" /> 삭제 확인
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                  라이브(<span className="font-mono">~/.claude</span>) 사본 · vault 사본 · 소스를 모두
+                  휴지통(<span className="font-mono">vault/.trash</span>)으로 옮깁니다. 복구 가능하지만
+                  카탈로그에서는 사라집니다. 진행하려면 아래에 <b className="text-body">{item.name}</b> 을(를) 그대로 입력하세요.
+                </p>
+                <input
+                  type="text"
+                  value={deleteText}
+                  onChange={(e) => setDeleteText(e.target.value)}
+                  placeholder={item.name}
+                  autoFocus
+                  className="mt-2 w-full rounded-md border border-hairline bg-canvas px-2.5 py-1.5 text-sm text-ink outline-none transition focus:border-accent-rose"
+                />
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting || deleteText.trim() !== item.name}
+                    className="rounded-md bg-accent-rose px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {deleting ? "삭제 중..." : "영구 삭제"}
+                  </button>
+                  <button
+                    onClick={() => { setDeleteOpen(false); setDeleteText(""); }}
+                    disabled={deleting}
+                    className="rounded-md border border-hairline px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-surface-soft disabled:opacity-40"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 설명 */}
         <div className="mb-5">

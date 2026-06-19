@@ -21,7 +21,7 @@ const DEFAULTS = {
   enabled: true,
   port: 4180,
   chromePort: 9222,
-  poolSize: 3,
+  poolSize: 2,
   autoLaunchChrome: true,
   startupTimeoutMs: 30000,
   profileDir: "", // 비우면 launch-chrome 기본 프로필. 이미 ChatGPT 로그인된 프로필 경로를 주면 재로그인 불필요.

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
 import { Icon } from "./Icon";
+import { SettingsPanel } from "./SettingsPanel";
 import logoImg from "../assets/bolt-logo.png";
 import type { AppView } from "../App";
 import type { IconName } from "./Icon";
@@ -28,6 +29,7 @@ export function Header({ onOpenSources }: HeaderProps) {
   const settingsRef = useRef<HTMLDivElement>(null);
   const [rescanning, setRescanning] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
 
   const handleRescan = useCallback(async () => {
     setRescanning(true);
@@ -139,6 +141,12 @@ export function Header({ onOpenSources }: HeaderProps) {
             {settingsOpen && (
               <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-hairline bg-canvas py-1.5 shadow-lg z-50">
                 <button
+                  onClick={() => { setSettingsPanelOpen(true); setSettingsOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
+                >
+                  <Icon name="gear-alt" size="sm" /> 이미지 엔진 설정
+                </button>
+                <button
                   onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); setSettingsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
                 >
@@ -173,6 +181,8 @@ export function Header({ onOpenSources }: HeaderProps) {
           </div>
         </div>
       </div>
+
+      <SettingsPanel open={settingsPanelOpen} onClose={() => setSettingsPanelOpen(false)} />
     </header>
   );
 }

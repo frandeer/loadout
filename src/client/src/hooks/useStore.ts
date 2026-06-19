@@ -41,6 +41,7 @@ interface AppState {
   theme: "light" | "dark";
   loading: boolean;
   engines: string[];
+  imageEngine: string; // 이미지 생성 엔진(codex|chatgpt|grok|image-farm|auto) — 서버 settings.json 영속
 
   slots: OpsSlots;
   presets: Record<string, OpsPreset>;
@@ -52,6 +53,7 @@ interface AppState {
   clearPicks: () => void;
   setLang: (l: "ko" | "en") => void;
   setTheme: (t: "light" | "dark") => void;
+  setImageEngine: (e: string) => void;
   loadData: () => Promise<void>;
   reloadData: () => Promise<void>;
 
@@ -85,6 +87,7 @@ export const useStore = create<AppState>((set, get) => ({
   theme: "dark",
   loading: true,
   engines: ["heuristic"],
+  imageEngine: "codex",
 
   ...loadOps(),
 
@@ -118,6 +121,11 @@ export const useStore = create<AppState>((set, get) => ({
     document.documentElement.dataset.theme = t;
     set({ theme: t });
   },
+  // 엔진 변경 즉시 반영 + 서버 영속. 저장 실패해도 로컬 상태는 유지(다음 부팅에 서버값으로 복구).
+  setImageEngine: (e) => {
+    set({ imageEngine: e });
+    api.saveSettings({ imageEngine: e }).catch(() => {});
+  },
 
   panelWidth: (() => {
     try {
@@ -143,6 +151,11 @@ export const useStore = create<AppState>((set, get) => ({
     } catch {
       set({ loading: false });
     }
+    // 이미지 엔진 설정(서버 영속) 로드 — 실패 시 기본 codex 유지.
+    try {
+      const s = await api.getSettings();
+      if (s?.settings?.imageEngine) set({ imageEngine: s.settings.imageEngine });
+    } catch {}
     // 팀 프리셋: 서버에서 로드. 서버가 비어 있고 예전 localStorage 프리셋이 있으면 1회 이관.
     try {
       const t = await api.getTeams();

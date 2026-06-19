@@ -5,51 +5,72 @@ export const STYLE =
   "기밀 작전 콘솔(Black-Ops Tactical Console) 스타일, 최첨단 군사 시뮬레이션 UI, 그래파이트 아머 플레이트, 레이더 신호 분석 라인, 진중하고 비밀스러운 분위기";
 
 // ── 카드 전용 통일 스타일 디렉션 ──────────────────────────────────────────────
-// 모든 스킬 카드가 한 작전 덱처럼 보이도록 고정된 아트 디렉션 (Classified Asset Card Design 기준)
+// 모든 스킬 카드가 "한 눈에 이해되는 손그림 비유"로 보이도록 고정된 아트 디렉션.
+// (레퍼런스: 따뜻한 모눈 노트 위 마커+수채 낙서, 친근한 캐릭터/사물 + 화살표 비유)
 export const CARD_STYLE =
-  "기밀 작전 콘솔 화면용 자산 분석 일러스트 1장, 화면 비율 1:1 정사각 또는 가로형. " +
-  "배경: 무광택 블랙 바디(matte black body) 및 미세 격자(micro grid) 그리드 텍스처, 암호화된 지도/파형 신호 분석. " +
-  "외곽 테두리선 및 카드 프레임 일절 없음. 중첩된 카드 레이아웃 배제. " +
-  "그래픽: 해당 작전 자산의 신호, 파형, 레이더 스캔, 기하학적 이상 신호 분석 기하학 그래픽 일러스트. 캔버스 끝까지 꽉 차는 구도. " +
-  "글자·텍스트·UI 라벨·HUD 요소 일절 없음. 실제 무기, 군인, 국기, 실제 군 문장, 판타지 룬 문자, 귀여운 게임 스타일 배제. 워터마크 없음.";
+  "손으로 그린 낙서(hand-drawn doodle) 스타일 단일 일러스트 1장, 1:1 정사각. " +
+  "깨끗한 단색 미색(off-white) 배경 — 모눈/노트 격자선 없음, 종이 질감 없음, 배경 잡티 없음. " +
+  "굵고 진한 검정 잉크 아웃라인 + 밝고 선명한 평면 채색(고대비, 부드러운 음영 최소화), 친근하고 귀여운 분위기. " +
+  "딱 하나의 크고 단순한 비유 장면 — 큰 형태와 적은 디테일로, 작은 썸네일로 줄여도 또렷하게 보이도록 구성. " +
+  "설명문을 그대로 쓰지 말고 사물·동작·상태 변화로 해석해서 표현. " +
+  "제목·도구명·사물 라벨·말풍선·명령어·코드·계기판 글자·숫자·로고 텍스트·가짜 글자·워터마크 금지. " +
+  "텍스트는 하단에 짧고 쉬운 핵심 캡션 1개만 허용(2~5단어, 문장/마침표 금지). " +
+  "사진풍 사실주의 금지, 어둡거나 군사적인 톤 금지, 복잡한 배경·여러 패널·카드 테두리 프레임 금지.";
 
-// 등급별 액센트 색 (프롬프트에 명시적으로 주입)
+// 등급별 라벨 강조색 (스킬 이름 뒤 형광펜 하이라이트로 주입)
 const RARITY_ACCENT = {
-  legendary: "기밀 앰버(classified amber, #D49A2A) 라인 및 노란색 발광(yellow glow) 신호선",
-  epic: "이상 현상 바이올렛(anomaly violet, #8D5CFF) 액센트 라인, 은은하게 보랏빛으로 빛나는 이상 영역",
-  rare: "레이더 시안(radar cyan, #38D6C6) 액센트 라인, 신호 스캔라인 및 파형",
-  uncommon: "시그널 그린(signal green, #39D98A) 액센트 신호선",
-  common: "뮤트 그래파이트(muted graphite, #18201D) 베이스 라인",
+  legendary: "황금 앰버색 형광펜 하이라이트",
+  epic: "보라색 형광펜 하이라이트",
+  rare: "하늘색 형광펜 하이라이트",
+  uncommon: "연두색 형광펜 하이라이트",
+  common: "옅은 회색 형광펜 하이라이트",
 };
 
-// 도메인별 중앙 모티프 힌트 (07-card-design.md 기준: 실제 인물/무기 대신 레이더, 파형, 기하도형, 지도 등 사용)
+// 도메인별 비유 톤 힌트 (description이 없을 때만 사용하는 폴백)
 const CATEGORY_MOTIF = {
-  security: "기밀 방화벽 시스템 노드, 보안 이상 신호 분석 격자",
-  data: "분석 격자망, 고정밀 데이터 파형 및 매트릭스 흐름",
-  web: "글로벌 네트워크 토폴로지 연결망, 데이터 전송 신호선",
-  code: "기계어 컴파일 트리 구조, 알고리즘 펄스 분석 그래프",
-  infra: "컴퓨팅 클러스터 다이어그램, 로드 밸런싱 이상 신호",
-  ai: "신경망 연결 구조, 인공지능 시냅스 이상 파생 신호 펄스",
-  design: "벡터 격자선(vector grids), 캔버스 레이아웃 와이어프레임 구조",
-  agent: "작전 통제 노드, 요원 통신 주파수 신호 흔적",
-  mcp: "프로토콜 확장 커넥터 모듈, 멀티포트 연결 신호 링크",
-  general: "레이더 스캔 흔적, 기하학적 이상 신호 격자",
+  security: "방패·자물쇠로 무언가를 막아 주는 장면",
+  data: "데이터 상자·표를 정리하고 흐르게 하는 장면",
+  web: "지구본·브라우저 창 사이를 잇는 장면",
+  code: "블록·레고로 코드를 짜 맞추는 장면",
+  infra: "여러 서버 상자를 쌓고 연결하는 장면",
+  ai: "작은 로봇·전구가 생각을 떠올리는 장면",
+  design: "도화지·자·붓으로 화면을 그리는 장면",
+  agent: "심부름하는 작은 로봇 비서 장면",
+  mcp: "플러그를 콘센트에 꽂아 연결하는 장면",
+  general: "공구 상자에서 알맞은 도구를 꺼내는 장면",
 };
 
 const RARITY_KO = { legendary: "S-CLASS", epic: "A-CLASS", rare: "B-CLASS", uncommon: "C-CLASS", common: "D-CLASS" };
+
+// description을 비유의 소재로 다듬는다: 트리거 문구/괄호 군더더기 제거 후 핵심 한 문장만.
+function cleanDesc(s) {
+  let t = String(s || "").replace(/\s+/g, " ").trim();
+  t = t.replace(/\s*\([^)]*\)\s*$/g, "");            // 끝의 " (gstack)" 류 제거
+  t = t.split(/\s+Use\s+(?:when|this|it)\b/i)[0];     // "Use when/this/it ..." 트리거 절 잘라냄
+  const first = t.match(/^.*?[.!?](?=\s|$)/);          // 첫 문장만
+  return (first ? first[0] : t).replace(/[.\s]+$/, "").trim();
+}
 
 export function buildPrompt(preset, ctx = {}) {
   const subj = ctx.name ? `"${ctx.name}"(${ctx.kind || "스킬"}, ${ctx.category || "general"})를 상징하는` : "범용 스킬을 상징하는";
   const rk = RARITY_KO[ctx.rarity] || "A-CLASS";
   switch (preset) {
-    case "card": { // 세로 카드 1장 — CARD_STYLE 고정 prefix 사용
+    case "card": { // 카드 1장 — 텍스트 없이 한 눈에 이해되는 손그림 비유
       const rarityAccent = RARITY_ACCENT[ctx.rarity] || RARITY_ACCENT.epic;
       const cat = (ctx.category || ctx.kind || "general").toLowerCase();
-      const motif = CATEGORY_MOTIF[cat] || CATEGORY_MOTIF.general;
+      const desc = cleanDesc(ctx.description);
+      const what = desc || CATEGORY_MOTIF[cat] || CATEGORY_MOTIF.general; // 비유의 소재
+      const label = ctx.name || "스킬";
       return (
         `${CARD_STYLE} ` +
-        `신호 컬러: ${rarityAccent}. ` +
-        `중앙 그래픽 모티프: ${subj} ${motif}.`
+        `내부 참고용 이름(이미지에 쓰지 말 것): "${label}". ` +
+        `내부 참고용 기능 설명(이미지에 쓰지 말 것): ${what}. ` +
+        `이 기능을 초보자도 즉시 이해할 수 있는 단 하나의 재치 있는 비유 장면으로 번역한다. ` +
+        `단어를 복사하지 말고 원인과 결과, 전/후 변화, 연결, 보호, 변환, 자동화 같은 시각적 행동으로 표현한다. ` +
+        `${rarityAccent}는 작은 색 포인트로만 사용하고, 형광펜 밑줄이나 글자 배경으로 쓰지 않는다. ` +
+        `도구 이름·카테고리·타이틀은 이미지 안에 넣지 않는다. ` +
+        `그림 속 사물에도 글자를 쓰지 않는다. ` +
+        `하단에는 기능을 쉬운 한국어 2~5단어로 압축한 핵심 캡션 1개만 넣고, 완전한 문장이나 마침표는 쓰지 않는다.`
       );
     }
     case "icon": // 격자 시트 — autoGrid(4x4)로 16조각

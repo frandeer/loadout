@@ -912,6 +912,81 @@ export async function resolveDivergence(item, choice, opts = {}) {
   return { ...base, ok: !!act.ok, choice, vaultSrc, livePath, before: { vaultHash, liveHash }, relink: act };
 }
 
+// ---------- deleteItem (안전 삭제: 휴지통 이동, 복구 가능) ----------
+// 스킬/에이전트의 모든 사본을 trash로 "이동"한다(하드 rm 아님 — 복구 가능). 이름 확인은 호출부(서버)가 강제한다.
+// 이동 대상(존재하는 것만, 중복 제거):
+//   (1) ~/.claude 라이브 — liveName 자리 + <owner>-<name> 관리 링크 자리(상주 실폴더/우리 링크 무관),
+//   (2) vault 사본, (3) 소스 원본(resolveSourcePath). 위와 경로가 겹치면 1회만.
+// trashRoot 기본: vault/.trash/<ts>/. 크로스볼륨(EXDEV)은 cp+rm 으로 무손실 이동.
+// dryRun: 변형 없이 willRemove 목록만 반환.
+export async function deleteItem(item, opts = {}) {
+  const {
+    vaultRoot = defaultVaultRoot,
+    claudeDir = defaultClaudeDir,
+    trashRoot: trashRootBase = join(defaultVaultRoot, ".trash"),
+    ts = Date.now(),
+    liveName = null,
+    vaultPath: recordedVaultPath = null,
+    dryRun = false,
+  } = opts;
+
+  const base = { ok: false, id: item?.id, kind: item?.kind, name: item?.name };
+  if (item?.kind !== "skill" && item?.kind !== "agent") {
+    return { ...base, error: `${item?.kind}는 삭제 대상이 아님(skill/agent만)` };
+  }
+
+  // 삭제 대상 경로 수집(존재 + 중복 제거).
+  const seen = new Set();
+  const targets = [];
+  const add = (label, p) => {
+    if (!p) return;
+    const rp = resolve(p);
+    const key = rp.toLowerCase();
+    if (seen.has(key) || !existsSync(rp)) return;
+    seen.add(key);
+    targets.push({ label, path: rp });
+  };
+
+  const ln = liveName || originalLiveName(item);
+  if (ln) {
+    const lp = item.kind === "skill"
+      ? join(claudeDir, "skills", ln)
+      : join(claudeDir, "agents", /\.md$/i.test(ln) ? ln : `${ln}.md`);
+    add("live", lp);
+  }
+  const managed = liveDestFor(item, claudeDir);   // <owner>-<name> 관리 링크 자리
+  if (managed) add("live-managed", managed.path);
+  add("vault", vaultSrcFor(item, vaultRoot, recordedVaultPath));
+  add("source", resolveSourcePath(item));
+
+  const trashRoot = join(trashRootBase, String(ts));
+  if (dryRun) return { ...base, ok: true, dryRun: true, trashRoot, willRemove: targets };
+  if (!targets.length) return { ...base, ok: true, removed: [], note: "삭제할 사본이 없음(이미 정리됨)" };
+
+  await mkdir(trashRoot, { recursive: true });
+  const removed = [];
+  let n = 0;
+  for (const t of targets) {
+    const leaf = `${String(n++).padStart(2, "0")}-${t.label}-${basename(t.path)}`;
+    const dest = join(trashRoot, leaf);
+    try {
+      try {
+        await rename(t.path, dest);
+      } catch (e) {
+        if (e.code === "EXDEV") {
+          await cp(t.path, dest, { recursive: true, errorOnExist: false });
+          await rm(t.path, { recursive: true, force: true });
+        } else throw e;
+      }
+      removed.push({ what: t.label, from: t.path, to: dest });
+    } catch (e) {
+      // 부분 실패: 이미 옮긴 것은 removed에 남기고 즉시 중단(나머지는 그대로 보존).
+      return { ...base, removed, trashRoot, error: `'${t.path}' 휴지통 이동 실패: ${e.message}` };
+    }
+  }
+  return { ...base, ok: true, removed, trashRoot };
+}
+
 // ---------- vault 상태 파일 (data/vault.json) — 원자적 쓰기 ----------
 const vaultStatePath = join(dataDir, "vault.json");
 

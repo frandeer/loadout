@@ -31,6 +31,16 @@ export function CardGrid() {
   const [shown, setShown] = useState(PAGE_SIZE);
   const loaderRef = useRef<HTMLDivElement>(null);
 
+  // 라이브러리 뷰 설정 — 그리드/리스트 + 그리드 열 개수(3·4). localStorage에 기억.
+  const [view, setView] = useState<"grid" | "list">(
+    () => (localStorage.getItem("lib.view") as "grid" | "list") || "grid",
+  );
+  const [cols, setCols] = useState<3 | 4>(
+    () => (localStorage.getItem("lib.cols") === "3" ? 3 : 4),
+  );
+  const setViewPref = (v: "grid" | "list") => { setView(v); localStorage.setItem("lib.view", v); };
+  const setColsPref = (c: 3 | 4) => { setCols(c); localStorage.setItem("lib.cols", String(c)); };
+
   const recentItems = useMemo(
     () => [...allItems].sort((a, b) => (b.stats?.freshness ?? 0) - (a.stats?.freshness ?? 0)).slice(0, 5),
     [allItems],
@@ -207,12 +217,32 @@ export function CardGrid() {
 
       {/* ─── 전체 라이브러리 ─── */}
       <section>
-        <SectionHeader title={getLibraryTitle()} subtitle={`${items.length.toLocaleString()}개 자산`} actionLabel="" />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-          {visible.map((item, i) => (
-            <Card key={item.id} item={item} index={i % 60} needKeys={needKeys} />
-          ))}
-        </div>
+        <SectionHeader
+          title={getLibraryTitle()}
+          subtitle={`${items.length.toLocaleString()}개 자산`}
+          actionLabel=""
+          actions={
+            <LibraryControls
+              view={view}
+              cols={cols}
+              onView={setViewPref}
+              onCols={setColsPref}
+            />
+          }
+        />
+        {view === "list" ? (
+          <div className="overflow-hidden rounded-xl border border-hairline bg-surface-card">
+            {visible.map((item) => (
+              <LibraryRow key={item.id} item={item} onClick={() => setSelected(item.id)} />
+            ))}
+          </div>
+        ) : (
+          <div className={cols === 3 ? "grid grid-cols-2 gap-3 md:grid-cols-3" : "grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4"}>
+            {visible.map((item, i) => (
+              <Card key={item.id} item={item} index={i % 60} needKeys={needKeys} />
+            ))}
+          </div>
+        )}
         {shown < items.length && (
           <div ref={loaderRef} className="flex justify-center py-8">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -224,21 +254,104 @@ export function CardGrid() {
 }
 
 /* ── 공통 섹션 헤더 ── */
-function SectionHeader({ title, subtitle, actionLabel, onAction }: {
-  title: string; subtitle?: string; actionLabel?: string; onAction?: () => void;
+function SectionHeader({ title, subtitle, actionLabel, onAction, actions }: {
+  title: string; subtitle?: string; actionLabel?: string; onAction?: () => void; actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between">
+    <div className="mb-3 flex items-center justify-between gap-3">
       <div className="flex items-baseline gap-2">
         <h2 className="text-base font-bold text-ink">{title}</h2>
         {subtitle && <span className="text-xs text-muted">{subtitle}</span>}
       </div>
-      {actionLabel !== "" && onAction && (
-        <button onClick={onAction} className="text-xs font-medium text-primary hover:underline">
-          {actionLabel ?? "모두 보기 →"}
-        </button>
+      {actions ? actions : (
+        actionLabel !== "" && onAction && (
+          <button onClick={onAction} className="text-xs font-medium text-primary hover:underline">
+            {actionLabel ?? "모두 보기 →"}
+          </button>
+        )
       )}
     </div>
+  );
+}
+
+/* ── 라이브러리 뷰 컨트롤 — 그리드/리스트 토글 + 그리드 열 개수(3·4) ── */
+function LibraryControls({ view, cols, onView, onCols }: {
+  view: "grid" | "list"; cols: 3 | 4; onView: (v: "grid" | "list") => void; onCols: (c: 3 | 4) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {/* 그리드 모드에서만 열 개수 선택 노출 */}
+      {view === "grid" && (
+        <div className="flex items-center rounded-lg border border-hairline p-0.5">
+          {([3, 4] as const).map((c) => (
+            <button
+              key={c}
+              onClick={() => onCols(c)}
+              className={`h-6 w-6 rounded-md text-[11px] font-semibold transition ${
+                cols === c ? "bg-primary text-white" : "text-muted hover:text-ink"
+              }`}
+              title={`${c}열 그리드`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* 그리드 / 리스트 토글 */}
+      <div className="flex items-center rounded-lg border border-hairline p-0.5">
+        <button
+          onClick={() => onView("grid")}
+          className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
+            view === "grid" ? "bg-primary text-white" : "text-muted hover:text-ink"
+          }`}
+          title="그리드 보기"
+          aria-pressed={view === "grid"}
+        >
+          <Icon name="app-grid" size="xs" />
+        </button>
+        <button
+          onClick={() => onView("list")}
+          className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
+            view === "list" ? "bg-primary text-white" : "text-muted hover:text-ink"
+          }`}
+          title="리스트 보기"
+          aria-pressed={view === "list"}
+        >
+          <Icon name="list-bullets" size="xs" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── 라이브러리 리스트 행 — 한 줄에 등급·이름·타입·레벨·점수·상태 ── */
+function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
+  const r = RARITY_CONFIG[item.rarity];
+  const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
+  const name = item.displayName;
+  const status = item.equipped ? "장착 중" : item.installed ? "상주" : null;
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-3 border-b border-hairline px-3 py-2.5 text-left transition last:border-b-0 hover:bg-surface-soft"
+    >
+      <span
+        className="inline-flex w-[58px] shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold text-white"
+        style={{ backgroundColor: r.color }}
+      >
+        {r.ko}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{name}</span>
+      <span className="hidden shrink-0 rounded bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted sm:inline">
+        {item.kind === "memory" ? "기억" : item.kind}
+      </span>
+      <span className="hidden w-12 shrink-0 text-right font-mono text-[11px] font-bold text-body md:inline">Lv.{lvl}</span>
+      <span className="w-12 shrink-0 text-right font-mono text-xs font-semibold text-ink">{item.score}pt</span>
+      <span className={`w-14 shrink-0 text-right text-[11px] font-medium ${item.equipped ? "text-accent-emerald" : "text-accent-orange"}`}>
+        {status ?? ""}
+      </span>
+    </button>
   );
 }
 
