@@ -89,12 +89,13 @@ export function rarityFrame(
   return out;
 }
 
-/** 레벨 산출.
- *  uses가 있으면 경험치 곡선 LV = min(99, 1 + floor(sqrt(uses))).
- *  uses가 undefined/0이면 기존 power 기반 폴백 유지(하위 호환). */
-export function computeLevel(power: number, uses?: number): number {
+/** 실제 사용 횟수(uses) 기반 레벨 산출 — LV = min(99, 1 + floor(sqrt(uses))).
+ *  uses가 없으면(미사용) null을 반환한다. 호출부는 null일 때 LV 게이지를 숨기고
+ *  점수(score)를 대신 노출해야 한다. (예전 power/12 폴백은 파일 크기를 레벨로 둔갑시키는
+ *  거짓 지표였으므로 제거.) */
+export function computeLevel(uses?: number): number | null {
   if (uses && uses > 0) return Math.min(99, 1 + Math.floor(Math.sqrt(uses)));
-  return Math.max(1, Math.round((power || 50) / 12));
+  return null;
 }
 
 /** uses 기반 XP 진행도(0~100%). LV 경계는 (lv-1)² ~ lv² 사용. uses 없으면 null. */

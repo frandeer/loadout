@@ -58,6 +58,12 @@ export interface Item {
   uses?: number;        // 세션 로그 집계 사용 횟수 — 경험치(LV/XP)
   translated?: boolean;
   meta?: any;
+  // ── 중복/그룹 메타 (scan이 부여, data/index.json에 존재) ──
+  contentHash?: string;   // 동일 사본 판별 해시
+  nameKey?: string;       // 정규화된 이름 키(그룹 묶기용)
+  copies?: number;        // 동일 사본 개수
+  copySources?: string[]; // 동일 사본 출처(repo) 목록
+  copyPaths?: string[];   // 동일 사본 경로 목록
 }
 
 export interface IndexData {
@@ -68,55 +74,12 @@ export interface IndexData {
   scanned: string;
 }
 
-// ── 팀 단위 AI 평가 (POST /api/team/verify) ──
-export interface TeamEvalScores {
-  coverage: number; // 역할/영역 커버리지 (0-100)
-  synergy: number;  // 신호 링크 시너지 (0-100)
-  balance: number;  // 구성 균형 (0-100)
-}
-export interface TeamEvalResult {
-  total: number;    // 종합 점수 (0-100)
-  scores: TeamEvalScores;
-  comment: string;  // 한국어 총평
-  engine: string;   // 채점에 쓰인 엔진 (휴리스틱 폴백 가능)
-}
-export interface TeamVerifyResp {
-  ok: boolean;
-  result: TeamEvalResult;
-  error?: string;
-}
-
-// ── 팀 A/B 대전 (POST /api/team/ab) ──
-// 양 팀 모두 teams.json 저장 프리셋이어야 함(미저장 시 404). result는 team/verify와 동일 형태.
-export interface TeamAbSide {
-  teamId: string;
-  name: string;
-  result: TeamEvalResult;
-}
-export interface TeamAbResp {
-  ok: boolean;
-  a: TeamAbSide;
-  b: TeamAbSide;
-  winner: "a" | "b" | "draw";
-  delta: number;              // total 점수 차(a-b 기준 절댓값)
-  elo: { a: number; b: number }; // 갱신된 Elo(기본 1500, K=32)
-  error?: string;
-}
-
 // ── 카드 드랍 (POST /api/drop) ──
 export interface DropResp {
   ok: boolean;
   card: { id: string; name: string; kind: Kind };
   skillPath: string;
   note?: string;
-  error?: string;
-}
-
-// ── OMC export (POST /api/team/export-omc) ──
-export interface TeamExportOmcResp {
-  ok: boolean;
-  files: { "omc.jsonc": string; "team-command.md": string };
-  dir: string;
   error?: string;
 }
 

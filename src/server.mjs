@@ -102,8 +102,10 @@ const clamp = (n) => Math.max(0, Math.min(99, Math.round(n)));
 
 // ---------- 멀티 엔진 AI judge: claude / codex / gemini / grok (-p) ----------
 // 모두 `<engine> -p "<prompt>"` 헤드리스 호출을 가정. 엔진별 가용성 1회 캐시.
-const ENGINES = ["claude", "codex", "gemini", "grok"];
-const ENGINE_ALIASES = { agy: "gemini", google: "gemini", openai: "codex", xai: "grok", anthropic: "claude" };
+const ENGINES = ["claude", "codex", "gemini", "grok", "agy"];
+const ENGINE_ALIASES = { google: "gemini", openai: "codex", xai: "grok", anthropic: "claude" };
+// 엔진별 모델 지정 플래그. 이 플래그가 있는 엔진만 model 인자를 인식한다(codex는 미지원이라 제외).
+const MODEL_FLAG = { claude: "--model", agy: "--model", gemini: "--model", grok: "--model" };
 const _engineAvail = new Map(); // engine -> boolean
 function normEngine(e) {
   const k = (e || "claude").toLowerCase();
@@ -157,11 +159,14 @@ async function resolveEngineOrder(reqEngine) {
 }
 // 엔진 순서대로 프롬프트를 -p 헤드리스 호출. 각 엔진 지수 백오프 재시도(1초→2초, 최대 2회).
 // JSON 파싱 성공 시 { parsed, engine }, 전부 실패 시 null.
-async function aiJsonWithFallback(prompt, engineOrder, timeoutMs = 25000) {
+// model은 modelEngine과 일치하는 엔진에만 적용한다 — "sonnet" 같은 모델명을 다른 엔진(gemini/grok)에
+// 그대로 넘기면 그 호출이 실패해 폴백 사슬이 무너지므로(요청 엔진에만 모델 지정).
+async function aiJsonWithFallback(prompt, engineOrder, timeoutMs = 25000, model, modelEngine) {
   for (const eng of engineOrder) {
+    const engModel = modelEngine && eng === modelEngine ? model : undefined;
     for (let attempt = 0; attempt <= 2; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * attempt)); // 1초, 2초 백오프
-      const output = await runEngine(eng, prompt, timeoutMs); // 프롬프트는 stdin 전달(Windows 멀티라인 인자 잘림 회피)
+      const output = await runEngine(eng, prompt, timeoutMs, engModel); // 프롬프트는 stdin 전달(Windows 멀티라인 인자 잘림 회피)
       const parsed = output == null ? null : parseJsonObject(output);
       if (parsed) return { parsed, engine: eng };
     }
@@ -205,6 +210,74 @@ async function aiJudge(item, group, reqEngine) {
   let rarity = item.rarity;
   if (newScore >= 88) rarity = "legendary"; else if (newScore >= 74) rarity = "epic";
   return { verdict, score: newScore, rarity, engine: r.engine };
+}
+
+// ---------- AI 분석 (POST /api/analyze) — 용도/품질/중복성 정성 평가 ----------
+// 동일 group(동명 후보)의 다른 항목을 peer 목록으로 제시해 중복/대체 가능성을 판단하게 한다.
+function buildAnalyzePrompt(item, group) {
+  const peers = (group || [])
+    .filter((g) => g && g.id !== item.id)
+    .map((g) => `- ${g.name || "(이름없음)"} (${g.kind || "?"}, score ${g.score ?? "?"}): ${(g.description || "").slice(0, 120)}`)
+    .join("\n") || "(없음)";
+  return (
+    `당신은 Claude Code의 skill/agent/MCP 카드를 평가하는 전문 분석가입니다.\n` +
+    `아래 카드의 용도·품질·중복성을 분석하고, 보유할지(keep) 정리할지(drop) 권고해 주세요.\n\n` +
+    `대상 카드:\n` +
+    `- 이름: ${item.name || "(없음)"}\n` +
+    `- 종류: ${item.kind || "(없음)"}\n` +
+    `- 설명: ${item.description || "(없음)"}\n` +
+    `- 통계: ${JSON.stringify(item.stats || {})}\n\n` +
+    `같은 이름 계열의 다른 후보(중복/대체 가능성 판단용):\n${peers}\n\n` +
+    `평가 기준:\n` +
+    `- purpose: 이 카드의 핵심 용도를 한 줄로\n` +
+    `- quality: 구현 품질과 완성도에 대한 평가\n` +
+    `- redundancy: 다른 후보로 대체 가능한지/중복인지\n` +
+    `- recommendation: 보유 권고는 "keep", 정리 권고는 "drop"\n` +
+    `- confidence: 0~99 정수 신뢰도\n` +
+    `- reasons: 근거 문자열 배열\n\n` +
+    `반드시 JSON만 출력하세요. 형식: {"purpose":"한 줄 용도","quality":"품질 평가","redundancy":"중복/대체 가능성","recommendation":"keep","confidence":70,"reasons":["..."]}`
+  );
+}
+
+// 요청 엔진(claude/codex/gemini/grok/agy)을 헤드리스로 호출해 정성 분석을 얻는다.
+// 요청 엔진이 없으면 다른 가용 엔진으로, 그래도 없으면 최소 휴리스틱 분석을 반환한다.
+// item.score/rarity는 절대 변경하지 않는다.
+async function analyzeItem(item, group, reqEngine, model) {
+  const heuristicAnalysis = () => ({
+    recommendation: "keep",
+    confidence: 50,
+    purpose: item.description?.slice(0, 120) || "",
+    quality: "휴리스틱",
+    redundancy: group && group.length > 1 ? "동명 항목 존재" : "없음",
+    reasons: [],
+    engine: "heuristic",
+  });
+  if ((reqEngine || "").toLowerCase() === "heuristic")
+    return { analysis: heuristicAnalysis(), engine: "heuristic" };
+  const order = await resolveEngineOrder(reqEngine);
+  if (order.length === 0) {
+    const a = heuristicAnalysis();
+    return { analysis: a, engine: "heuristic" };
+  }
+  const prompt = buildAnalyzePrompt(item, group);
+  // model은 요청 엔진에만 적용(폴백 엔진엔 미적용) — 위 aiJsonWithFallback 주석 참고.
+  const r = await aiJsonWithFallback(prompt, order, 60000, model, normEngine(reqEngine));
+  if (!r) {
+    const a = heuristicAnalysis();
+    return { analysis: a, engine: "heuristic" }; // 모든 엔진 실패 → 휴리스틱 fallback
+  }
+  const p = r.parsed || {};
+  const rec = p.recommendation === "drop" ? "drop" : "keep";
+  const analysis = {
+    purpose: String(p.purpose ?? ""),
+    quality: String(p.quality ?? ""),
+    redundancy: String(p.redundancy ?? ""),
+    recommendation: rec,
+    confidence: clamp(Number(p.confidence) || 0),
+    reasons: Array.isArray(p.reasons) ? p.reasons.map((x) => String(x)) : [],
+    engine: r.engine,
+  };
+  return { analysis, engine: r.engine };
 }
 
 // ---------- 팀 단위 AI 평가 (POST /api/team/verify) ----------
@@ -418,12 +491,14 @@ const TRANSLATE_TIMEOUT = 90000;
 
 // 엔진 헤드리스 호출. 프롬프트는 stdin으로 전달한다 — Windows에서 shell을 거치는
 // multi-line `-p "..."` 인자가 첫 줄에서 잘리는 문제를 피하기 위함(stdout 텍스트 반환, 실패시 null).
-function runEngine(engine, prompt, timeoutMs) {
+function runEngine(engine, prompt, timeoutMs, model) {
   return new Promise((resolve) => {
     let output = "", settled = false;
     const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    // model이 주어지고 해당 엔진이 모델 플래그를 지원하면 `--model <name> -p`, 아니면 `-p`만.
+    const args = (model && MODEL_FLAG[engine]) ? [MODEL_FLAG[engine], model, "-p"] : ["-p"];
     let proc;
-    try { proc = spawn(engine, ["-p"], { stdio: ["pipe", "pipe", "ignore"], shell: process.platform === "win32" }); }
+    try { proc = spawn(engine, args, { stdio: ["pipe", "pipe", "ignore"], shell: process.platform === "win32" }); }
     catch { return done(null); }
     proc.stdout.on("data", (c) => { output += c.toString("utf8"); });
     proc.on("close", () => done(output));
@@ -1065,6 +1140,26 @@ const server = createServer(async (req, res) => {
       const r = await aiJudge(item, group, b.engine);
       item.verdict = r.verdict; item.score = r.score; item.rarity = r.rarity;
       return json(res, 200, { ok: true, verdict: r.verdict, score: r.score, rarity: r.rarity, engine: r.engine });
+    }
+
+    if (req.method === "POST" && path === "/api/analyze") {
+      let b;
+      try { b = await body(req); }
+      catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      if (!b || !b.id) return json(res, 400, { ok: false, error: "id 필수" });
+      const idx = INDEX || (await loadIndex());
+      const item = idx.items.find((i) => i.id === b.id);
+      if (!item) return json(res, 404, { ok: false, error: "item 없음" });
+      // 같은 group(동명 후보)의 다른 항목들 — 중복/대체 가능성 판단용 peer 목록
+      const group = idx.items.filter((i) => i.id !== item.id && item.group && i.group === item.group);
+      const reqEngine = b.engine || "claude";
+      // 기본 model "sonnet"은 claude로 resolve될 때만 적용(claude --model sonnet). agy는 자체 모델명을
+      // 쓰므로 "sonnet"이 유효하지 않다 → 명시 model이 없으면 agy/그 외는 undefined(엔진 기본값).
+      const norm = normEngine(reqEngine);
+      const model = b.model ?? (norm === "claude" ? "sonnet" : undefined);
+      // analyzeItem: 요청 엔진 -p 분석, 없으면 휴리스틱 fallback. score/rarity는 불변.
+      const r = await analyzeItem(item, group, reqEngine, model);
+      return json(res, 200, { ok: true, analysis: r.analysis, engine: r.engine });
     }
 
     if (req.method === "POST" && path === "/api/save-slice") {

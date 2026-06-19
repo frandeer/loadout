@@ -9,11 +9,10 @@ import type { AppView } from "../App";
 import type { IconName } from "./Icon";
 
 const VIEW_TABS: { key: AppView; path: string; label: string; icon: IconName }[] = [
-  { key: "deck", path: "/deck", label: "홈", icon: "home" },
-  { key: "ops", path: "/ops", label: "작전 준비", icon: "team" },
-  { key: "inventory", path: "/inventory", label: "인벤토리", icon: "backpack" },
-  { key: "forge", path: "/forge", label: "포지", icon: "wrench" },
-  { key: "help", path: "/help", label: "도움말", icon: "help" },
+  { key: "dashboard", path: "/dashboard", label: "대시보드", icon: "dashboard-grid" },
+  { key: "assets", path: "/assets", label: "자산", icon: "library-books" },
+  { key: "graph", path: "/graph", label: "그래프", icon: "network" },
+  { key: "loadout", path: "/loadout", label: "장착·보관", icon: "backpack" },
 ];
 
 interface HeaderProps {
@@ -23,7 +22,7 @@ interface HeaderProps {
 export function Header({ onOpenSources }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { filters, setFilter, setTheme, theme } = useStore();
+  const { filters, setFilter } = useStore();
   const reloadData = useStore((s) => s.reloadData);
   const searchRef = useRef<HTMLInputElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -93,7 +92,7 @@ export function Header({ onOpenSources }: HeaderProps) {
         {/* 메인 탭 */}
         <nav className="flex items-center">
           {VIEW_TABS.map((t) => {
-            const path = location.pathname === "/" ? "/deck" : location.pathname;
+            const path = location.pathname === "/" ? "/dashboard" : location.pathname;
             const active = path === t.path;
             return (
               <button
@@ -147,17 +146,10 @@ export function Header({ onOpenSources }: HeaderProps) {
                   <Icon name="gear-alt" size="sm" /> 이미지 엔진 설정
                 </button>
                 <button
-                  onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); setSettingsOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
-                >
-                  <Icon name="settings" size="sm" />
-                  {theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
-                </button>
-                <button
                   onClick={() => { handleRescan(); setSettingsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
                 >
-                  <Icon name="sync" size="sm" /> 전체 재스캔
+                  <Icon name="sync" size="sm" /> 다시 스캔
                 </button>
                 <button
                   onClick={() => { onOpenSources(); setSettingsOpen(false); }}
@@ -165,19 +157,21 @@ export function Header({ onOpenSources }: HeaderProps) {
                 >
                   <Icon name="folder" size="sm" /> 소스 관리
                 </button>
+                <div className="my-1 border-t border-hairline" />
+                <button
+                  onClick={() => { navigate("/forge"); setSettingsOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
+                >
+                  <Icon name="wrench" size="sm" /> 포지
+                </button>
+                <button
+                  onClick={() => { navigate("/help"); setSettingsOpen(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
+                >
+                  <Icon name="help" size="sm" /> 도움말
+                </button>
               </div>
             )}
-          </div>
-
-          <button
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-soft transition-colors"
-            title="알림"
-          >
-            <Icon name="notification-bell" size="md" />
-          </button>
-
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft">
-            <Icon name="user" size="sm" />
           </div>
         </div>
       </div>

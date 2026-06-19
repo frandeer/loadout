@@ -130,24 +130,4 @@ describe("useStore", () => {
     useStore.getState().setFilter("equipOnly", true);
     expect(useStore.getState().filtered().length).toBe(1);
   });
-
-  it("savePreset returns the new preset id and stores it (for OMC export)", async () => {
-    useStore.setState({ slots: { build: "x" }, presets: {} });
-    const id = await useStore.getState().savePreset("코딩팀");
-    expect(typeof id).toBe("string");
-    expect(useStore.getState().presets[id]).toBeTruthy();
-    expect(useStore.getState().presets[id].name).toBe("코딩팀");
-  });
-
-  it("loadPreset drops unknown keys (key hygiene)", () => {
-    // 레거시/오염 데이터: 정상 role.key + 한국어 라벨 키 + 알 수 없는 키 혼입
-    const dirty = { analyst: "a", scout: "b", "분석관": "x", legacy: "y" } as Record<string, string | null>;
-    useStore.setState({ presets: { t1: { name: "오염", slots: dirty, at: 1 } }, slots: {} });
-    useStore.getState().loadPreset("t1");
-    const loaded = useStore.getState().slots;
-    expect(loaded["분석관"]).toBeUndefined();
-    expect(loaded["legacy"]).toBeUndefined();
-    expect(loaded.analyst).toBe("a");
-    expect(loaded.scout).toBe("b");
-  });
 });

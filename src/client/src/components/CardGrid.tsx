@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, KIND_LABELS } from "../types";
 import type { Item, Kind, Rarity } from "../types";
-import { neededTraitKeys } from "../lib/traits";
 import { computeLevel, summarize, pickDesc, rarityFrame } from "../lib/utils";
 import { Card } from "./Card";
 import { Icon } from "./Icon";
@@ -14,19 +13,12 @@ export function CardGrid() {
   const filters = useStore((s) => s.filters);
   const favorites = useStore((s) => s.favorites);
   const loading = useStore((s) => s.loading);
-  const slots = useStore((s) => s.slots);
   const allItems = useStore((s) => s.items);
   const setSelected = useStore((s) => s.setSelected);
   const setFilter = useStore((s) => s.setFilter);
   const lang = useStore((s) => s.lang);
   // filters/favorites 변경 시 리렌더링을 위해 deps에 포함
   const items = useMemo(() => filtered(), [filtered, filters, favorites, allItems]);
-
-  const needKeys = useMemo(() => {
-    const ids = new Set(Object.values(slots).filter(Boolean) as string[]);
-    const members = allItems.filter((i) => ids.has(i.id));
-    return members.length ? neededTraitKeys(members) : undefined;
-  }, [slots, allItems]);
 
   const [shown, setShown] = useState(PAGE_SIZE);
   const loaderRef = useRef<HTMLDivElement>(null);
@@ -239,7 +231,7 @@ export function CardGrid() {
         ) : (
           <div className={cols === 3 ? "grid grid-cols-2 gap-3 md:grid-cols-3" : "grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4"}>
             {visible.map((item, i) => (
-              <Card key={item.id} item={item} index={i % 60} needKeys={needKeys} />
+              <Card key={item.id} item={item} index={i % 60} />
             ))}
           </div>
         )}
@@ -327,9 +319,11 @@ function LibraryControls({ view, cols, onView, onCols }: {
 /* ── 라이브러리 리스트 행 — 한 줄에 등급·이름·타입·레벨·점수·상태 ── */
 function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
   const r = RARITY_CONFIG[item.rarity];
-  const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
+  const lvl = computeLevel(item.uses); // uses>0 일 때만 LV(실사용 기반), 없으면 null → 숨김
   const name = item.displayName;
-  const status = item.equipped ? "장착 중" : item.installed ? "상주" : null;
+  // 상주는 claudeState==="resident"로만 — installed(소스가 ~/.claude 하위)는 카탈로그 대부분이라
+  // "상주"로 라벨하면 Inventory 상주 섹션과 어긋난다(정직 모델 동기).
+  const status = item.equipped ? "장착 중" : item.claudeState === "resident" ? "상주" : null;
 
   return (
     <button
@@ -346,7 +340,7 @@ function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
       <span className="hidden shrink-0 rounded bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted sm:inline">
         {item.kind === "memory" ? "기억" : item.kind}
       </span>
-      <span className="hidden w-12 shrink-0 text-right font-mono text-[11px] font-bold text-body md:inline">Lv.{lvl}</span>
+      <span className="hidden w-12 shrink-0 text-right font-mono text-[11px] font-bold text-body md:inline">{lvl !== null ? `Lv.${lvl}` : ""}</span>
       <span className="w-12 shrink-0 text-right font-mono text-xs font-semibold text-ink">{item.score}pt</span>
       <span className={`w-14 shrink-0 text-right text-[11px] font-medium ${item.equipped ? "text-accent-emerald" : "text-accent-orange"}`}>
         {status ?? ""}
@@ -358,7 +352,7 @@ function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
 /* ── 최근 추가용 컴팩트 카드 ── */
 function CompactCard({ item, lang, onClick }: { item: Item; lang: string; onClick: () => void }) {
   const r = RARITY_CONFIG[item.rarity];
-  const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
+  const lvl = computeLevel(item.uses); // 실사용(uses>0) 있을 때만 LV
   const name = item.displayName;
   const desc = pickDesc(item, lang);
   // 조밀 뷰 — 레어도는 테두리 색으로만(글로우는 끔: 인접 카드와 번지지 않게).
@@ -381,7 +375,7 @@ function CompactCard({ item, lang, onClick }: { item: Item; lang: string; onClic
       <span className="mb-1 rounded bg-surface-soft px-1 py-0.5 text-[9px] font-medium uppercase text-muted w-fit">{item.kind}</span>
       <p className="line-clamp-2 text-[11px] leading-relaxed text-muted">{summarize(desc)}</p>
       <div className="mt-auto flex items-center gap-2 pt-2">
-        <span className="font-mono text-[10px] font-bold text-body">Lv.{lvl}</span>
+        {lvl !== null && <span className="font-mono text-[10px] font-bold text-body">Lv.{lvl}</span>}
         <div className="h-1 flex-1 rounded-full bg-surface-soft">
           <div className="h-full rounded-full" style={{ width: `${Math.min(item.score, 100)}%`, backgroundColor: r.color }} />
         </div>
@@ -415,27 +409,35 @@ function ListSection({ title, badge, children, onViewAll }: {
 
 /* ── 스킬 리스트 행 ── */
 function ListRow({ item, onClick }: { item: Item; onClick: () => void }) {
-  const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
+  const lvl = computeLevel(item.uses); // 실사용(uses>0) 있을 때만 LV
   const name = item.displayName;
 
   return (
     <button onClick={onClick} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-surface-soft">
       <span className="flex-1 truncate text-xs font-medium text-ink">{name}</span>
-      <span className="font-mono text-[10px] text-muted">Lv.{lvl}</span>
+      {lvl !== null && <span className="font-mono text-[10px] text-muted">Lv.{lvl}</span>}
       <span className="font-mono text-[10px] font-semibold text-body">{item.score}pt</span>
     </button>
   );
 }
 
-/* ── MCP 행 ── */
+/* ── MCP 행 — 조작된 스탯 대신 실제 신호(인자/env/위험)를 노출 ── */
 function McpRow({ item, onClick }: { item: Item; onClick: () => void }) {
+  const argc = item.meta?.args?.length ?? 0;
+  const envc = item.meta?.env?.length ?? 0;
+  const riskc = item.risks?.length ?? 0;
   return (
     <button onClick={onClick} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-surface-soft">
-      <span className={`h-2 w-2 rounded-full ${item.equipped ? "bg-accent-emerald" : item.installed ? "bg-accent-blue" : "bg-muted-soft"}`} />
-      <span className="flex-1 truncate text-xs font-medium text-ink">{item.displayName}</span>
-      <span className="rounded bg-surface-soft px-1 py-0.5 text-[8px] font-semibold text-muted">MCP</span>
-      <span className={`text-[10px] font-medium ${item.equipped ? "text-accent-emerald" : "text-muted"}`}>
-        {item.equipped ? "장착 중" : item.installed ? "상주" : "대기"}
+      <span className={`h-2 w-2 rounded-full ${item.equipped ? "bg-accent-emerald" : item.claudeState === "resident" ? "bg-accent-blue" : "bg-muted-soft"}`} />
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">{item.displayName}</span>
+      <span className="hidden shrink-0 font-mono text-[9px] text-muted-soft sm:inline" title={`명령 인자 ${argc} · env ${envc}`}>
+        {argc}a·{envc}e
+      </span>
+      {riskc > 0 && (
+        <span className="shrink-0 font-mono text-[9px] font-semibold text-accent-rose" title="위험 신호">⚠{riskc}</span>
+      )}
+      <span className={`shrink-0 text-[10px] font-medium ${item.equipped ? "text-accent-emerald" : "text-muted"}`}>
+        {item.equipped ? "장착 중" : item.claudeState === "resident" ? "상주" : "대기"}
       </span>
     </button>
   );

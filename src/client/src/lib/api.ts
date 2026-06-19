@@ -1,4 +1,4 @@
-import type { IndexData, TeamVerifyResp, TeamAbResp, DropResp, TeamExportOmcResp } from "../types";
+import type { IndexData, DropResp } from "../types";
 import type {
   ForgeSession, ForgeSessionSummary, ForgeCapabilities, ForgeStatusResp,
   ForgeVariant, ForgeExportResult,
@@ -135,6 +135,24 @@ export const api = {
       body: JSON.stringify({ id, engine }),
     }),
 
+  // AI 분석 — 자산의 목적/품질/중복을 평가하고 keep/drop 권고를 반환. 엔진/모델 선택 가능.
+  analyze: (id: string, engine?: string, model?: string) =>
+    request<{
+      ok: boolean;
+      analysis: {
+        purpose: string;
+        quality: string;
+        redundancy: string;
+        recommendation: "keep" | "drop";
+        confidence: number;
+        reasons: string[];
+      };
+      engine: string;
+    }>("/analyze", {
+      method: "POST",
+      body: JSON.stringify({ id, engine, model }),
+    }),
+
   getSources: () =>
     request<{ roots: Array<{ path: string; exists: boolean; count: number; claude?: boolean }> }>("/sources"),
 
@@ -147,29 +165,9 @@ export const api = {
   clone: (url: string) =>
     request<{ ok: boolean; added?: number }>("/clone", { method: "POST", body: JSON.stringify({ url }) }),
 
-  // 팀 프리셋 — data/teams.json (서버 영속)
-  getTeams: () =>
-    request<{ ok: boolean; teams: Record<string, { name: string; slots: Record<string, string | null>; at: number; elo?: number; eval?: unknown }> }>("/teams"),
-
-  saveTeams: (teams: Record<string, { name: string; slots: Record<string, string | null>; at: number; elo?: number }>) =>
-    request<{ ok: boolean; count: number }>("/teams", { method: "POST", body: JSON.stringify({ teams }) }),
-
-  // 팀 단위 AI 평가 — 편성 슬롯(또는 저장된 teamId)을 시나리오로 채점. 엔진 실패 시 서버가 휴리스틱 폴백.
-  // slots는 역할명→itemId 맵 (예: {"분석관":"...","정찰관":null}) — 역할명이 평가 프롬프트에 쓰임.
-  teamVerify: (params: { teamId?: string; slots?: Record<string, string | null>; scenario?: string; engine?: string }) =>
-    request<TeamVerifyResp>("/team/verify", { method: "POST", body: JSON.stringify(params) }),
-
-  // 팀 A/B 대전 — 양 팀 모두 저장된 프리셋 id. 같은 시나리오로 채점해 승패+Elo 갱신(서버 영속).
-  teamAb: (aId: string, bId: string, scenario?: string, engine?: string) =>
-    request<TeamAbResp>("/team/ab", { method: "POST", body: JSON.stringify({ aId, bId, scenario, engine }) }),
-
   // 카드 드랍 — 최근 세션 해결 패턴을 스킬로 추출해 신규 카드 생성.
   drop: (engine?: string) =>
     request<DropResp>("/drop", { method: "POST", body: JSON.stringify({ engine }) }),
-
-  // OMC export — 저장된 팀을 /team 파이프라인 설정 파일로 변환(data/exports/<teamId>/에 기록).
-  teamExportOmc: (teamId: string) =>
-    request<TeamExportOmcResp>("/team/export-omc", { method: "POST", body: JSON.stringify({ teamId }) }),
 
   // ---------- Design Forge ----------
   forge: {

@@ -62,13 +62,16 @@ describe("summarize", () => {
 });
 
 describe("computeLevel", () => {
-  it("returns at least 1", () => {
-    expect(computeLevel(0)).toBeGreaterThanOrEqual(1);
+  it("returns null when there is no real usage", () => {
+    expect(computeLevel(0)).toBeNull();
+    expect(computeLevel(undefined)).toBeNull();
   });
 
-  it("scales level with power", () => {
+  it("scales level with real usage count (uses)", () => {
     const low = computeLevel(12);
     const high = computeLevel(96);
-    expect(high).toBeGreaterThan(low);
+    expect(low).not.toBeNull();
+    expect(high).not.toBeNull();
+    expect(high!).toBeGreaterThan(low!);
   });
 });

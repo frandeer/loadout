@@ -30,14 +30,5 @@
     "aspect_ratio": "square",
     "timeoutMs": 120000
   },
-  "repoPopularity": {
-    "anthropics__skills": 95,
-    "antigravity-awesome-skills": 80,
-    "Claude-Code-Game-Studios": 70,
-    "matt-skills": 78,
-    "claude-skills": 72,
-    "supanova-design-skill": 65,
-    "prompt-master": 60
-  },
   "maxScanFiles": 6000
 }

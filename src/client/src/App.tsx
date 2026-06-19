@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useStore } from "./hooks/useStore";
-import { ensureAtlas } from "./lib/iconAtlas";
 import { Header } from "./components/Header";
 import { FilterRail } from "./components/FilterRail";
 import { CardGrid } from "./components/CardGrid";
 import { DetailPanel } from "./components/DetailPanel";
 import { BatchBar } from "./components/BatchBar";
 import { EquippedBar } from "./components/EquippedBar";
-import { OpsRoom } from "./components/OpsRoom";
+import { Dashboard } from "./components/Dashboard";
+import { GraphView } from "./components/GraphView";
 import { Inventory } from "./components/Inventory";
 import { SourceManager } from "./components/SourceManager";
 import { Forge } from "./components/Forge";
 import { HelpPage } from "./components/HelpPage";
 
-export type AppView = "deck" | "ops" | "inventory" | "forge" | "help";
+export type AppView = "dashboard" | "assets" | "graph" | "loadout" | "forge" | "help";
 
-/** 덱(컬렉션) 레이아웃 — "/deck" 라우트 전용 */
-function DeckView() {
+/** 자산(컬렉션) 레이아웃 — "/assets" 라우트 전용 */
+function AssetsView() {
   const selected = useStore((s) => s.selected);
   const panelWidth = useStore((s) => s.panelWidth);
 
@@ -55,7 +55,7 @@ function DeckView() {
   );
 }
 
-/** 덱 외 탭(작전 준비/인벤토리/포지/도움말) 공통 래퍼 — 카드 선택 시 오버레이 유지 */
+/** 자산 외 탭(대시보드/그래프/장착·보관/포지/도움말) 공통 래퍼 — 카드 선택 시 오버레이 유지 */
 function PageView({ children }: { children: React.ReactNode }) {
   const selected = useStore((s) => s.selected);
   return (
@@ -72,7 +72,6 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-    ensureAtlas();
   }, []);
 
   return (
@@ -81,13 +80,14 @@ export default function App() {
         <Header onOpenSources={() => setSourceOpen(true)} />
 
         <Routes>
-          <Route path="/" element={<Navigate to="/deck" replace />} />
-          <Route path="/deck" element={<DeckView />} />
-          <Route path="/ops" element={<PageView><OpsRoom /></PageView>} />
-          <Route path="/inventory" element={<PageView><Inventory /></PageView>} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<PageView><Dashboard /></PageView>} />
+          <Route path="/assets" element={<AssetsView />} />
+          <Route path="/graph" element={<PageView><GraphView /></PageView>} />
+          <Route path="/loadout" element={<PageView><Inventory /></PageView>} />
           <Route path="/forge" element={<PageView><Forge /></PageView>} />
           <Route path="/help" element={<PageView><HelpPage /></PageView>} />
-          <Route path="*" element={<Navigate to="/deck" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
 
         <EquippedBar />

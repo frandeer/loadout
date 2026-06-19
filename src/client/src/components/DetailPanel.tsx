@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, isEquippable } from "../types";
 import { computeLevel, formatK, pickDesc } from "../lib/utils";
-import { traitsOf, neededTraitKeys, ROLES } from "../lib/traits";
+import { traitsOf } from "../lib/traits";
 import type { Item } from "../types";
 import { api } from "../lib/api";
 import { Icon } from "./Icon";
@@ -10,6 +10,16 @@ import { MarkdownView } from "./MarkdownView";
 
 interface DetailPanelProps {
   variant?: "overlay" | "docked";
+}
+
+// /api/analyze 응답의 analysis 형태 (api.ts 계약과 일치)
+interface AnalysisResult {
+  purpose: string;
+  quality: string;
+  redundancy: string;
+  recommendation: "keep" | "drop";
+  confidence: number;
+  reasons: string[];
 }
 
 export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
@@ -22,7 +32,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const toggleFavorite = useStore((s) => s.toggleFavorite);
   const lang = useStore((s) => s.lang);
   const reloadData = useStore((s) => s.reloadData);
-  const slots = useStore((s) => s.slots);
+  const engines = useStore((s) => s.engines);
   const panelWidth = useStore((s) => s.panelWidth);
   const setPanelWidth = useStore((s) => s.setPanelWidth);
   const [content, setContent] = useState<string>("");
@@ -37,6 +47,27 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  // ── AI 분석 — 엔진/모델 선택 + 결과(로컬 상태, 선택 카드 바뀌면 리셋) ──
+  const nonHeuristic = engines.filter((e) => e !== "heuristic");
+  const defaultEngine = nonHeuristic.includes("claude") ? "claude" : nonHeuristic[0] ?? "heuristic";
+  const [analyzeEngine, setAnalyzeEngine] = useState<string>(defaultEngine);
+  const [analyzeModel, setAnalyzeModel] = useState<string>("sonnet");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  // 실제 분석에 쓰인 엔진(서버 응답) — 요청 엔진이 실패하면 휴리스틱으로 폴백되므로
+  // 결과에 그대로 노출해 "선택 엔진인 척하는 휴리스틱" 혼동을 막는다.
+  const [analyzedEngine, setAnalyzedEngine] = useState<string | null>(null);
+
+  // engines가 부팅보다 늦게 도착하면 초깃값이 "heuristic"으로 고정될 수 있다(useState는 1회 평가).
+  // 실엔진이 들어오면 아직 휴리스틱이던 선택을 claude(없으면 첫 실엔진)로 한 번 재동기화한다.
+  useEffect(() => {
+    if (analyzeEngine === "heuristic" && nonHeuristic.length) {
+      setAnalyzeEngine(nonHeuristic.includes("claude") ? "claude" : nonHeuristic[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engines]);
 
   const [subPath, setSubPath] = useState<string | null>(null);
   const [files, setFiles] = useState<Array<{ name: string; path: string; size: number }>>([]);
@@ -57,6 +88,11 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     setFiles([]);
     setDeleteOpen(false);
     setDeleteText("");
+    // AI 분석 상태도 카드별로 초기화
+    setAnalysis(null);
+    setAnalyzeError(null);
+    setAnalyzing(false);
+    setAnalyzedEngine(null);
   }, [item?.id]);
 
   useEffect(() => {
@@ -136,19 +172,17 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
   const r = RARITY_CONFIG[item.rarity];
   const isFav = favorites.has(item.id);
-  const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
+  const lvl = computeLevel(item.uses); // 실사용(uses>0) 있을 때만 LV, 없으면 null → 숨김
   const name = item.displayName;
+  const isMcp = item.kind === "mcp";
   const desc = pickDesc(item, lang);
   const traits = traitsOf(item);
   const equippable = isEquippable(item.kind);
   // vault on/off 토글 대상: vault 관리 항목 또는 ~/.claude 상주 실폴더.
   const vaultToggleable = item.managed || item.claudeState === "resident";
-  // 상주로 잡히지만 토글 불가(cc-config 등 레거시) → 읽기 전용 "상주 자산".
+  // installed지만 토글 불가(cc-config 등 레거시) → 읽기 전용 "고정 (설치됨)".
+  // "상주"(claudeState==="resident")와는 구분 — 상주는 vault 토글 가능.
   const lockedInstalled = !!item.installed && !vaultToggleable;
-  const formationMembers = ROLES
-    .map((role) => slots[role.key] && items.find((i) => i.id === slots[role.key]))
-    .filter(Boolean) as Item[];
-  const nearKeys = formationMembers.length ? neededTraitKeys(formationMembers) : undefined;
 
   const handleEquip = async () => {
     if (!equippable || lockedInstalled) return;
@@ -165,7 +199,8 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   };
 
   const handleDelete = async () => {
-    if (deleteText.trim() !== item.name) return;
+    // 서버/Inventory DeleteDialog와 동일하게 양변 trim 비교 — item.name 공백 차이로 수용 기준이 어긋나지 않게.
+    if (deleteText.trim() !== item.name.trim()) return;
     setDeleting(true);
     try {
       const res = await api.deleteItem(item.id, deleteText.trim());
@@ -180,6 +215,32 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
       alert("삭제 중 오류: " + (e?.message || e));
     }
     setDeleting(false);
+  };
+
+  const handleAnalyze = async () => {
+    if (!item) return;
+    setAnalyzing(true);
+    setAnalyzeError(null);
+    setAnalysis(null);
+    setAnalyzedEngine(null);
+    try {
+      const res = await api.analyze(
+        item.id,
+        analyzeEngine,
+        analyzeEngine === "claude" ? analyzeModel : undefined,
+      );
+      if (res.ok && res.analysis) {
+        setAnalysis(res.analysis);
+        // 서버는 요청 엔진 실패 시 휴리스틱으로 폴백하고 실제 사용 엔진을 res.engine으로 돌려준다.
+        setAnalyzedEngine(res.engine || null);
+      } else {
+        setAnalyzeError("분석에 실패했습니다 (엔진 미설치 또는 응답 오류)");
+      }
+    } catch {
+      setAnalyzeError("분석 요청 중 오류가 발생했습니다");
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const handleTranslate = async () => {
@@ -214,9 +275,10 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     ? items.filter((x) => x.group === item.group && x.id !== item.id)
     : [];
 
+  // 정직한 라벨 — popularity는 git 활동량(추천/인기 아님), power는 파일 부피(역량 아님).
   const STAT_LABELS: Record<string, string> = {
-    popularity: "신뢰도",
-    power: "작전력",
+    popularity: "repo 활동성",
+    power: "규모",
     clarity: "명확도",
     freshness: "신선도",
     weight: "무게",
@@ -279,6 +341,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
             <span
               className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
               style={{ backgroundColor: r.color }}
+              title="이번 스캔 상위 백분위 기준 — 절대 품질 아님"
             >
               {r.ko}
             </span>
@@ -288,18 +351,29 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                 장착 중
               </span>
             )}
-            {item.installed && (
+            {item.claudeState === "resident" ? (
               <span className="rounded-full bg-accent-orange-soft px-2.5 py-0.5 text-xs font-semibold text-accent-orange">
                 상주
               </span>
-            )}
+            ) : lockedInstalled ? (
+              <span
+                className="rounded-full bg-surface-soft px-2.5 py-0.5 text-xs font-semibold text-muted"
+                title="이미 ~/.claude 에 설치돼 있어 토글할 수 없습니다(읽기 전용)"
+              >
+                고정 (설치됨)
+              </span>
+            ) : null}
             <span className="ml-auto font-mono text-sm font-bold text-ink">{item.score}pt</span>
           </div>
           <h2 className="text-xl font-bold text-ink">{name}</h2>
           <div className="mt-1 flex items-center gap-2 text-xs text-muted">
             <span className="shrink-0 whitespace-nowrap rounded-md bg-surface-soft px-1.5 py-0.5 font-medium uppercase">{item.kind === "memory" ? "기억" : item.kind}</span>
-            <span>·</span>
-            <span className="font-mono">Lv.{lvl}</span>
+            {lvl !== null && (
+              <>
+                <span>·</span>
+                <span className="font-mono" title={`실사용 ${item.uses}회 기반 레벨`}>Lv.{lvl}</span>
+              </>
+            )}
             <span className="ml-auto text-muted-soft">{item.source.owner}/{typeof item.source.repo === "string" ? item.source.repo : ""}</span>
           </div>
         </div>
@@ -327,7 +401,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
               title={item.claudeState === "resident" ? "해제하면 vault(보관함)로 끌어와 관리합니다" : undefined}
             >
               {lockedInstalled
-                ? "상주 자산"
+                ? "고정 (설치됨)"
                 : equipping
                   ? "처리 중..."
                   : item.equipped
@@ -347,6 +421,129 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           >
             <Icon name="favorite-star" size="lg" />
           </button>
+        </div>
+
+        {/* AI 분석 — 자산의 용도/품질/중복을 평가해 유지·정리 권고. 엔진/모델 선택. */}
+        <div className="mb-5 rounded-xl border border-hairline bg-canvas p-4">
+          <div className="mb-3 flex items-center gap-1.5">
+            <Icon name="flask" size="sm" className="text-primary" />
+            <h4 className="text-sm font-bold uppercase tracking-wide text-muted">AI 분석</h4>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={analyzeEngine}
+              onChange={(e) => setAnalyzeEngine(e.target.value)}
+              disabled={analyzing}
+              className="rounded-lg border border-hairline bg-canvas px-2.5 py-1.5 text-xs text-body focus:border-primary focus:outline-none disabled:opacity-50"
+              title="분석 엔진"
+            >
+              {engines.map((e) => (
+                <option key={e} value={e}>{e}</option>
+              ))}
+            </select>
+
+            {analyzeEngine === "claude" && (
+              <select
+                value={analyzeModel}
+                onChange={(e) => setAnalyzeModel(e.target.value)}
+                disabled={analyzing}
+                className="rounded-lg border border-hairline bg-canvas px-2.5 py-1.5 text-xs text-body focus:border-primary focus:outline-none disabled:opacity-50"
+                title="Claude 모델"
+              >
+                <option value="sonnet">sonnet</option>
+                <option value="opus">opus</option>
+                <option value="haiku">haiku</option>
+              </select>
+            )}
+
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="ml-auto flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white transition hover:bg-primary-active disabled:opacity-50"
+            >
+              {analyzing ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  분석 중...
+                </>
+              ) : (
+                <>
+                  <Icon name="flask" size="xs" /> 분석
+                </>
+              )}
+            </button>
+          </div>
+
+          {analyzing && (
+            <p className="mt-2 text-[11px] text-muted-soft">
+              엔진에 따라 30~60초 정도 걸릴 수 있습니다.
+            </p>
+          )}
+
+          {analyzeError && (
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-soft">
+              <Icon name="error-circle" size="xs" className="text-accent-rose" /> {analyzeError}
+            </p>
+          )}
+
+          {analysis && (
+            <div className="mt-4 space-y-3">
+              {/* 권고 + 신뢰도 */}
+              <div className="flex items-center gap-2">
+                {analysis.recommendation === "keep" ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-surface-success px-2.5 py-0.5 text-xs font-bold text-accent-emerald">
+                    <Icon name="check-circle" size="xs" /> 유지 권장
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-accent-rose/10 px-2.5 py-0.5 text-xs font-bold text-accent-rose">
+                    <Icon name="warning" size="xs" /> 정리 후보
+                  </span>
+                )}
+                <span className="font-mono text-xs text-muted" title="권고 신뢰도">
+                  {Math.round(analysis.confidence)}%
+                </span>
+                {analyzedEngine &&
+                  (analyzedEngine === "heuristic" && analyzeEngine !== "heuristic" ? (
+                    <span
+                      className="ml-auto inline-flex items-center gap-1 rounded-full bg-accent-rose/10 px-2 py-0.5 font-mono text-[11px] text-accent-rose"
+                      title="요청 엔진을 쓸 수 없어 휴리스틱(규칙 기반)으로 폴백했습니다"
+                    >
+                      <Icon name="warning" size="xs" /> 휴리스틱 폴백
+                    </span>
+                  ) : (
+                    <span
+                      className="ml-auto font-mono text-[11px] text-muted-soft"
+                      title="분석에 실제로 사용된 엔진"
+                    >
+                      {analyzedEngine}
+                    </span>
+                  ))}
+              </div>
+
+              {/* 용도 / 품질 / 중복성 */}
+              <div className="space-y-2.5">
+                <AnalysisBlock label="용도" value={analysis.purpose} />
+                <AnalysisBlock label="품질" value={analysis.quality} />
+                <AnalysisBlock label="중복성" value={analysis.redundancy} />
+              </div>
+
+              {/* 근거 */}
+              {analysis.reasons?.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted">근거</div>
+                  <ul className="space-y-1">
+                    {analysis.reasons.map((reason, i) => (
+                      <li key={i} className="flex gap-1.5 text-xs leading-relaxed text-body">
+                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-soft" />
+                        <span>{reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 위험 구역: 스킬/에이전트 삭제 — 이름 입력 재확인(휴지통 이동, 복구 가능) */}
@@ -380,7 +577,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                 <div className="mt-2 flex items-center gap-2">
                   <button
                     onClick={handleDelete}
-                    disabled={deleting || deleteText.trim() !== item.name}
+                    disabled={deleting || deleteText.trim() !== item.name.trim()}
                     className="rounded-md bg-accent-rose px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {deleting ? "삭제 중..." : "영구 삭제"}
@@ -413,42 +610,47 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           )}
         </div>
 
-        {/* 연결 시너지 */}
+        {/* 특성 태그 */}
         <div className="mb-5">
-          <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">연결 시너지</h4>
+          <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">특성</h4>
           {traits.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
-              {traits.map((t) => {
-                const near = nearKeys?.has(t.key);
-                return (
-                  <span
-                    key={t.key}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      near
-                        ? "bg-accent-orange-soft text-accent-orange"
-                        : "bg-surface-soft text-muted"
-                    }`}
-                    title={near ? "편성에 넣으면 신호 링크 발동 임박" : `연결 시너지 ${t.label} +1`}
-                  >
-                    {t.label} +1{near ? " ◂" : ""}
-                  </span>
-                );
-              })}
+              {traits.map((t) => (
+                <span
+                  key={t.key}
+                  className="rounded-full bg-surface-soft px-3 py-1 text-xs font-medium text-muted"
+                  title={`특성 ${t.label}`}
+                >
+                  {t.label}
+                </span>
+              ))}
             </div>
           ) : (
             <span className="text-sm text-muted-soft">특성 없음</span>
           )}
         </div>
 
-        {/* 스탯 바 */}
-        <div className="mb-5">
-          <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">성능 지표</h4>
-          <div className="space-y-3">
-            {(["popularity", "freshness", "power", "clarity", "weight"] as const).map((k) => (
-              <StatBar key={k} label={STAT_LABELS[k] ?? k} value={item.stats?.[k] ?? 0} color={r.color} />
-            ))}
+        {/* 성능 지표 — MCP는 스탯이 스캔 상수(조작값)이므로 막대 대신 실제 구성 신호를 노출 */}
+        {isMcp ? (
+          <div className="mb-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-sm font-bold uppercase tracking-wide text-muted">MCP 구성</h4>
+              <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] font-medium text-muted-soft" title="MCP 스탯은 스캔 상수라 막대로 표시하지 않음. 점수/등급은 구조(명령·인자·env)로 산출.">
+                구조 기반 점수
+              </span>
+            </div>
+            <McpSignals item={item} />
           </div>
-        </div>
+        ) : (
+          <div className="mb-5">
+            <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">성능 지표</h4>
+            <div className="space-y-3">
+              {(["popularity", "freshness", "power", "clarity", "weight"] as const).map((k) => (
+                <StatBar key={k} label={STAT_LABELS[k] ?? k} value={item.stats?.[k] ?? 0} color={r.color} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 코스트 + 위험 */}
         <div className="mb-5 space-y-3">
@@ -768,6 +970,74 @@ function StatBar({ label, value, color }: { label: string; value: number; color:
         />
       </div>
       <span className="w-8 text-right font-mono text-sm font-semibold text-ink">{value}</span>
+    </div>
+  );
+}
+
+/* ── AI 분석 결과의 라벨링된 블록 (용도/품질/중복성) ── */
+function AnalysisBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-surface-soft px-3 py-2">
+      <div className="text-[11px] font-bold uppercase tracking-wide text-muted">{label}</div>
+      <div className="mt-0.5 text-xs leading-relaxed text-body">{value || "—"}</div>
+    </div>
+  );
+}
+
+/* ── MCP 실제 신호 — 조작된 스탯 대신 명령/인자/env 같은 구조적 사실을 노출 ── */
+function McpSignals({ item }: { item: Item }) {
+  const meta = item.meta as { command?: string | null; args?: string[]; url?: string | null; env?: string[] } | undefined;
+  const command = meta?.command || null;
+  const url = meta?.url || null;
+  const args = meta?.args ?? [];
+  const env = meta?.env ?? [];
+
+  return (
+    <div className="space-y-2.5">
+      {/* 실행 방식: 로컬 명령 또는 원격 URL */}
+      <div className="rounded-lg border border-hairline bg-surface-soft px-3 py-2">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <Icon name={url ? "web-globe" : "terminal-window"} size="xs" />
+          {url ? "원격 엔드포인트" : "실행 명령"}
+        </div>
+        <div className="mt-1 break-all font-mono text-xs text-body">
+          {url ? url : command ? command : <span className="text-muted-soft">— 정의 없음</span>}
+        </div>
+      </div>
+
+      {/* 인자 — 개수 + 토큰 목록 */}
+      <div className="rounded-lg border border-hairline bg-surface-soft px-3 py-2">
+        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <span className="flex items-center gap-1.5"><Icon name="puzzle-piece" size="xs" /> 인자</span>
+          <span className="font-mono text-muted-soft">{args.length}</span>
+        </div>
+        {args.length > 0 ? (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {args.map((a, i) => (
+              <span key={i} className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-body border border-hairline">{a}</span>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-1 text-xs text-muted-soft">없음</div>
+        )}
+      </div>
+
+      {/* env 키 — 자격증명 노출 여부 */}
+      <div className="rounded-lg border border-hairline bg-surface-soft px-3 py-2">
+        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <span className="flex items-center gap-1.5"><Icon name="key" size="xs" /> 환경변수 키</span>
+          <span className="font-mono text-muted-soft">{env.length}</span>
+        </div>
+        {env.length > 0 ? (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {env.map((e, i) => (
+              <span key={i} className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-body border border-hairline">{e}</span>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-1 text-xs text-muted-soft">없음</div>
+        )}
+      </div>
     </div>
   );
 }

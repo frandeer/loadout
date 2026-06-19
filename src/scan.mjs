@@ -328,14 +328,15 @@ function ownerGuess(repo) {
 
 // ---------- 스탯 ----------
 // freshMs: git 마지막 커밋시각(없으면 파일 mtime). 신선도 계산에 사용.
-function computeStats({ repo, size, mtimeMs, freshMs, fm, kind, refCount, repoStats }) {
+function computeStats({ size, mtimeMs, freshMs, fm, refCount, repoStats }) {
   const now = Date.now();
   const ageDays = Math.max(0, (now - (freshMs || mtimeMs)) / 86400000);
 
-  // 1. Popularity (신뢰도/인기) 계산:
-  // 기본 점수: config의 인기 또는 기본값 30
-  let basePopularity = cfg.repoPopularity[repo] ?? 30;
-  
+  // 1. Popularity (= repo 활동성) 계산:
+  // git 통계가 있으면 commit/author/remote에서 유도, 없으면 기본값 30.
+  // (USAGE 사용량→인기 가산은 fm.nameKey가 항상 undefined라 무효였으므로 제거.)
+  let basePopularity = 30;
+
   if (repoStats && repoStats.commitCount > 0) {
     // 커밋 수에 따른 신뢰성 가산 (최대 25점)
     const commitBonus = Math.min(25, Math.log10(1 + repoStats.commitCount) * 8);
@@ -345,14 +346,8 @@ function computeStats({ repo, size, mtimeMs, freshMs, fm, kind, refCount, repoSt
     const remoteBonus = repoStats.hasRemote ? 10 : 0;
     basePopularity = 30 + commitBonus + authorBonus + remoteBonus;
   }
-  
-  // 사용 실적에 따른 인기도 가산 (최대 20점)
-  const name = fm.name || "";
-  const nameKey = fm.nameKey || (fm.id ? fm.id.split("/").pop() : "");
-  const uses = USAGE[name.toLowerCase()] ?? USAGE[nameKey] ?? 0;
-  const usageBonus = Math.min(20, uses * 4);
-  
-  const popularity = clamp(basePopularity + usageBonus);
+
+  const popularity = clamp(basePopularity);
 
   // 신선도: 최근 30일은 만점에 가깝고, 1년(365일)이면 0 근처가 되도록 비선형.
   const freshness = clamp(100 - Math.min(100, Math.pow(ageDays / 365, 0.6) * 100));
@@ -497,7 +492,7 @@ async function handleSkill(rootPath, file) {
   const relInRepo = segs.slice(1).join("/");
   const freshMs = effectiveMtimeMs(gitMap, relInRepo, st.mtimeMs);
   const repoStats = gitRepoStats.get(repoDir) || { commitCount: 0, authorCount: 0, hasRemote: false };
-  const stats = computeStats({ repo, size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, kind: "skill", refCount, repoStats });
+  const stats = computeStats({ size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, refCount, repoStats });
   const r = rarityOf(stats, null);
   items.push({
     id: `${repo}/${relPath}`,
@@ -535,7 +530,7 @@ async function handleAgent(rootPath, file) {
   const relInRepo = relPath.split("/").slice(1).join("/");
   const freshMs = effectiveMtimeMs(gitMap, relInRepo, st.mtimeMs);
   const repoStats = gitRepoStats.get(repoDir) || { commitCount: 0, authorCount: 0, hasRemote: false };
-  const stats = computeStats({ repo, size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, kind: "agent", refCount: 0, repoStats });
+  const stats = computeStats({ size: st.size, mtimeMs: st.mtimeMs, freshMs, fm, refCount: 0, repoStats });
   // 모델 tier로 등급 살짝 가산
   const r = rarityOf(stats, null);
   const tier = (fm.model || "").toLowerCase();
@@ -709,7 +704,7 @@ async function handleMemory(file, scope, memRoot) {
   const metaType = /type:\s*([a-z0-9_-]+)/i.exec(String(fm.metadata || fm.type || ""))?.[1] || null;
   const repoName = getOriginalFolderName(scope);
   const refCount = (content.match(/\[[^\]]+\]\([^)]+\)/g) || []).length;
-  const stats = computeStats({ repo: repoName, size: st.size, mtimeMs: st.mtimeMs, freshMs: st.mtimeMs, fm, kind: "memory", refCount });
+  const stats = computeStats({ size: st.size, mtimeMs: st.mtimeMs, freshMs: st.mtimeMs, fm, refCount });
   const r = rarityOf(stats, null);
   items.push({
     id: `_memory/${scope}/${relPath}`,

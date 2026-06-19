@@ -10,10 +10,9 @@ import { Icon } from "./Icon";
 interface CardProps {
   item: Item;
   index?: number;
-  needKeys?: Set<string>;
 }
 
-export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps) {
+export const Card = memo(function Card({ item, index = 0 }: CardProps) {
   // 카드별 fine-grained 구독 — 전역 store를 통째로 구독하면 memo가 무력화되어,
   // 카드 하나를 선택/즐겨찾기/체크할 때 보이는 카드 전부가 리렌더된다. 자기 항목 슬라이스만 구독.
   const setSelected = useStore((s) => s.setSelected);
@@ -26,9 +25,12 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
   const isPicked = useStore((s) => s.picked.has(item.id));
   const [busy, setBusy] = useState(false);
   const r = RARITY_CONFIG[item.rarity];
-  const lvl = computeLevel(item.stats?.power ?? 50, item.uses);
+  // 실제 사용 기록(uses>0)이 있을 때만 LV/XP를 노출 — 없으면 파일 크기를 레벨로 둔갑시키지 않고
+  // 구조 기반 점수(score)를 대신 보여준다.
+  const lvl = computeLevel(item.uses);
   const xp = computeXp(item.uses);
-  const gaugePct = xp ?? Math.min(99, item.stats?.popularity ?? 40);
+  const hasLevel = lvl !== null && xp !== null;
+  const gaugePct = xp ?? 0;
   const name =
     item.kind === "memory"
       ? typeof item.source.repo === "string"
@@ -38,15 +40,18 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
   const desc = pickDesc(item, lang);
   const cat = iconFor(item);
   const traits = traitsOf(item);
-  const wouldLink = needKeys && !item.equipped && traits.some((t) => needKeys.has(t.key));
   const equippable = isEquippable(item.kind);
+
+  // vault 토글 가능 = 관리 자산이거나 ~/.claude 상주(끄면 vault로 lazy 이동).
+  const vaultToggleable = item.managed || item.claudeState === "resident";
+  // 상주로 잡히지만 토글 불가(cc-config 등 레거시) → 읽기 전용 "고정" 상태.
+  // installed 자체는 카탈로그 대부분이 ~/.claude 하위라 "상주"로 라벨하지 않는다(정직 모델).
+  const lockedInstalled = !!item.installed && !vaultToggleable;
 
   const toggleEquip = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // vault 토글 가능 = 관리 자산이거나 ~/.claude 상주(끄면 vault로 lazy 이동).
-    const vaultToggleable = item.managed || item.claudeState === "resident";
     if (busy || !equippable) return;
-    if (item.installed && !vaultToggleable) return; // 상주(vault 토글 가능)는 허용
+    if (lockedInstalled) return; // 고정(토글 불가)은 막고, vault 토글 가능 상주는 허용
     if (item.oversized && item.equipped && !window.confirm(`${item.displayName}는 거대 자산입니다. 끄면 vault로 이동(보관)됩니다. 진행할까요?`)) return;
     setBusy(true);
     try {
@@ -98,18 +103,13 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
             <span
               className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wide truncate"
               style={{ color: r.color }}
-              title={`${r.ko} 등급`}
+              title={`${r.ko} 등급 — 이번 스캔 상위 백분위 기준, 절대 품질 아님`}
             >
               <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
               {r.ko}
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {wouldLink && (
-              <span className="rounded-full bg-accent-orange-soft px-2 py-0.5 text-[10px] font-semibold text-accent-orange" title="장착하면 신호 링크 발동">
-                링크+
-              </span>
-            )}
             {item.group && (
               <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] font-medium text-muted">
                 복수
@@ -140,11 +140,6 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
 
           {/* 우상단 오버레이: 배지 및 즐겨찾기 */}
           <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
-            {wouldLink && (
-              <span className="rounded-full bg-accent-orange-soft px-2 py-0.5 text-[10px] font-semibold text-accent-orange" title="장착하면 신호 링크 발동">
-                링크+
-              </span>
-            )}
             {item.group && (
               <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] font-medium text-muted">
                 복수
@@ -166,7 +161,7 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
       )}
 
       {/* 이름 — 카드의 주인공. 살짝 키워 더 또렷하게. 등급은 카드 테두리 색으로 표현. */}
-      <h3 className="mb-0.5 truncate text-[19px] font-bold leading-tight tracking-tight text-ink" title={`${r.ko} 등급`}>{name}</h3>
+      <h3 className="mb-0.5 truncate text-[19px] font-bold leading-tight tracking-tight text-ink" title={`${r.ko} 등급 — 이번 스캔 상위 백분위 기준, 절대 품질 아님`}>{name}</h3>
 
       {/* 타입 + 점수 */}
       <div className="mb-2 flex items-center gap-2">
@@ -190,19 +185,47 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
       {/* 설명 */}
       <p className="line-clamp-2 text-xs leading-relaxed text-muted">{summarize(desc)}</p>
 
-      {/* 레벨 게이지 */}
-      <div className="mt-3 flex items-center gap-2">
-        <span className="font-mono text-[11px] font-bold text-body">Lv.{lvl}</span>
-        <div className="h-1.5 flex-1 rounded-full bg-surface-soft">
-          <div
-            className="h-full rounded-full stat-bar-fill"
-            style={{ width: `${gaugePct}%`, backgroundColor: r.color }}
-          />
+      {/* MCP 실제 신호 — 조작된 스탯 대신 구조적 사실(인자/env/위험)을 노출 */}
+      {item.kind === "mcp" && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-surface-soft px-1.5 py-0.5 font-mono text-[10px] text-muted" title="명령 인자 개수">
+            인자 {item.meta?.args?.length ?? 0}
+          </span>
+          <span className="rounded-full bg-surface-soft px-1.5 py-0.5 font-mono text-[10px] text-muted" title="환경변수 키 개수">
+            env {item.meta?.env?.length ?? 0}
+          </span>
+          {(item.risks?.length ?? 0) > 0 && (
+            <span className="rounded-full bg-accent-rose/10 px-1.5 py-0.5 font-mono text-[10px] text-accent-rose" title="위험 신호">
+              위험 {item.risks!.length}
+            </span>
+          )}
         </div>
-        <span className="font-mono text-[10px] text-muted-soft">
-          {item.uses && item.uses > 0 ? `${item.uses}회` : `${item.score}/100`}
-        </span>
-      </div>
+      )}
+
+      {/* 레벨 게이지 — 실제 사용 기록(uses>0)이 있을 때만. 없으면 점수 라인으로 대체. */}
+      {hasLevel ? (
+        <div className="mt-3 flex items-center gap-2">
+          <span className="font-mono text-[11px] font-bold text-body">Lv.{lvl}</span>
+          <div className="h-1.5 flex-1 rounded-full bg-surface-soft">
+            <div
+              className="h-full rounded-full stat-bar-fill"
+              style={{ width: `${gaugePct}%`, backgroundColor: r.color }}
+            />
+          </div>
+          <span className="font-mono text-[10px] text-muted-soft">{item.uses}회</span>
+        </div>
+      ) : (
+        <div className="mt-3 flex items-center gap-2" title="실사용 기록이 없어 구조 기반 점수로 표시">
+          <span className="font-mono text-[10px] font-medium text-muted-soft">구조 점수</span>
+          <div className="h-1.5 flex-1 rounded-full bg-surface-soft">
+            <div
+              className="h-full rounded-full stat-bar-fill"
+              style={{ width: `${Math.min(item.score, 100)}%`, backgroundColor: r.color }}
+            />
+          </div>
+          <span className="font-mono text-[10px] text-muted-soft">{item.score}/100</span>
+        </div>
+      )}
 
       {/* 장착 상태 + 빠른 장착 */}
       <div className="mt-3 flex items-center gap-2">
@@ -210,9 +233,12 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
           <span className="flex-1 rounded-lg bg-surface-soft px-2 py-1.5 text-center text-[11px] text-muted">
             읽기 전용
           </span>
-        ) : item.installed ? (
-          <span className="flex-1 rounded-lg bg-surface-soft px-2 py-1.5 text-center text-[11px] font-medium text-accent-orange">
-            상주
+        ) : lockedInstalled ? (
+          <span
+            className="flex-1 rounded-lg bg-surface-soft px-2 py-1.5 text-center text-[11px] font-medium text-muted"
+            title="이미 ~/.claude 에 설치돼 있어 토글할 수 없습니다(읽기 전용)"
+          >
+            고정 (설치됨)
           </span>
         ) : item.equipped ? (
           <button
