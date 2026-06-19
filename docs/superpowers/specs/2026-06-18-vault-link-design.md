@@ -99,3 +99,41 @@ per skill 상태:
 - scan MCP 감지 누락(현재 카탈로그 mcp:0) — 별도 점검.
 - 플러그인이 junction 위에 덮어쓸 때 거동 — E2 실검증 필요.
 - Mac 실기기 검증은 E4(현재 Windows 환경).
+
+---
+
+## 10. 구현 현황 (2026-06-18) — 검증 완료
+
+핵심 목표(컨텍스트 on/off)가 **실제 작동**한다. API e2e 12/12 PASS, 샌드박스 4/4 PASS.
+
+### 확정된 설계 변경(구현 중 발견·반영)
+- **D-LAZY (오버사이즈 지연 가져오기)**: gstack(1.5GB)/browse(110MB)는 import하지 않고 `~/.claude`에 상주 유지.
+  **끌 때만** vault로 무손실 MOVE(`setActive(off, onResident:'vault')` → `moveToVault`: 복사→해시검증→원본삭제).
+  켜면 vault에서 junction 재링크(이후엔 상주 아닌 링크). 사용자가 끄기 전엔 1.5GB를 건드리지 않음.
+- **D-SCAN-VAULT (스캔이 vault를 읽음)**: Windows에서 junction은 Node `readdir`가 symlink로 보고
+  `isDirectory()===false` → **scan이 junction을 따라가지 않는다**(실측). 따라서 cutover 후 `~/.claude/skills`만
+  스캔하면 관리 스킬 95개가 사라진다. 해결: `data/sources.json` roots에 `vault/skills`·`vault/agents` 추가.
+  vault 폴더는 실디렉토리라 스캔됨 → on/off 무관하게 항상 카탈로그에 존재. `~/.claude`는 junction이 스킵되어
+  **미관리 상주(gstack/browse)만** 기여 → 이중 카탈로그 없음.
+- **D-REKEY (vault-구조 id)**: vault 스캔 id는 `<leaf>/<leaf>/SKILL.md`(leaf=`<owner>__<name>`). `data/vault.json`을
+  이 id로 일괄 재키(`tools/vault-rekey.mjs`, 백업 `vault.json.bak-rekey`). lazy-move 시에도 서버가 새 leaf로 재키.
+- **D-OVERLAY (서버 오버레이)**: `GET /api/index`가 항목마다 `managed`/`claudeState`/`equipped`/`oversized`/`divergent`를
+  vault.json + 라이브 존재검사(`vault.liveState`, 해시 없음)로 주입. 관리 항목의 라이브 자리가 link 아닌 **resident면
+  divergent**(외부/플러그인 덮어씀 신호) → UI에서 pull/push 해소. 끈 항목은 vault 스캔으로 유지되므로 스냅샷 주입은
+  안전망(중복 가드).
+
+### 엔드포인트(최종)
+- `GET /api/vault/status`(읽기전용 해시 포함), `POST /api/vault/import`, `POST /api/vault/activate {id,on,dryRun}`
+  (관리=링크 토글 / 미관리 상주=vault로 lazy MOVE, `onResident:'vault'`, await 필수), `POST /api/vault/resolve {id,choice}`,
+  `POST /api/vault/cutover`(이중 게이트 `dryRun:false && confirm:true`).
+
+### 검증 증거
+- `tools/vault-lazy-test.mjs` 4/4(move 무손실·OFF→ON·pull·dryRun), `tools/vault-verify.mjs` 12/12
+  (rescan 후에도 95 관리=link, 끈 항목 vault 스캔 유지, 무손실·가역 토글, gstack lazy=move-to-vault dryRun).
+- 파일시스템: `~/.claude/skills` junction 95→vault 물리적 보존, 원본 95개 `~/.claude/.loadout-backup/` 보관.
+
+### 남은 폴리시(비차단)
+- `/api/vault/status`의 status()는 livePath를 `source.path` 기준으로 유도 → vault 스캔본에선 부정확(진단용
+  보조 지표만; 권위는 `/api/index` 오버레이). 추후 liveName 기반으로 정렬 가능.
+- 끈 항목 카드의 한국어/아트는 raw 스냅샷이라 미반영 가능(기능엔 무영향).
+- agent/mcp vault 경로는 메커니즘만 준비(현재 대상 0). Mac symlink 경로는 코드상 분기 존재, 실기 검증은 E4.

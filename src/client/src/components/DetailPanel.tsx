@@ -35,6 +35,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
+  const [subPath, setSubPath] = useState<string | null>(null);
+  const [files, setFiles] = useState<Array<{ name: string; path: string; size: number }>>([]);
+
   const item = items.find((i) => i.id === selected);
 
   useEffect(() => {
@@ -47,22 +50,31 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
   useEffect(() => {
     if (!item) return;
+    setSubPath(null);
+    setFiles([]);
+  }, [item?.id]);
+
+  useEffect(() => {
+    if (!item) return;
     setContent("");
     setContentKo("");
     setActiveTab("original");
     setLoadingContent(true);
     api
-      .getContent(item.id)
+      .getContent(item.id, subPath || undefined)
       .then((d) => {
         setContent(d.content);
         if (d.contentKo) {
           setContentKo(d.contentKo);
           setActiveTab("ko");
         }
+        if (d.files) {
+          setFiles(d.files);
+        }
       })
       .catch(() => setContent(""))
       .finally(() => setLoadingContent(false));
-  }, [item?.id]);
+  }, [item?.id, subPath]);
 
   const currentWidthRef = useRef(panelWidth);
 
@@ -131,9 +143,13 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
   const handleEquip = async () => {
     if (!equippable) return;
+    const vaultToggleable = item.managed || item.claudeState === "resident";
+    if (item.oversized && item.equipped && !window.confirm(`${item.displayName}는 거대 자산입니다. 끄면 vault로 이동(보관)됩니다. 진행할까요?`)) return;
     setEquipping(true);
     try {
-      if (item.equipped) await api.unequip(item.id);
+      // vault 관리/상주 자산은 on/off 토글로 장착/해제한다.
+      if (vaultToggleable) await api.activateVault(item.id, !item.equipped);
+      else if (item.equipped) await api.unequip(item.id);
       else await api.equip(item.id);
       await reloadData();
     } catch {}
@@ -255,7 +271,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           </div>
           <h2 className="text-xl font-bold text-ink">{name}</h2>
           <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-            <span className="rounded-md bg-surface-soft px-1.5 py-0.5 font-medium uppercase">{item.kind === "memory" ? "기억" : item.kind}</span>
+            <span className="shrink-0 whitespace-nowrap rounded-md bg-surface-soft px-1.5 py-0.5 font-medium uppercase">{item.kind === "memory" ? "기억" : item.kind}</span>
             <span>·</span>
             <span className="font-mono">Lv.{lvl}</span>
             <span className="ml-auto text-muted-soft">{item.source.owner}/{typeof item.source.repo === "string" ? item.source.repo : ""}</span>
@@ -305,13 +321,13 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         {/* 설명 */}
         <div className="mb-5">
           <div className="text-sm leading-relaxed text-body">
-            <MarkdownView size="sm" content={desc} />
+            <MarkdownView size="sm" content={desc} onLinkClick={setSubPath} />
           </div>
           {lang === "ko" && item.descKo && (
             <details className="mt-2 text-xs text-muted-soft">
               <summary className="cursor-pointer hover:text-muted">원문 보기</summary>
               <div className="mt-1">
-                <MarkdownView size="sm" content={item.description} />
+                <MarkdownView size="sm" content={item.description} onLinkClick={setSubPath} />
               </div>
             </details>
           )}
@@ -399,6 +415,41 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           </div>
         )}
 
+        {/* 관련 파일 브라우저 */}
+        {files.filter((f) => f.path !== item.source.path.split(/[/\\]/).pop()).length > 0 && (
+          <div className="mb-5">
+            <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted flex items-center gap-1.5">
+              <Icon name="folder" size="xs" /> 관련 파일 목록
+            </h4>
+            <div className="grid grid-cols-2 gap-1.5 max-h-[160px] overflow-y-auto rounded-lg border border-hairline p-2 bg-surface-app">
+              {files
+                .filter((f) => f.path !== item.source.path.split(/[/\\]/).pop())
+                .map((f) => {
+                  const isActive = subPath === f.path;
+                  return (
+                    <button
+                      key={f.path}
+                      onClick={() => setSubPath(isActive ? null : f.path)}
+                      className={`flex items-center justify-between gap-2 rounded px-2.5 py-1 text-left text-xs font-medium transition cursor-pointer border-none ${
+                        isActive
+                          ? "bg-primary text-white shadow-xs"
+                          : "bg-canvas text-body hover:bg-surface-soft hover:text-ink border border-hairline"
+                      }`}
+                    >
+                      <span className="truncate flex-1 flex items-center gap-1">
+                        <Icon name="file-alt" size="xs" className={isActive ? "text-white" : "text-muted-soft"} />
+                        <span className="truncate">{f.path}</span>
+                      </span>
+                      <span className={`font-mono text-[9px] ${isActive ? "text-white/80" : "text-muted-soft"}`}>
+                        {(f.size / 1024).toFixed(1)}k
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
         {/* 원문 문서 */}
         {loadingContent ? (
           <div className="flex h-24 items-center justify-center">
@@ -406,11 +457,20 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           </div>
         ) : content ? (
           <div>
-            <div className="mb-3 flex items-center justify-between border-b border-hairline pb-2">
-              <h4 className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-muted">
-                <Icon name="file-alt" size="xs" /> 문서
+            <div className="mb-3 flex items-center justify-between gap-4 border-b border-hairline pb-2">
+              <h4 className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-muted" title={subPath || "문서"}>
+                <Icon name="file-alt" size="xs" />
+                <span className="truncate">{subPath ? subPath.split("/").pop() : "문서"}</span>
               </h4>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
+                {subPath && (
+                  <button
+                    onClick={() => setSubPath(null)}
+                    className="flex items-center gap-1 rounded bg-surface-soft px-2.5 py-1 text-xs font-semibold text-body hover:bg-surface-hover hover:text-ink transition cursor-pointer"
+                  >
+                    <Icon name="arrow-left" size="xs" /> 메인 문서
+                  </button>
+                )}
                 {!contentKo && (
                   <button
                     onClick={handleTranslateContent}
@@ -467,7 +527,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
             <div className="rounded-xl border border-hairline bg-canvas p-4 text-base md:text-lg leading-relaxed">
               <div className="prose prose-base max-w-none dark:prose-invert">
-                <MarkdownView size="md" content={activeTab === "ko" && contentKo ? contentKo : content} />
+                <MarkdownView size="md" content={activeTab === "ko" && contentKo ? contentKo : content} onLinkClick={setSubPath} />
               </div>
             </div>
           </div>
@@ -484,7 +544,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           />
 
           {/* Modal Container */}
-          <div className="relative z-10 flex h-full max-h-[85vh] w-full max-w-4xl flex-col rounded-2xl border border-hairline bg-canvas shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative z-10 flex h-full max-h-[92vh] w-full max-w-6xl flex-col rounded-2xl border border-hairline bg-canvas shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-hairline px-6 py-4 bg-surface-soft/40">
               <div className="flex items-center gap-3">
@@ -498,7 +558,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                   >
                     {r.ko}
                   </span>
-                  <h3 className="text-xl font-black text-ink">{item.displayName} - 상세 문서</h3>
+                  <h3 className="text-xl font-black text-ink">{item.displayName} - {subPath ? subPath.split("/").pop() : "상세 문서"}</h3>
                 </div>
               </div>
               <button
@@ -552,9 +612,62 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-canvas text-lg md:text-xl leading-relaxed">
-              <div className="prose prose-lg max-w-none dark:prose-invert">
-                <MarkdownView size="lg" content={activeTab === "ko" && contentKo ? contentKo : content} />
+            <div className="flex flex-1 overflow-hidden bg-canvas">
+              {/* Left Sidebar: File Explorer */}
+              {files.filter((f) => f.path !== item.source.path.split(/[/\\]/).pop()).length > 0 && (
+                <div className="w-64 shrink-0 border-r border-hairline bg-surface-soft/20 p-4 overflow-y-auto flex flex-col gap-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5">
+                    <Icon name="folder" size="xs" /> 파일 탐색기
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {/* Main file button */}
+                    <button
+                      onClick={() => setSubPath(null)}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold transition cursor-pointer border-none ${
+                        subPath === null
+                          ? "bg-primary text-white shadow-xs"
+                          : "bg-transparent text-body hover:bg-surface-soft hover:text-ink"
+                      }`}
+                    >
+                      <Icon name="file-alt" size="xs" className={subPath === null ? "text-white" : "text-primary"} />
+                      <span className="truncate flex-1 font-bold">
+                        {item.displayName || "메인 문서"}
+                      </span>
+                    </button>
+                    {/* Related files list */}
+                    {files
+                      .filter((f) => f.path !== item.source.path.split(/[/\\]/).pop())
+                      .map((f) => {
+                        const isActive = subPath === f.path;
+                        return (
+                          <button
+                            key={f.path}
+                            onClick={() => setSubPath(f.path)}
+                            className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium transition cursor-pointer border-none ${
+                              isActive
+                                ? "bg-primary text-white shadow-xs"
+                                : "bg-transparent text-body hover:bg-surface-soft hover:text-ink"
+                            }`}
+                          >
+                            <span className="truncate flex-1 flex items-center gap-2">
+                              <Icon name="file-alt" size="xs" className={isActive ? "text-white" : "text-muted-soft"} />
+                              <span className={isActive ? "font-bold" : "font-normal"}>{f.path}</span>
+                            </span>
+                            <span className={`font-mono text-[9px] ${isActive ? "text-white/80" : "text-muted-soft"} ml-1`}>
+                              {(f.size / 1024).toFixed(1)}k
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {/* Right Content Area */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-10 text-lg md:text-xl leading-relaxed">
+                <div className="prose prose-lg max-w-none dark:prose-invert">
+                  <MarkdownView size="lg" content={activeTab === "ko" && contentKo ? contentKo : content} onLinkClick={setSubPath} />
+                </div>
               </div>
             </div>
           </div>

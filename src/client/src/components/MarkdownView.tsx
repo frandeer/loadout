@@ -9,6 +9,7 @@ interface MarkdownViewProps {
   content: string;
   className?: string;
   size?: "sm" | "md" | "lg";
+  onLinkClick?: (href: string) => void;
 }
 
 function CodeBlock({
@@ -90,7 +91,7 @@ function stripFrontmatter(content: string): string {
   return content;
 }
 
-export function MarkdownView({ content, className = "", size = "md" }: MarkdownViewProps) {
+export function MarkdownView({ content, className = "", size = "md", onLinkClick }: MarkdownViewProps) {
   const cleanContent = stripFrontmatter(content);
   const sizes = {
     sm: {
@@ -163,16 +164,32 @@ export function MarkdownView({ content, className = "", size = "md" }: MarkdownV
             </blockquote>
           ),
 
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-primary underline decoration-primary/30 underline-offset-2 transition hover:decoration-primary/60"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            const isRelative = href && !href.startsWith("http://") && !href.startsWith("https://") && !href.startsWith("mailto:") && !href.startsWith("#");
+            if (isRelative && onLinkClick) {
+              return (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onLinkClick(href);
+                  }}
+                  className="font-medium text-primary underline decoration-primary/30 underline-offset-2 transition hover:decoration-primary/60 cursor-pointer border-none bg-transparent p-0 text-left inline-block"
+                >
+                  {children}
+                </button>
+              );
+            }
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline decoration-primary/30 underline-offset-2 transition hover:decoration-primary/60"
+              >
+                {children}
+              </a>
+            );
+          },
 
           table: ({ children }) => (
             <div className="my-3 overflow-x-auto rounded-lg border border-hairline">

@@ -25,8 +25,6 @@ export function EquippedBar() {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   const equipped = items.filter((i) => i.equipped);
-  if (equipped.length === 0) return null;
-
   const totalPower = equipped.reduce((sum, i) => sum + i.score, 0);
   const shown = equipped.slice(0, 5);
   const overflow = equipped.length - shown.length;
@@ -51,6 +49,8 @@ export function EquippedBar() {
     setActivePresetId(id);
     setPresetOpen(false);
   }, [loadPreset]);
+
+  if (equipped.length === 0) return null;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-canvas/95 backdrop-blur-xl">

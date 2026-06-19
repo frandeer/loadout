@@ -44,6 +44,11 @@ export interface Item {
   layer?: "index" | "note";  // memory kind 한정 — MEMORY.md=index, 개별 메모=note
   equipped?: boolean;
   installed?: boolean; // 이미 ~/.claude 에 상주 — 장착/해제 대상 아님
+  // ── vault (장착/해제 토글) — 서버가 /api/index 에 병합해 내려준다 ──
+  managed?: boolean;                            // vault 관리 대상 — on/off 토글로 장착/해제
+  claudeState?: "link" | "resident" | "absent"; // ~/.claude 상태: 링크 / 상주 / 꺼짐(보관)
+  oversized?: boolean;                          // 거대 자산 — 끄면 vault로 이동 보관(지연)
+  divergent?: boolean;                          // vault와 라이브 사본이 분기 — pull/push 해소 필요
   tags?: string[];     // scan이 부여한 특성 태그 (신호 링크)
   image?: string;
   nameKo?: string;

@@ -3,14 +3,16 @@
 import { createServer } from "node:http";
 import { readFile, writeFile, stat, mkdir, symlink, cp, rm, rename, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { extname, resolve, join, dirname, basename, sep } from "node:path";
+import { extname, resolve, join, dirname, basename, sep, relative } from "node:path";
 import { homedir } from "node:os";
 import { spawn, execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadRoots, loadSources, absRoot, addRoot, removeRoot, addRepo, ensureSourcesFile } from "./sources.mjs";
 import * as forge from "./forge.mjs";
+import * as vault from "./vault.mjs";
 import { collectUsage } from "./usage.mjs";
 import { generateDrop, dropsDir } from "./drop.mjs";
+import { ensureImageFarm } from "./imagefarm.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const clientDist = join(root, "src/client/dist");
@@ -46,13 +48,22 @@ function imgSlug(s) {
   return String(s || "asset").toLowerCase().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "asset";
 }
 // 생성/슬라이스한 이미지를 카드와 영구 연결 → 새로고침해도 유지(/api/index가 병합).
-async function setCardImage(id, webPath) {
-  if (!id || !webPath) return;
-  const map = await cardImages();
-  map[id] = webPath;
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(cardImagesPath, JSON.stringify(map, null, 2), "utf8");
-  if (INDEX) { const it = INDEX.items.find((x) => x.id === id); if (it) it.image = webPath; } // 메모리 인덱스 즉시 반영
+// 병렬 생성 시 card-images.json 의 읽기-수정-쓰기가 겹쳐 서로 덮어쓰지 않도록
+// 모든 쓰기를 promise 체인으로 직렬화한다(작은 뮤텍스).
+let cardImageWriteChain = Promise.resolve();
+function setCardImage(id, webPath) {
+  if (!id || !webPath) return Promise.resolve();
+  const next = cardImageWriteChain
+    .then(async () => {
+      const map = await cardImages();
+      map[id] = webPath;
+      await mkdir(dataDir, { recursive: true });
+      await writeFile(cardImagesPath, JSON.stringify(map, null, 2), "utf8");
+      if (INDEX) { const it = INDEX.items.find((x) => x.id === id); if (it) it.image = webPath; } // 메모리 인덱스 즉시 반영
+    })
+    .catch((e) => { console.warn("setCardImage 실패:", e.message); });
+  cardImageWriteChain = next;
+  return next;
 }
 // 한국어 번역본(별도 관리) — { [id]: { name, description, at, engine } }. 원문은 건드리지 않음.
 const translationsPath = join(dataDir, "translations.json");
@@ -74,6 +85,12 @@ function isInstalled(item) {
   if (r && r.startsWith(claudeHome)) return true;
   if (item.source?.repo === "cc-config" || item.source?.fromCc) return true;
   return false;
+}
+
+// vault.json에 보관할 카탈로그 스냅샷(끄면 scan에서 사라지므로, 카탈로그에 되살리기 위함). 휘발 필드는 제외.
+function vaultSnapshot(item) {
+  const { equipped, managed, claudeState, oversized, divergent, uses, installed, ...rest } = item;
+  return rest;
 }
 
 const clamp = (n) => Math.max(0, Math.min(99, Math.round(n)));
@@ -569,8 +586,67 @@ const server = createServer(async (req, res) => {
         it.installed = isInstalled(it);                              // 이미 ~/.claude 안에 있나
         it.uses = USAGE[(it.name || "").toLowerCase()] ?? USAGE[it.nameKey] ?? 0; // 사용량(경험치): name 소문자/nameKey 매칭
       }
+      // ----- vault 오버레이: 관리 항목의 on/off(claudeState)와 oversized를 반영하고, 꺼진(absent) 항목을 스냅샷에서 되살린다 -----
+      try {
+        const vstate = await vault.loadVaultState();
+        const present = new Set(idx.items.map((i) => i.id));
+        for (const it of idx.items) {
+          const rec = vstate.items[it.id];
+          const liveName = rec?.liveName || null;
+          const ls = vault.liveState(it, liveName);
+          if (rec) {
+            it.managed = true;
+            it.claudeState = ls.claudeState;
+            it.equipped = ls.claudeState !== "absent";   // 관리 항목은 vault 상태가 equipped의 진실
+            // 관리 항목인데 라이브 자리가 우리 링크가 아니라 실폴더(resident)면 = 외부(플러그인 등)가 덮어씀 → 분기.
+            if (ls.claudeState === "resident") it.divergent = true;
+          } else if (ls.claudeState === "resident") {
+            it.claudeState = "resident";                 // 미관리 상주(예: 거대 번들 gstack/browse)
+            it.equipped = true;                          // 상주=활성(on). 끄면 vault로 lazy 이동(해제할 때만 가져오기).
+          }
+          if (ls.oversized || rec?.oversized) it.oversized = true;
+        }
+        // 꺼진 항목 되살리기: vault.json에 있으나 이번 스캔에 없고(=링크 제거됨) 스냅샷이 있으면 카탈로그에 주입.
+        for (const [id, rec] of Object.entries(vstate.items)) {
+          if (present.has(id)) continue;
+          if (!rec || !rec.snapshot) continue;
+          idx.items.push({ ...rec.snapshot, equipped: false, managed: true, claudeState: "absent", oversized: !!rec.oversized });
+        }
+      } catch { /* vault 오버레이 실패는 카탈로그 서빙을 막지 않음 */ }
       return json(res, 200, idx);
     }
+    // 디렉토리 내 텍스트 관련 파일 목록을 수집하는 재귀 헬퍼 함수
+    async function listFilesUnderDir(dir, baseDir = dir, depth = 0) {
+      if (depth > 2) return [];
+      try {
+        const entries = await readdir(dir, { withFileTypes: true });
+        let files = [];
+        for (const entry of entries) {
+          if (entry.name === "node_modules" || entry.name === ".git" || entry.name === ".agents" || entry.name === ".cursor" || entry.name === ".superpowers" || entry.name === "dist" || entry.name === "build") continue;
+          const fullPath = resolve(dir, entry.name);
+          const relPath = relative(baseDir, fullPath).replace(/\\/g, "/");
+          if (entry.isDirectory()) {
+            const subFiles = await listFilesUnderDir(fullPath, baseDir, depth + 1);
+            files.push(...subFiles);
+          } else {
+            const ext = extname(entry.name).toLowerCase();
+            const textExtensions = [".md", ".txt", ".json", ".js", ".ts", ".py", ".sh", ".yaml", ".yml", ".jsonc", ".html", ".css"];
+            if (textExtensions.includes(ext) || entry.name === "SKILL.md") {
+              const stats = await stat(fullPath).catch(() => null);
+              files.push({
+                name: entry.name,
+                path: relPath,
+                size: stats ? stats.size : 0
+              });
+            }
+          }
+        }
+        return files.sort((a, b) => a.path.localeCompare(b.path));
+      } catch (e) {
+        return [];
+      }
+    }
+
     if (req.method === "GET" && path === "/api/content") {
       // 선택한 자산의 원본 파일 전체 내용을 반환(상세보기/더보기 GitBook 팝업용).
       // index.json 은 가볍게 유지하고, 본문은 디스크에서 그때그때 읽어 항상 최신.
@@ -578,20 +654,61 @@ const server = createServer(async (req, res) => {
       const id = url.searchParams.get("id");
       const item = idx.items.find((i) => i.id === id);
       if (!item) return json(res, 404, { ok: false, error: "item 없음" });
+
+      const rel = url.searchParams.get("rel"); // 예: "references/SKILL.md", "scripts/setup.sh" 등
+
       // MCP 는 실제 본문 파일이 없는 경우가 많음 → 정의(JSON)를 본문처럼 표시.
       let content = "";
+      let resolvedPath = null;
+
       if (item.kind === "mcp") {
         const def = item.meta?.def || item.source?.path || "";
         content = `# ${item.name}\n\n\`\`\`json\n${JSON.stringify(item.meta || {}, null, 2)}\n\`\`\``;
       } else {
         const file = resolveItemPath(item, loadRoots());
         if (!file) return json(res, 404, { ok: false, error: "원본 파일을 찾을 수 없습니다.", path: item.source?.path || null });
-        content = await readFile(file, "utf8").catch(() => null);
+        
+        let targetFile = file;
+        if (rel) {
+          const itemDir = dirname(file);
+          const target = resolve(itemDir, rel);
+          
+          // 경로 탈출 공격(Directory Traversal) 방지 검증
+          const itemDirNormalized = resolve(itemDir);
+          const targetNormalized = resolve(target);
+          if (!targetNormalized.startsWith(itemDirNormalized)) {
+            return json(res, 403, { ok: false, error: "접근 권한이 없거나 비정상적인 경로입니다." });
+          }
+          targetFile = targetNormalized;
+        }
+
+        content = await readFile(targetFile, "utf8").catch(() => null);
         if (content == null) return json(res, 500, { ok: false, error: "파일 읽기 실패" });
+        resolvedPath = relative(root, targetFile).replace(/\\/g, "/");
       }
+
+      // 같은 디렉토리 내의 파일 목록 로드 (mcp가 아닌 경우)
+      let files = [];
+      if (item.kind !== "mcp") {
+        const file = resolveItemPath(item, loadRoots());
+        if (file) {
+          const itemDir = dirname(file);
+          files = await listFilesUnderDir(itemDir).catch(() => []);
+        }
+      }
+
       const tr = await loadTranslations();
       const contentKo = tr[id]?.contentKo || null;
-      return json(res, 200, { ok: true, id, name: item.name, kind: item.kind, content, contentKo, path: item.source?.path || null });
+      return json(res, 200, {
+        ok: true,
+        id,
+        name: item.name,
+        kind: item.kind,
+        content,
+        contentKo,
+        path: resolvedPath || item.source?.path || null,
+        files
+      });
     }
     if (req.method === "GET" && path === "/api/chrome/health") {
       try {
@@ -952,19 +1069,29 @@ const server = createServer(async (req, res) => {
 
       const outDir = join(mediaDir, "generated");
       const requestedEngine = (b.imageEngine || "auto").toLowerCase();
-      let useImageFarm = requestedEngine === "image-farm";
+      let useImageFarm = false;
 
-      if (requestedEngine === "auto" || requestedEngine === "chatgpt" || requestedEngine === "grok") {
+      if (requestedEngine === "image-farm" || requestedEngine === "auto") {
+        // 첫 생성 요청이면 벤더된 image-farm 서버(:4180)+디버그 Chrome 을 자동 기동.
+        // 이미 떠 있으면 즉시 재사용. (src/imagefarm.mjs)
+        const ready = await ensureImageFarm();
+        if (ready.ok) {
+          useImageFarm = true;
+        } else if (requestedEngine === "image-farm") {
+          // image-farm 을 명시적으로 골랐는데 기동 실패 → 원인을 그대로 알려준다(폴백 안 함).
+          return json(res, 503, { ok: false, engine: "image-farm", code: ready.code, error: ready.message });
+        }
+        // auto + 기동 실패 → 아래 web-image-forge(브라우저) 폴백으로 진행
+      } else if (requestedEngine === "chatgpt" || requestedEngine === "grok") {
+        // 명시적 브라우저 경로 — 자동 기동은 안 하되, 이미 떠 있는 farm 이 있으면 재사용.
         try {
           const controller = new AbortController();
           const tId = setTimeout(() => controller.abort(), 600);
           const farmCheck = await fetch("http://127.0.0.1:4180/api/health", { signal: controller.signal });
-          if (farmCheck.ok) {
-            useImageFarm = true;
-          }
+          if (farmCheck.ok) useImageFarm = true;
           clearTimeout(tId);
-        } catch (e) {
-          // ignore
+        } catch {
+          // farm 미가동 — 무시하고 브라우저 경로로
         }
       }
 
@@ -1077,6 +1204,147 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && path === "/api/rescan") {
       const ok = await runScan();
       return ok ? json(res, 200, { ok: true, total: INDEX.total }) : json(res, 500, { ok: false, error: "scan 실패" });
+    }
+
+    // --- Vault API (Phase E1) — 가져오기(복사)·상태점검(읽기전용). 실데이터 링크/이동 없음. ---
+    if (req.method === "GET" && path === "/api/vault/status") {
+      // 현재 인덱스의 skill/agent에 대해 vault/링크/분기 상태를 읽기 전용으로 계산.
+      const idx = INDEX || (await loadIndex());
+      const result = await vault.status(idx.items);
+      return json(res, 200, { ok: true, vaultRoot: vault.defaultVaultRoot, ...result });
+    }
+
+    if (req.method === "POST" && path === "/api/vault/import") {
+      // E1 가져오기: 원본을 vault로 무손실 복사. { ids?, all?, dryRun? }.
+      // 안전: 복사만 한다(원본·~/.claude 미변경). dryRun이면 복사 없이 계획만 반환.
+      let b;
+      try { b = await body(req); }
+      catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      const idx = INDEX || (await loadIndex());
+      const dryRun = !!b.dryRun;
+      let targets;
+      if (Array.isArray(b.ids) && b.ids.length) {
+        const idSet = new Set(b.ids);
+        targets = idx.items.filter((i) => idSet.has(i.id));
+        if (!targets.length) return json(res, 404, { ok: false, error: "해당 id의 항목을 찾을 수 없습니다." });
+      } else if (b.all) {
+        targets = idx.items; // importAll 내부에서 skill/agent만 추린다
+      } else {
+        return json(res, 400, { ok: false, error: "ids 배열 또는 all:true 가 필요합니다." });
+      }
+      let result;
+      try { result = await vault.importAll(targets, { dryRun }); }
+      catch (e) { return json(res, 500, { ok: false, error: "가져오기 실패: " + e.message }); }
+      // 실제 복사면 vault.json에 결과를 영속(원자적). dry-run이면 기록하지 않는다.
+      if (!dryRun && result.results) {
+        try {
+          const st = await vault.loadVaultState();
+          const at = Date.now();
+          for (const r of result.results) {
+            // E3: liveName(상주 원래 이름)·kind를 함께 기록 — scan 루트가 vault로 전환된 뒤에도
+            // 활성화가 같은-자리 경로(~/.claude/skills/<liveName>)를 찾을 수 있게 한다.
+            // snapshot: 가져온 뒤 꺼도(absent) 카탈로그에 되살릴 수 있게 카탈로그 스냅샷 보관.
+            if (r.ok) st.items[r.id] = { ...(st.items[r.id] || {}), inVault: true, vaultPath: r.vaultPath, liveName: r.liveName ?? null, kind: r.kind ?? null, snapshot: vaultSnapshot(idx.items.find((i) => i.id === r.id) || { id: r.id }), importedAt: at };
+          }
+          await vault.saveVaultState(st);
+        } catch { /* 상태 파일 기록 실패는 가져오기 성공을 뒤집지 않음 */ }
+      }
+      return json(res, 200, { ok: true, vaultRoot: vault.defaultVaultRoot, ...result });
+    }
+
+    if (req.method === "POST" && path === "/api/vault/activate") {
+      // E3 링크 on/off: { id, on, dryRun }. liveName/vaultPath를 vault.json에서 읽어 같은-자리 토글.
+      // onResident:'vault' — 상주 끄기는 백업이 아니라 vault로 무손실 MOVE(lazy import). 이 분기만 비동기라 await 필수.
+      let b;
+      try { b = await body(req); } catch { return json(res, 400, { ok:false, error:"요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      const idx = INDEX || (await loadIndex());
+      const item = idx.items.find((i) => i.id === b.id);
+      if (!item) return json(res, 404, { ok:false, error:"해당 id의 항목을 찾을 수 없습니다." });
+      if (item.kind !== "skill" && item.kind !== "agent") return json(res, 400, { ok:false, error:"skill/agent만 링크 on/off 대상입니다." });
+      const on = b.on !== false;
+      const dryRun = !!b.dryRun;
+      let liveName = null, recordedVaultPath = null;
+      // liveName: 관리 항목은 vault.json에서, 미관리 상주(예: gstack/browse)는 originalLiveName으로 유도 — 같은-자리 토글.
+      try { const st = await vault.loadVaultState(); liveName = st.items?.[item.id]?.liveName || vault.originalLiveName(item) || null; recordedVaultPath = st.items?.[item.id]?.vaultPath || null; } catch { liveName = vault.originalLiveName(item) || null; }
+      let result;
+      try {
+        result = await vault.setActive(item, on, { dryRun, vaultPath: recordedVaultPath, liveName, onResident: "vault" });
+      } catch (e) { return json(res, 500, { ok:false, error:"링크 작업 실패: " + e.message }); }
+      if (!dryRun && result.ok) {
+        try {
+          const st = await vault.loadVaultState();
+          let stateKey = item.id;
+          const cur = st.items[item.id] || {};
+          const next = { ...cur, snapshot: vaultSnapshot(item), liveName: liveName || cur.liveName || null, kind: item.kind };
+          if (on) { next.claudeState = "link"; next.activatedAt = Date.now(); }
+          else {
+            next.claudeState = "absent"; next.deactivatedAt = Date.now();
+            if (result.moved?.vaultPath) {
+              next.inVault = true; next.vaultPath = result.moved.vaultPath; // lazy move 완료
+              // 이동된 상주는 다음 스캔에서 vault-구조 id(<leaf>/<leaf>/SKILL.md)로 등장 → 그 id로 재키(미스매치 방지).
+              const leaf = result.moved.vaultPath.split(/[\\/]/).filter(Boolean).pop();
+              const newKey = `${leaf}/${leaf}/SKILL.md`;
+              if (newKey !== item.id) { delete st.items[item.id]; stateKey = newKey; next.prevId = item.id; }
+            }
+          }
+          st.items[stateKey] = next;
+          await vault.saveVaultState(st);
+        } catch { /* 상태 기록 실패는 작업 성공을 뒤집지 않음 */ }
+      }
+      return json(res, result.ok ? 200 : 500, { ok: result.ok, vaultRoot: vault.defaultVaultRoot, ...result });
+    }
+
+    if (req.method === "POST" && path === "/api/vault/resolve") {
+      // 분기 해소: { id, choice:'pull'|'push', dryRun }. pull=live→vault 채택, push=vault→live 재링크.
+      let b;
+      try { b = await body(req); } catch { return json(res, 400, { ok:false, error:"요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      if (b.choice !== "pull" && b.choice !== "push") return json(res, 400, { ok:false, error:"choice는 'pull' 또는 'push'여야 합니다." });
+      const idx = INDEX || (await loadIndex());
+      const item = idx.items.find((i) => i.id === b.id);
+      if (!item) return json(res, 404, { ok:false, error:"해당 id의 항목을 찾을 수 없습니다." });
+      if (item.kind !== "skill" && item.kind !== "agent") return json(res, 400, { ok:false, error:"skill/agent만 분기 해소 대상입니다." });
+      const dryRun = !!b.dryRun;
+      let liveName = null, recordedVaultPath = null;
+      try { const st = await vault.loadVaultState(); liveName = st.items?.[item.id]?.liveName || vault.originalLiveName(item) || null; recordedVaultPath = st.items?.[item.id]?.vaultPath || null; } catch { liveName = vault.originalLiveName(item) || null; }
+      let result;
+      try { result = await vault.resolveDivergence(item, b.choice, { dryRun, liveName, vaultPath: recordedVaultPath }); }
+      catch (e) { return json(res, 500, { ok:false, error:"분기 해소 실패: " + e.message }); }
+      return json(res, result.ok ? 200 : 500, { ok: result.ok, choice: b.choice, vaultRoot: vault.defaultVaultRoot, ...result });
+    }
+
+    if (req.method === "POST" && path === "/api/vault/cutover") {
+      // E3 상주→링크 전환. 안전 기본값: dryRun. 실제 변형은 { dryRun:false, confirm:true } 둘 다 명시해야 한다.
+      // confirm 없이는 절대 실데이터를 변형하지 않는다(읽기 전용 계획만 반환). 자동 실행 금지.
+      let b;
+      try { b = await body(req); }
+      catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
+      const idx = INDEX || (await loadIndex());
+      // 대상: ids 배열 지정 시 그 항목만, 아니면 전체(내부에서 skill/agent만 추림).
+      let targets = idx.items;
+      if (Array.isArray(b.ids) && b.ids.length) {
+        const idSet = new Set(b.ids);
+        targets = idx.items.filter((i) => idSet.has(i.id));
+        if (!targets.length) return json(res, 404, { ok: false, error: "해당 id의 항목을 찾을 수 없습니다." });
+      }
+      // 이중 안전 게이트: confirm:true가 아니면 무조건 dryRun으로 강등(실데이터 무변형).
+      const realRun = b.dryRun === false && b.confirm === true;
+      const dryRun = !realRun;
+      let result;
+      try {
+        result = await vault.cutover(targets, { dryRun, includeOversized: b.includeOversized === true });
+      } catch (e) { return json(res, 500, { ok: false, error: "cutover 실패: " + e.message }); }
+      // 실제 실행 성공분만 vault.json에 claudeState='link'로 기록(베스트-에포트).
+      if (realRun && Array.isArray(result.results)) {
+        try {
+          const st = await vault.loadVaultState();
+          const at = Date.now();
+          for (const r of result.results) {
+            if (r.ok) st.items[r.id] = { ...(st.items[r.id] || {}), claudeState: "link", liveName: r.liveName ?? st.items[r.id]?.liveName ?? null, liveDest: r.dest, activatedAt: at };
+          }
+          await vault.saveVaultState(st);
+        } catch { /* 상태 기록 실패는 작업 성공을 뒤집지 않음 */ }
+      }
+      return json(res, 200, { ok: true, dryRun, vaultRoot: vault.defaultVaultRoot, ...result });
     }
 
     if (req.method === "POST" && path === "/api/drop") {

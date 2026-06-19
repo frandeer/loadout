@@ -37,10 +37,16 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
 
   const toggleEquip = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (busy || item.installed || !equippable) return;
+    // vault 토글 가능 = 관리 자산이거나 ~/.claude 상주(끄면 vault로 lazy 이동).
+    const vaultToggleable = item.managed || item.claudeState === "resident";
+    if (busy || !equippable) return;
+    if (item.installed && !vaultToggleable) return; // 상주(vault 토글 가능)는 허용
+    if (item.oversized && item.equipped && !window.confirm(`${item.displayName}는 거대 자산입니다. 끄면 vault로 이동(보관)됩니다. 진행할까요?`)) return;
     setBusy(true);
     try {
-      if (item.equipped) await api.unequip(item.id);
+      // vault 관리/상주 자산은 on/off 토글로 장착/해제한다.
+      if (vaultToggleable) await api.activateVault(item.id, !item.equipped);
+      else if (item.equipped) await api.unequip(item.id);
       else await api.equip(item.id);
       await reloadData();
     } catch {}
@@ -124,7 +130,7 @@ export const Card = memo(function Card({ item, index = 0, needKeys }: CardProps)
 
       {/* 타입 + 점수 */}
       <div className="mb-2 flex items-center gap-2">
-        <span className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted">
+        <span className="shrink-0 whitespace-nowrap rounded-md bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted">
           {item.kind === "memory" ? "기억" : item.kind}
         </span>
         {item.kind === "memory" ? (

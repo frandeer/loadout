@@ -707,7 +707,7 @@ async function walkMemory(dir, scope, memRoot) {
   for (const e of entries) {
     if (memoryScanned >= MEMORY_FILE_CAP) return;
     const full = join(dir, e.name);
-    if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
+    if (e.isFile() && e.name.toLowerCase() === "memory.md") {
       memoryScanned++;
       await handleMemory(full, scope, memRoot);
     } else if (e.isDirectory() && !e.name.startsWith(".")) {

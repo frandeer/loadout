@@ -1,12 +1,21 @@
 # clone된 원본 repo — Loadout이 소유하지만 버전관리 대상 아님
 sources/
 
+# Vault — ~/.claude에서 가져온(복사한) 스킬/에이전트 원본 보관소(무손실). 버전관리 대상 아님.
+vault/
+
 # 스캔으로 생성되는 인덱스/캐시
 data/
 !data/.gitkeep
 
+# Vault 상태 파일(data/ 아래라 이미 무시되지만 명시) — 가져오기/링크/분기 상태
+data/vault.json
+
 # 생성된 카드 아트/다이어그램
 media/generated/
+
+# 벤더된 image-farm 의 standalone 출력 디렉토리(평소엔 media/generated 로 저장됨)
+vendor/image-farm/generated/
 
 # node
 node_modules/

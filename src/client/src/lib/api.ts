@@ -35,6 +35,35 @@ export const api = {
       body: JSON.stringify({ id, equip: false }),
     }),
 
+  // ── vault 토글(장착/해제) — on:true 켜기, on:false 끄기(보관). 거대 자산은 끄면 vault로 이동.
+  activateVault: (id: string, on: boolean, dryRun = false) =>
+    request<{
+      ok: boolean; id: string; kind: string; name: string; on: boolean; dryRun: boolean;
+      dest?: string; vaultSrc?: string; claudeState?: "link" | "resident" | "absent";
+      moved?: boolean; verify?: unknown; backedUp?: boolean; error?: string;
+    }>("/vault/activate", {
+      method: "POST",
+      body: JSON.stringify({ id, on, dryRun }),
+    }),
+
+  // vault 전수 상태 — 인벤토리 동기화 점검용.
+  vaultStatus: () =>
+    request<{
+      ok: boolean; vaultRoot: string; summary: unknown;
+      items: Array<{
+        id: string; kind: string; name: string; inVault: boolean;
+        vaultPath?: string; livePath?: string;
+        claudeState?: "link" | "resident" | "absent"; divergent?: boolean; oversized?: boolean;
+      }>;
+    }>("/vault/status"),
+
+  // 분기 해소 — pull(vault→라이브) / push(라이브→vault).
+  resolveDivergence: (id: string, choice: "pull" | "push", dryRun = false) =>
+    request<{ ok: boolean; id: string; choice: "pull" | "push"; action?: string; error?: string }>(
+      "/vault/resolve",
+      { method: "POST", body: JSON.stringify({ id, choice, dryRun }) },
+    ),
+
   // 사용량 재집계 — 세션 로그를 다시 스캔해 uses 갱신.
   refreshUsage: () =>
     request<{ ok: boolean; total: number }>("/usage/refresh", { method: "POST" }),
@@ -42,8 +71,10 @@ export const api = {
   rescan: () =>
     request<{ ok: boolean }>("/rescan", { method: "POST" }),
 
-  getContent: (id: string) =>
-    request<{ content: string; contentKo?: string; path?: string }>(`/content?id=${encodeURIComponent(id)}`),
+  getContent: (id: string, rel?: string) =>
+    request<{ content: string; contentKo?: string; path?: string; files?: Array<{ name: string; path: string; size: number }> }>(
+      `/content?id=${encodeURIComponent(id)}${rel ? `&rel=${encodeURIComponent(rel)}` : ""}`
+    ),
 
   translateContent: (id: string, engine?: string) =>
     request<{ ok: boolean; id: string; contentKo: string; error?: string }>("/translate-content", {
@@ -59,11 +90,19 @@ export const api = {
     ),
 
   // 카드 아트 생성 — 서버는 {prompt, imageEngine, itemId} 를 기대.
-  generate: (prompt: string, opts?: { itemId?: string; imageEngine?: string; expectedCount?: number }) =>
-    request<{ ok: boolean; engine: string; images: Array<{ url: string }>; error?: string }>("/generate", {
+  // 503(image-farm 미가동/로그인 필요)도 본문의 error/code 를 살려야 UI 가 사유를
+  // 보여줄 수 있으므로, throw 하는 request 대신 직접 fetch 해서 JSON 본문을 항상 반환한다.
+  generate: async (
+    prompt: string,
+    opts?: { itemId?: string; imageEngine?: string; expectedCount?: number },
+  ): Promise<{ ok: boolean; engine?: string; images?: Array<{ url: string }>; error?: string; code?: string }> => {
+    const res = await fetch(`${BASE}/generate`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, ...opts }),
-    }),
+    });
+    return res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+  },
 
   // AI 채점 — 서버는 단건 {id, engine}.
   verify: (id: string, engine?: string) =>

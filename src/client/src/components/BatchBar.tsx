@@ -14,7 +14,6 @@ export function BatchBar() {
   const [generating, setGenerating] = useState(false);
   const [current, setCurrent] = useState(0);
   const [total, setTotal] = useState(0);
-  const [currentItemName, setCurrentItemName] = useState("");
   const [engine, setEngine] = useState<"auto" | "image-farm" | "chatgpt" | "grok">("auto");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -37,13 +36,16 @@ export function BatchBar() {
 
     let okCount = 0;
     let failCount = 0;
+    let lastError = "";
+    let done = 0;
+    setCurrent(0);
 
-    for (let i = 0; i < pickedItems.length; i++) {
-      const it = pickedItems[i];
-      setCurrent(i + 1);
+    // farm 탭 풀 크기(POOL_SIZE)에 맞춘 동시 실행 수. 더 올려도 farm 이 FIFO 로
+    // 큐잉하므로 안전하지만, 열린 연결/타임아웃을 줄이려 3으로 둔다.
+    const CONCURRENCY = 3;
+
+    const runOne = async (it: (typeof pickedItems)[number]) => {
       const displayName = lang === "ko" && it.nameKo ? it.nameKo : it.displayName || it.name;
-      setCurrentItemName(displayName);
-
       try {
         const prompt = promptFor("card", it, lang);
         const res = await api.generate(prompt, {
@@ -51,22 +53,41 @@ export function BatchBar() {
           imageEngine: engine,
           expectedCount: 1,
         });
-
         if (res.ok && res.images?.length) {
           okCount++;
         } else {
           failCount++;
+          lastError = res.error || "알 수 없는 오류";
           console.error(`Failed to generate for ${displayName}:`, res.error);
         }
       } catch (err: any) {
         failCount++;
+        lastError = err?.message || "요청 실패 — 서버 상태를 확인하세요";
         console.error(`Error generating for ${displayName}:`, err);
+      } finally {
+        done++;
+        setCurrent(done);
       }
-    }
+    };
+
+    // 공유 큐에서 하나씩 꺼내 처리하는 워커 N개 → 동시에 최대 CONCURRENCY 개 생성.
+    const queue = [...pickedItems];
+    const worker = async () => {
+      for (let it = queue.shift(); it; it = queue.shift()) {
+        await runOne(it);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, pickedItems.length) }, () => worker()),
+    );
 
     setGenerating(false);
     await reloadData();
-    setStatusMsg(`✅ 완료 (성공: ${okCount}, 실패: ${failCount})`);
+    const icon = failCount === 0 ? "✅" : okCount === 0 ? "❌" : "⚠️";
+    setStatusMsg(
+      `${icon} 완료 (성공: ${okCount}, 실패: ${failCount})` +
+        (failCount > 0 && lastError ? ` — ${lastError}` : ""),
+    );
   };
 
   return (
@@ -96,7 +117,7 @@ export function BatchBar() {
           <div className="flex items-center gap-2 text-xs font-semibold text-primary">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             <span>
-              생성 중 ({current}/{total}): <span className="text-body font-normal">{currentItemName}</span>
+              생성 중 (완료 {current}/{total} · 동시 최대 3)
             </span>
           </div>
         ) : (

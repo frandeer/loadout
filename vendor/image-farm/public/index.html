@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChatGPT Image Farm</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        background: #0b0d10; color: #e6e9ee; padding: 24px;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: #8a93a0; margin: 0 0 20px; }
+      .grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; max-width: 1100px; }
+      @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+      .card { background: #14181d; border: 1px solid #232a32; border-radius: 12px; padding: 16px; }
+      .card h2 { font-size: 14px; margin: 0 0 12px; color: #b9c2cf; text-transform: uppercase; letter-spacing: .04em; }
+      label { display: block; font-size: 12px; color: #8a93a0; margin: 10px 0 4px; }
+      input, textarea {
+        width: 100%; background: #0b0d10; border: 1px solid #2b333c; color: #e6e9ee;
+        border-radius: 8px; padding: 8px 10px; font: inherit;
+      }
+      textarea { min-height: 70px; resize: vertical; }
+      button {
+        margin-top: 12px; background: #2f6df6; border: 0; color: #fff; font-weight: 600;
+        padding: 9px 14px; border-radius: 8px; cursor: pointer;
+      }
+      button:disabled { opacity: .5; cursor: default; }
+      button.alt { background: #2b333c; }
+      .row { display: flex; gap: 10px; }
+      .row > * { flex: 1; }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+      .ok { background: #143; color: #6f6; } .bad { background: #411; color: #f88; }
+      pre { background: #0b0d10; border: 1px solid #232a32; border-radius: 8px; padding: 10px; overflow: auto; max-height: 240px; font-size: 12px; }
+      .imgs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .imgs img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #2b333c; }
+      .imgs a { font-size: 11px; color: #8ab4ff; word-break: break-all; }
+      code { background: #0b0d10; padding: 1px 5px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>ChatGPT Image Farm</h1>
+    <p class="sub">Prompt in → ChatGPT web generates → image file out. Parallel via a pool of Chrome tabs.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Status</h2>
+        <div id="status">checking…</div>
+        <button class="alt" id="refresh">Refresh</button>
+        <p class="sub" style="margin-top:12px">
+          Not ready? Run <code>launch-chrome.ps1</code>, sign in to ChatGPT, then refresh.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Single generate</h2>
+        <label>Prompt</label>
+        <textarea id="prompt">A minimalist isometric illustration of a friendly robot watering a plant, flat pastel colors</textarea>
+        <div class="row">
+          <div><label>Count (1–8)</label><input id="count" type="number" min="1" max="8" value="1" /></div>
+          <div><label>outDir (absolute path, optional)</label><input id="outDir" placeholder="./generated" /></div>
+        </div>
+        <button id="go">Generate</button>
+        <div id="single-out"></div>
+      </div>
+
+      <div class="card" style="grid-column: 1 / -1">
+        <h2>Parallel batch</h2>
+        <p class="sub">One prompt per line. They run concurrently, capped by pool size.</p>
+        <textarea id="batch" style="min-height:90px">a red apple on a white table, studio photo
+a blue ceramic mug, product shot
+a yellow rubber duck, isometric 3d render</textarea>
+        <div class="row" style="max-width:420px">
+          <div><label>Count each</label><input id="batchCount" type="number" min="1" max="8" value="1" /></div>
+          <div><label>outDir (optional)</label><input id="batchOut" placeholder="./generated" /></div>
+        </div>
+        <button id="goBatch">Run batch in parallel</button>
+        <div id="batch-out"></div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      async function refreshStatus() {
+        try {
+          const r = await fetch("/api/health");
+          const j = await r.json();
+          const p = j.pool || {};
+          const cls = j.chrome && p.ready ? "ok" : "bad";
+          $("status").innerHTML =
+            `<span class="pill ${cls}">${j.chrome && p.ready ? "ready" : "not ready"}</span>` +
+            ` &nbsp; tabs: <b>${p.slots ?? 0}</b> · busy: <b>${p.busy ?? 0}</b> · free: <b>${p.free ?? 0}</b> · queued: <b>${p.queued ?? 0}</b>`;
+        } catch (e) {
+          $("status").innerHTML = `<span class="pill bad">server unreachable</span>`;
+        }
+      }
+
+      function renderResult(el, data) {
+        const wrap = document.createElement("div");
+        if (data.ok) {
+          wrap.innerHTML = `<p><span class="pill ok">ok</span> tab #${data.tab} · ${data.count} image(s)${data.partial ? " (partial)" : ""}</p>`;
+          const imgs = document.createElement("div");
+          imgs.className = "imgs";
+          for (const im of data.images) {
+            const a = document.createElement("a");
+            a.href = "/generated/" + im.filename;
+            a.target = "_blank";
+            const img = document.createElement("img");
+            img.src = "/generated/" + im.filename;
+            img.title = im.fullPath;
+            a.appendChild(img);
+            const cap = document.createElement("div");
+            cap.appendChild(document.createTextNode(im.fullPath));
+            const cell = document.createElement("div");
+            cell.appendChild(a); cell.appendChild(cap);
+            imgs.appendChild(cell);
+          }
+          wrap.appendChild(imgs);
+        } else {
+          wrap.innerHTML = `<p><span class="pill bad">failed</span> ${data.error || ""} <code>${data.code || ""}</code></p>`;
+        }
+        if (data.log && data.log.length) {
+          const pre = document.createElement("pre");
+          pre.textContent = data.log.join("\n");
+          wrap.appendChild(pre);
+        }
+        el.innerHTML = "";
+        el.appendChild(wrap);
+      }
+
+      $("refresh").onclick = refreshStatus;
+
+      $("go").onclick = async () => {
+        $("go").disabled = true;
+        $("single-out").innerHTML = "<p class='sub'>generating… (can take 30–120s)</p>";
+        try {
+          const r = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              prompt: $("prompt").value,
+              count: Number($("count").value) || 1,
+              outDir: $("outDir").value.trim() || undefined,
+            }),
+          });
+          renderResult($("single-out"), await r.json());
+        } catch (e) {
+          $("single-out").innerHTML = `<p><span class="pill bad">error</span> ${e.message}</p>`;
+        } finally {
+          $("go").disabled = false;
+          refreshStatus();
+        }
+      };
+
+      $("goBatch").onclick = async () => {
+        const prompts = $("batch").value.split("\n").map((s) => s.trim()).filter(Boolean);
+        if (!prompts.length) return;
+        $("goBatch").disabled = true;
+        $("batch-out").innerHTML = `<p class='sub'>running ${prompts.length} jobs in parallel…</p>`;
+        const count = Number($("batchCount").value) || 1;
+        const outDir = $("batchOut").value.trim() || undefined;
+        try {
+          const r = await fetch("/api/batch", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ jobs: prompts.map((prompt) => ({ prompt, count, outDir })) }),
+          });
+          const j = await r.json();
+          $("batch-out").innerHTML = `<p>${j.okCount}/${j.total} ok</p>`;
+          for (const res of j.results || []) {
+            const div = document.createElement("div");
+            renderResult(div, res);
+            $("batch-out").appendChild(div);
+          }
+        } catch (e) {
+          $("batch-out").innerHTML = `<p><span class="pill bad">error</span> ${e.message}</p>`;
+        } finally {
+          $("goBatch").disabled = false;
+          refreshStatus();
+        }
+      };
+
+      refreshStatus();
+      setInterval(refreshStatus, 5000);
+    </script>
+  </body>
+</html>

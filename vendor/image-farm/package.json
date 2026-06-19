@@ -1,0 +1,8 @@
+{
+  "name": "loadout-vendor-image-farm",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Vendored copy of chatgpt-image-farm (HTTP :4180, ChatGPT-web image generation over CDP). Loadout auto-starts this on first generate. Upstream: D:/lab/side-project/chatgpt-image-farm. Only runtime dep is chrome-remote-interface, resolved from loadout/node_modules (do NOT npm install here).",
+  "main": "server.js"
+}
