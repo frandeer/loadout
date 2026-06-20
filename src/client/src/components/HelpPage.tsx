@@ -227,6 +227,7 @@ export function HelpPage() {
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
                     <li>전체 카탈로그의 현황을 한눈에 파악할 수 있는 관제 화면입니다.</li>
                     <li>종류별(Skill/Agent/MCP) 자산 분포, 등급 비율, 최근 활동 등 핵심 지표를 대시보드로 제공합니다.</li>
+                    <li><strong>로드아웃 장착</strong>(의도적으로 켠 것)과 <strong>설치 베이스</strong>(그냥 설치돼 있는 것)를 별도 KPI로 정직하게 분리해, "내가 켠 것 vs 깔려 있는 것"을 한눈에 보여줍니다.</li>
                     <li>주요 그룹·태그를 클릭하면 자산 탭으로 이동해 바로 필터링된 카탈로그를 확인할 수 있습니다.</li>
                   </ul>
                 </div>
@@ -266,6 +267,7 @@ export function HelpPage() {
                   </div>
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
                     <li>현재 장착(Equip)되어 Claude Code 내에서 활성화된 스킬/에이전트 목록을 관리합니다.</li>
+                    <li><strong>활성(로드아웃 장착)</strong>과 <strong>설치 베이스(앰비언트)</strong>를 구분합니다 — Loadout 으로 의도적으로 장착(링크)한 것만 '활성'이고, 플러그인·직접 설치로 ~/.claude 에 이미 있는 자산은 <strong>'설치 베이스'</strong>로 별도 접이식 섹션에 표시됩니다(컨텍스트엔 로드되지만 의도적 장착은 아님).</li>
                     <li>거대 자산은 <strong>Vault 상주(→볼트)</strong> 기능으로 비활성화하여 디스크 공간을 절약합니다.</li>
                     <li>파일 변경 시 볼트와의 <strong>분기(Divergence)</strong>를 추적하고 Push/Pull로 동기화합니다.</li>
                     <li>불필요한 자산은 안전하게 휴지통으로 이동해 삭제할 수 있습니다.</li>

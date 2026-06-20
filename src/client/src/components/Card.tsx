@@ -42,11 +42,14 @@ export const Card = memo(function Card({ item, index = 0 }: CardProps) {
   const traits = traitsOf(item);
   const equippable = isEquippable(item.kind);
 
-  // vault 토글 가능 = 관리 자산이거나 ~/.claude 상주(끄면 vault로 lazy 이동).
-  const vaultToggleable = item.managed || item.claudeState === "resident";
-  // 상주로 잡히지만 토글 불가(cc-config 등 레거시) → 읽기 전용 "고정" 상태.
+  // 앰비언트(설치 베이스) = 플러그인·직접 설치로 ~/.claude 에 있으나 Loadout 으로 의도적 장착 아님.
+  //   그리드 카드에선 읽기 전용으로 둔다 — 장착/이동은 '장착·보관'(Inventory)의 확인 흐름에서만(풋건 방지).
+  const ambient = !!item.ambient;
+  // vault 토글 가능 = 관리 자산이거나 ~/.claude 상주(끄면 vault로 lazy 이동). 앰비언트는 제외(카드에선 토글 안 함).
+  const vaultToggleable = (item.managed || item.claudeState === "resident") && !ambient;
+  // 상주로 잡히지만 토글 불가(cc-config 등 레거시)·앰비언트 → 읽기 전용 "고정/설치 베이스" 상태.
   // installed 자체는 카탈로그 대부분이 ~/.claude 하위라 "상주"로 라벨하지 않는다(정직 모델).
-  const lockedInstalled = !!item.installed && !vaultToggleable;
+  const lockedInstalled = ambient || (!!item.installed && !vaultToggleable);
 
   const toggleEquip = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -246,9 +249,11 @@ export const Card = memo(function Card({ item, index = 0 }: CardProps) {
         ) : lockedInstalled ? (
           <span
             className="flex-1 rounded-lg bg-surface-soft px-2 py-1.5 text-center text-[11px] font-medium text-muted"
-            title="이미 ~/.claude 에 설치돼 있어 토글할 수 없습니다(읽기 전용)"
+            title={ambient
+              ? "플러그인·직접 설치로 ~/.claude 에 있는 자산(설치 베이스) — 관리는 '장착·보관'에서"
+              : "이미 ~/.claude 에 설치돼 있어 토글할 수 없습니다(읽기 전용)"}
           >
-            고정 (설치됨)
+            {ambient ? "설치 베이스" : "고정 (설치됨)"}
           </span>
         ) : item.equipped ? (
           <button

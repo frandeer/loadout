@@ -137,16 +137,20 @@ function GraphCanvas() {
       ? anchorIds
       : [...pool].sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 12).map((i) => i.id);
     const ego = egoFilter(pool, seeds, 1, opts, edges);
-    // EGO 상한 — 특성 엣지가 조밀해 이웃이 폭증할 수 있다. 시드는 항상 유지하고,
-    //   나머지 이웃은 점수순으로 잘라 헤어볼을 방지(가독성 우선).
+    // EGO 상한 — 특성 엣지가 조밀해 이웃이 폭증할 수 있다(가독성 우선). 시드(앵커)가 캡보다 많을 때
+    //   (예: 설치 베이스가 상주 앵커로 대량 잡힘) Math.max(CAP, kept)로 두면 캡이 무력화돼 ~180개를 다 그린다.
+    //   → 시드도 점수순으로 잘라 실제 상한을 지킨다.
     const EGO_CAP = 80;
     if (ego.length <= EGO_CAP) return ego;
     const seedSet = new Set(seeds);
-    const kept = ego.filter((i) => seedSet.has(i.id));
+    const keptSeeds = ego
+      .filter((i) => seedSet.has(i.id))
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
+    if (keptSeeds.length >= EGO_CAP) return keptSeeds.slice(0, EGO_CAP);
     const rest = ego
       .filter((i) => !seedSet.has(i.id))
       .sort((a, b) => (b.score || 0) - (a.score || 0));
-    return [...kept, ...rest].slice(0, Math.max(EGO_CAP, kept.length));
+    return [...keptSeeds, ...rest].slice(0, EGO_CAP);
   }, [prefiltered, kindFiltered, items, scope, showName, showTrait, focusId]);
 
   // ── 그래프 빌드(노드/엣지) — items/필터/스코프/관계토글 변화 시에만 재계산 ──

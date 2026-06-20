@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { Item } from "../types";
 import { RARITY_CONFIG, KIND_LABELS } from "../types";
 import { iconFor } from "../lib/utils";
+import { useStore } from "../hooks/useStore";
 import { Icon } from "./Icon";
 
 export type AssetNode = Node<{ item: Item }, "asset">;
@@ -19,6 +20,8 @@ function nodeIcon(item: Item): string {
  *  카탈로그 대부분이 해당돼 의미가 없고, Inventory "상주" 섹션과도 어긋난다(범례와 동기). */
 function stateDot(item: Item): { color: string; label: string } {
   if (item.equipped) return { color: "var(--color-accent-emerald)", label: "장착" };
+  // 앰비언트(설치 베이스)는 상주와 같은 amber지만 라벨을 구분 — Dashboard/Inventory와 명칭 일관.
+  if (item.ambient) return { color: "var(--color-accent-orange)", label: "설치 베이스" };
   if (item.claudeState === "resident")
     return { color: "var(--color-accent-orange)", label: "상주" };
   return { color: "var(--color-muted-soft)", label: "보관" };
@@ -27,6 +30,7 @@ function stateDot(item: Item): { color: string; label: string } {
 /** 그래프 노드 — 컴팩트 카드. 등급색 좌측 보더/링, kind 아이콘, 이름, 상태 점, 점수. */
 function GraphNodeImpl({ data, selected }: NodeProps<AssetNode>) {
   const item = data.item;
+  const setSelected = useStore((s) => s.setSelected);
   const r = RARITY_CONFIG[item.rarity];
   const dot = stateDot(item);
   const name = item.kind === "memory"
@@ -39,6 +43,13 @@ function GraphNodeImpl({ data, selected }: NodeProps<AssetNode>) {
     <div
       role="button"
       tabIndex={0}
+      onKeyDown={(e) => {
+        // 키보드 활성화 — role="button"+tabIndex 만 있고 핸들러가 없으면 스크린리더·키보드로 열 수 없다.
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setSelected(item.id);
+        }
+      }}
       title={`${name} · ${KIND_LABELS[item.kind]} · ${r.ko} · ${dot.label} · ${item.score}pt`}
       aria-label={ariaLabel}
       aria-pressed={selected}
