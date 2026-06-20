@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../hooks/useStore";
-import { RARITY_CONFIG, KIND_LABELS } from "../types";
+import { RARITY_CONFIG, KIND_LABELS, isEquippable } from "../types";
 import type { Item, Kind } from "../types";
 import { api } from "../lib/api";
 import { teamCost } from "../lib/traits";
@@ -37,6 +37,8 @@ export function Inventory() {
   const [selected, setSel] = useState<Set<string>>(new Set());
   const [batch, setBatch] = useState<{ kind: "off" | "on"; done: number; total: number } | null>(null);
   const [delTarget, setDelTarget] = useState<Item | null>(null);
+  // 단건/배치 액션 오류 — 서버가 400/404/500 을 내리면 api.ts 가 throw 해 여기서 잡아 표시한다.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // ── 섹션 분류 (우선순위 체인 — 한 항목은 정확히 한 섹션에만 노출) ──────────
   // 분기를 먼저 가른다. 서버는 관리 항목의 라이브 자리가 실폴더(resident)일 때만 divergent=true 로 내리므로
@@ -46,10 +48,12 @@ export function Inventory() {
   const divergent = useMemo(() => items.filter((i) => i.divergent), [items]);
   // 활성: 우리 링크(claudeState==="link") 또는 레거시 장착(미관리·equipped인데 상태 미확정).
   // 레거시 절은 미관리 항목으로 한정 — equipped 는 파생값이라 관리 항목엔 의존하지 않는다.
+  // memory/mcp 는 장착 개념이 없으므로(isEquippable) 활성/상주/보관 섹션에 나타나지 않는다.
   const active = useMemo(
     () =>
       items.filter(
         (i) =>
+          isEquippable(i.kind) &&
           !i.divergent &&
           (i.claudeState === "link" ||
             (!i.managed && !!i.equipped && i.claudeState == null)),
@@ -57,12 +61,16 @@ export function Inventory() {
     [items],
   );
   // 상주: 직접 설치된 실폴더 — 해제하면 vault 로 이동 보관. 분기는 제외(분기 섹션에서만 해소).
+  // isEquippable 가드: memory 아이템이 ~/.claude 하위 경로에 있어도 상주 섹션에 노출되지 않는다.
   const resident = useMemo(
-    () => items.filter((i) => i.claudeState === "resident" && !i.divergent),
+    () => items.filter((i) => isEquippable(i.kind) && i.claudeState === "resident" && !i.divergent),
     [items],
   );
   // 보관: vault 관리 대상이며 ~/.claude 에는 없음(꺼짐).
-  const stored = useMemo(() => items.filter((i) => i.managed && i.claudeState === "absent"), [items]);
+  const stored = useMemo(
+    () => items.filter((i) => isEquippable(i.kind) && i.managed && i.claudeState === "absent"),
+    [items],
+  );
 
   // 마나 게이지 = 활성 + 상주 자산의 "상시" 컨텍스트 부하만(설명/스키마 — 항상 로드).
   //   본문은 호출 시 1회성이라 상시 부하가 아니다 → 본문 합계를 더하면 거짓 과적재가 된다.
@@ -82,11 +90,14 @@ export function Inventory() {
 
   // 해제(활성): 관리 링크면 vault 토글 off, 레거시면 unequip.
   const deactivate = async (item: Item) => {
+    setActionError(null);
     setBusy(item.id);
     try {
       await offAction(item);
       await reloadData();
-    } catch {}
+    } catch (e) {
+      setActionError((e as Error)?.message ?? String(e));
+    }
     setBusy(null);
   };
 
@@ -94,40 +105,52 @@ export function Inventory() {
   const withdrawResident = async (item: Item) => {
     if (item.oversized && !window.confirm("거대 자산입니다 — vault로 이동하는 데 시간이 걸릴 수 있습니다. 계속할까요?"))
       return;
+    setActionError(null);
     setBusy(item.id);
     try {
       await api.activateVault(item.id, false);
       await reloadData();
-    } catch {}
+    } catch (e) {
+      setActionError((e as Error)?.message ?? String(e));
+    }
     setBusy(null);
   };
 
   // 켜기(보관): vault → ~/.claude 재링크.
   const activate = async (id: string) => {
+    setActionError(null);
     setBusy(id);
     try {
       await api.activateVault(id, true);
       await reloadData();
-    } catch {}
+    } catch (e) {
+      setActionError((e as Error)?.message ?? String(e));
+    }
     setBusy(null);
   };
 
   // 분기 해소 — pull(vault←라이브) / push(vault→라이브 재링크).
   const resolve = async (id: string, choice: "pull" | "push") => {
+    setActionError(null);
     setBusy(id);
     try {
       await api.resolveDivergence(id, choice);
       await reloadData();
-    } catch {}
+    } catch (e) {
+      setActionError((e as Error)?.message ?? String(e));
+    }
     setBusy(null);
   };
 
   const syncUsage = async () => {
+    setActionError(null);
     setSyncing(true);
     try {
       await api.refreshUsage();
       await reloadData();
-    } catch {}
+    } catch (e) {
+      setActionError((e as Error)?.message ?? String(e));
+    }
     setSyncing(false);
   };
 
@@ -152,32 +175,42 @@ export function Inventory() {
   const batchOff = async () => {
     const list = selOffItems;
     if (!list.length) return;
+    setActionError(null);
     setBatch({ kind: "off", done: 0, total: list.length });
+    let failed = 0;
     for (let i = 0; i < list.length; i++) {
       try {
         await offAction(list[i]);
-      } catch {}
+      } catch {
+        failed++;
+      }
       setBatch({ kind: "off", done: i + 1, total: list.length });
     }
     await reloadData();
     setBatch(null);
     clearSel();
+    if (failed > 0) setActionError(`일괄 해제: ${list.length - failed}개 성공 · ${failed}개 실패`);
   };
 
   // 일괄 켜기 — 보관 선택분을 순차 재링크.
   const batchOn = async () => {
     const list = selOnItems;
     if (!list.length) return;
+    setActionError(null);
     setBatch({ kind: "on", done: 0, total: list.length });
+    let failed = 0;
     for (let i = 0; i < list.length; i++) {
       try {
         await api.activateVault(list[i].id, true);
-      } catch {}
+      } catch {
+        failed++;
+      }
       setBatch({ kind: "on", done: i + 1, total: list.length });
     }
     await reloadData();
     setBatch(null);
     clearSel();
+    if (failed > 0) setActionError(`일괄 켜기: ${list.length - failed}개 성공 · ${failed}개 실패`);
   };
 
   return (
@@ -202,6 +235,20 @@ export function Inventory() {
         </button>
       </div>
 
+      {/* ── 액션 오류 알림 (단건·배치 공통) ── */}
+      {actionError && (
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-lg bg-accent-rose/10 px-3 py-2.5 text-xs font-medium text-accent-rose">
+          <span>{actionError}</span>
+          <button
+            onClick={() => setActionError(null)}
+            className="shrink-0 font-semibold hover:underline"
+            aria-label="오류 닫기"
+          >
+            닫기
+          </button>
+        </div>
+      )}
+
       {/* ── 마나 게이지: "상시" 부하만(설명/스키마). 본문은 호출 시 1회성이라 정보로만 표기. ── */}
       {liveItems.length > 0 && (
         <div className="mb-6 rounded-xl border border-hairline bg-canvas px-4 py-3">
@@ -210,6 +257,11 @@ export function Inventory() {
             막대는 <b className="text-muted">상시</b> 부하 — 장착·상주만 해도 항상 로드되는 설명/스키마입니다.
             각 자산의 본문(합계 약 <span className="font-mono text-muted">{formatK(onDemandTotal)} tk</span>)은
             실제로 <b className="text-muted">호출될 때만</b> 1회성으로 들어갑니다(동시 로드 아님).
+            {divergent.length > 0 && (
+              <span className="ml-1 text-accent-orange">
+                · 분기 상태({divergent.length}개)는 해소 전까지 합계에서 제외됩니다.
+              </span>
+            )}
           </p>
         </div>
       )}
@@ -384,8 +436,8 @@ export function Inventory() {
         </div>
       )}
 
-      {/* ── 배치 액션 바(선택 ≥1) ── */}
-      {selected.size > 0 && (
+      {/* ── 배치 액션 바(선택 ≥1 · 실제 실행 가능한 항목이 있을 때만) ── */}
+      {(selOffItems.length + selOnItems.length > 0) && (
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-canvas/95 backdrop-blur-sm">
           <div className="mx-auto flex max-w-[1100px] flex-wrap items-center gap-3 px-5 py-3">
             <span className="text-sm font-semibold text-ink">

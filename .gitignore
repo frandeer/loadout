@@ -39,3 +39,4 @@ playwright-mcp/
 # 백업/임시 파일
 *.bak
 *.tmp
+.qa/

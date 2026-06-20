@@ -25,7 +25,7 @@ export const api = {
   // 사용자 설정(영속) — 이미지 생성 엔진 등. 서버 data/settings.json 가 진실의 원천.
   getSettings: () =>
     request<{ ok: boolean; settings: { imageEngine: string } }>("/settings").catch(
-      () => ({ ok: false, settings: { imageEngine: "codex" } }),
+      () => ({ ok: false, settings: { imageEngine: "codex-api" } }),
     ),
 
   saveSettings: (settings: { imageEngine?: string }) =>
@@ -81,7 +81,7 @@ export const api = {
       body: JSON.stringify({ id, confirmName, dryRun }),
     }),
 
-  // 분기 해소 — pull(vault→라이브) / push(라이브→vault).
+  // 분기 해소 — pull(라이브→vault 채택) / push(vault→라이브 재링크). (server.mjs resolveDivergence 기준)
   resolveDivergence: (id: string, choice: "pull" | "push", dryRun = false) =>
     request<{ ok: boolean; id: string; choice: "pull" | "push"; action?: string; error?: string }>(
       "/vault/resolve",
@@ -127,13 +127,6 @@ export const api = {
     });
     return res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
   },
-
-  // AI 채점 — 서버는 단건 {id, engine}.
-  verify: (id: string, engine?: string) =>
-    request<{ ok: boolean; verdict: unknown; score: number; rarity: string; engine: string }>("/verify", {
-      method: "POST",
-      body: JSON.stringify({ id, engine }),
-    }),
 
   // AI 분석 — 자산의 목적/품질/중복을 평가하고 keep/drop 권고를 반환. 엔진/모델 선택 가능.
   analyze: (id: string, engine?: string, model?: string) =>

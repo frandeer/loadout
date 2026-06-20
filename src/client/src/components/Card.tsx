@@ -71,7 +71,17 @@ export const Card = memo(function Card({ item, index = 0 }: CardProps) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => setSelected(isSelected ? null : item.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setSelected(isSelected ? null : item.id);
+        }
+      }}
+      aria-label={`${name} — ${KIND_LABELS[item.kind]} 카드 열기`}
+      aria-pressed={isSelected}
       className={`reveal group relative cursor-pointer overflow-hidden rounded-xl border bg-surface-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
         isSelected ? "card-beam" : ""
       } ${frame.borderColor ? "" : "border-hairline hover:border-hairline-strong"}`}
@@ -149,8 +159,8 @@ export const Card = memo(function Card({ item, index = 0 }: CardProps) {
               onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
               className={`p-1 transition-colors duration-200 ${
                 isFav
-                  ? "text-yellow-400"
-                  : "text-gray-400 hover:text-gray-200"
+                  ? "text-accent-orange"
+                  : "text-hairline-strong hover:text-muted"
               }`}
               aria-label="즐겨찾기"
             >

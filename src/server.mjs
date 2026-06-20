@@ -2,7 +2,7 @@
 // Node 내장 http만 사용. 이미지 생성은 skills/web-image-forge/lib(CDP)를 지연 로드.
 import { createServer } from "node:http";
 import { readFile, writeFile, stat, mkdir, symlink, cp, rm, rename, readdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { extname, resolve, join, dirname, basename, sep, relative } from "node:path";
 import { homedir } from "node:os";
 import { spawn, execFile } from "node:child_process";
@@ -77,9 +77,11 @@ async function saveTranslations(t) { await mkdir(dataDir, { recursive: true }); 
 
 // id → 실제 파일 경로 찾기. 우선 item.source.root, 없으면 관리 루트 순회.
 function resolveItemPath(item, roots) {
+  const relPath = item.source?.path;
+  if (!relPath) return null; // source 또는 path가 없는 항목(스냅샷 부분 복원 등) → 조용히 null
   const cands = item.source?.root ? [item.source.root, ...(roots || loadRoots())] : (roots || loadRoots());
   for (const rp of cands) {
-    const p = resolve(rp, item.source.path);
+    const p = resolve(rp, relPath);
     if (existsSync(p)) return p;
   }
   return null;
@@ -675,6 +677,12 @@ const server = createServer(async (req, res) => {
     // --- GET API ---
     if (req.method === "GET" && path === "/api/index") {
       const idx = await loadIndex();
+      // scanned: 클라이언트가 "마지막 스캔 시각"으로 표시하는 필드.
+      // data/index.json 에 bake하면 멱등성을 깨므로 서버가 파일 mtime에서 주입한다.
+      // generatedAt(ISO 문자열)도 이미 있으나 클라이언트가 scanned를 별도로 읽는 경우를 위해 보강.
+      const indexPath = join(dataDir, "index.json");
+      try { idx.scanned = statSync(indexPath).mtime.toISOString(); }
+      catch { idx.scanned = null; }
       // 독립적인 디스크 읽기 3개 — 병렬로(순차 await 제거).
       const [lo, cardImgs, tr] = await Promise.all([loadout(), cardImages(), loadTranslations()]);
       for (const it of idx.items) {
@@ -698,9 +706,16 @@ const server = createServer(async (req, res) => {
           if (rec) {
             it.managed = true;
             it.claudeState = ls.claudeState;
-            it.equipped = ls.claudeState !== "absent";   // 관리 항목은 vault 상태가 equipped의 진실
-            // 관리 항목인데 라이브 자리가 우리 링크가 아니라 실폴더(resident)면 = 외부(플러그인 등)가 덮어씀 → 분기.
-            if (ls.claudeState === "resident") it.divergent = true;
+            // 관리 항목은 vault 상태가 equipped의 진실.
+            // claudeState==='resident'는 외부(플러그인 등)가 우리 링크를 실폴더로 덮어쓴 상태 →
+            // equipped=false(정상 장착이 아님) + divergent=true(해결 필요)로 구분. 두 플래그가
+            // 동시에 true가 되면 UI가 "장착됨"과 "주의 필요"를 동시에 표시하는 모순이 생기므로 분리.
+            if (ls.claudeState === "resident") {
+              it.divergent = true;
+              it.equipped = false; // divergent 상태는 정상 장착이 아님 — 별도 뱃지로 표시
+            } else {
+              it.equipped = ls.claudeState !== "absent";
+            }
           } else if (ls.claudeState === "resident") {
             it.claudeState = "resident";                 // 미관리 상주(예: 거대 번들 gstack/browse)
             it.equipped = true;                          // 상주=활성(on). 끄면 vault로 lazy 이동(해제할 때만 가져오기).
@@ -713,7 +728,7 @@ const server = createServer(async (req, res) => {
           if (!rec || !rec.snapshot) continue;
           idx.items.push({ ...rec.snapshot, equipped: false, managed: true, claudeState: "absent", oversized: !!rec.oversized });
         }
-      } catch { /* vault 오버레이 실패는 카탈로그 서빙을 막지 않음 */ }
+      } catch (e) { console.warn("vault 오버레이 실패:", e.message); /* 카탈로그 서빙은 계속 */ }
       return json(res, 200, idx);
     }
     // 디렉토리 내 텍스트 관련 파일 목록을 수집하는 재귀 헬퍼 함수
@@ -875,7 +890,8 @@ const server = createServer(async (req, res) => {
       if (b.equip === false) {
         // MCP 해제: claude mcp remove <name> -s user (CLI 부재/실패해도 기록은 제거).
         if (item.kind === "mcp") {
-          const name = sanitizeMcpName(item.name);
+          // 장착 시 기록한 이름을 우선 사용(재스캔 후 item.name이 바뀌어도 올바른 이름으로 제거).
+          const name = lo.equipped[b.id]?.mcp || sanitizeMcpName(item.name);
           const r = await runClaudeMcp(["mcp", "remove", name, "-s", "user"]);
           delete lo.equipped[b.id]; await saveLoadout(lo);
           const note = r.ok ? `claude mcp remove ${name} 완료` : (r.missing ? "claude CLI 없음 — 기록만 제거됨" : `claude mcp remove 실패(기록만 제거됨): ${(r.stderr || "").slice(0, 200)}`);
@@ -1026,6 +1042,7 @@ const server = createServer(async (req, res) => {
       return json(res, ok ? 200 : 500, { ok, removed, total: INDEX?.total });
     }
 
+    // (구 팀 UI 제거됨 — 엔드포인트 보존: 헤드리스/외부 호출 호환 유지)
     if (req.method === "GET" && path === "/api/teams") {
       const t = await loadTeams();
       return json(res, 200, { ok: true, teams: t.teams || {} });
@@ -1396,13 +1413,21 @@ const server = createServer(async (req, res) => {
       const dest = join(root, "sources", `${m[1]}__${m[2]}`);
       if (existsSync(dest)) return json(res, 409, { ok: false, error: "이미 존재합니다. 삭제 후 다시 시도하거나 rescan을 실행하세요." });
       await mkdir(join(root, "sources"), { recursive: true });
-      const cloneCode = await new Promise((resolve, reject) => {
-        const proc = spawn("git", ["clone", "--depth", "1", b.url, dest], { stdio: "ignore" });
-        proc.on("close", resolve);
-        proc.on("error", (e) => reject(e));
-        setTimeout(() => { try { proc.kill(); } catch {} reject(new Error("git clone 타임아웃 (60초 초과)")); }, 60000);
-      }).catch((e) => { throw new Error("git clone 실패: " + e.message); });
-      if (cloneCode !== 0) return json(res, 500, { ok: false, error: "git clone 실패 — URL을 확인하거나 네트워크 연결을 점검해 주세요." });
+      // 실패 시 부분 복제 디렉토리를 정리하는 헬퍼 — 재시도가 409(이미 존재)에 막히지 않도록.
+      const cleanupDest = () => rm(dest, { recursive: true, force: true }).catch(() => {});
+      let cloneCode;
+      try {
+        cloneCode = await new Promise((resolve, reject) => {
+          const proc = spawn("git", ["clone", "--depth", "1", b.url, dest], { stdio: "ignore" });
+          proc.on("close", resolve);
+          proc.on("error", (e) => reject(e));
+          setTimeout(() => { try { proc.kill(); } catch {} reject(new Error("git clone 타임아웃 (60초 초과)")); }, 60000);
+        });
+      } catch (e) {
+        await cleanupDest();
+        return json(res, 500, { ok: false, error: "git clone 실패: " + e.message });
+      }
+      if (cloneCode !== 0) { await cleanupDest(); return json(res, 500, { ok: false, error: "git clone 실패 — URL을 확인하거나 네트워크 연결을 점검해 주세요." }); }
       // 실시간 반영: 클론한 폴더를 소스로 등록하고 즉시 재스캔.
       await addRepo(b.url, dest);
       const ok = await runScan();

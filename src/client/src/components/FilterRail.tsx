@@ -59,6 +59,7 @@ export function FilterRail() {
           <h3 className="text-sm font-bold text-ink">필터</h3>
           <button
             onClick={() => {
+              // group·sort 포함 전체 필터 초기화 — 일부 키 누락 시 배너/정렬이 잔류하는 버그 방지.
               setFilter("kind", "all");
               setFilter("rarity", "all");
               setFilter("category", "all");
@@ -66,6 +67,8 @@ export function FilterRail() {
               setFilter("favOnly", false);
               setFilter("dupOnly", false);
               setFilter("q", "");
+              setFilter("group", undefined);
+              setFilter("sort", "score");
             }}
             className="text-[11px] font-medium text-primary hover:underline"
           >
@@ -154,22 +157,38 @@ export function FilterRail() {
         <section>
           <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">카테고리</h4>
           <div className="space-y-0.5">
-            {(showAllCategories ? categoryCounts : categoryCounts.slice(0, 8)).map(([cat, count]) => {
-              const active = filters.category === cat;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setFilter("category", active ? "all" : cat)}
-                  className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
-                    active ? "bg-primary-soft text-primary font-semibold" : "text-body hover:bg-surface-soft"
-                  }`}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-muted-soft" />
-                  <span className="flex-1 text-left truncate">{cat}</span>
-                  <span className="font-mono text-[11px] text-muted-soft">{count}</span>
-                </button>
-              );
-            })}
+            {(() => {
+              // 접힌 상태에서도 활성 카테고리가 top-8 밖이면 항상 상단에 고정 노출해
+              // 토글-오프 수단을 잃지 않도록 한다.
+              const slice = showAllCategories ? categoryCounts : categoryCounts.slice(0, 8);
+              const activeOutside =
+                filters.category &&
+                filters.category !== "all" &&
+                !showAllCategories &&
+                !categoryCounts.slice(0, 8).some(([c]) => c === filters.category);
+              const pinnedEntry: [string, number] | undefined = activeOutside
+                ? categoryCounts.find(([c]) => c === filters.category)
+                : undefined;
+              const renderList: [string, number][] = pinnedEntry
+                ? [pinnedEntry, ...slice.filter(([c]) => c !== filters.category)]
+                : slice;
+              return renderList.map(([cat, count]) => {
+                const active = filters.category === cat;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setFilter("category", active ? "all" : cat)}
+                    className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                      active ? "bg-primary-soft text-primary font-semibold" : "text-body hover:bg-surface-soft"
+                    }`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-soft" />
+                    <span className="flex-1 text-left truncate">{cat}</span>
+                    <span className="font-mono text-[11px] text-muted-soft">{count}</span>
+                  </button>
+                );
+              });
+            })()}
           </div>
           {categoryCounts.length > 8 && (
             <button
@@ -210,9 +229,22 @@ export function FilterRail() {
               color="var(--color-accent-violet)"
             />
           </div>
-          <div className="mt-2 space-y-0.5">
-            <StatusRow label="설치됨" count={installedCount} color="var(--color-accent-emerald)" />
-            <StatusRow label="미설치" count={items.length - installedCount} color="var(--color-muted-soft)" />
+          {/* 설치됨/미설치 — 정보 요약 행(필터 아님). FilterToggle과 레이아웃을 의도적으로 구분해 클릭 가능처럼 보이지 않도록 함. */}
+          <div className="mt-3 border-t border-hairline pt-2 text-[11px] text-muted-soft">
+            <span className="flex items-center justify-between px-2.5 py-0.5">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--color-accent-emerald)" }} />
+                설치됨
+              </span>
+              <span className="font-mono">{installedCount}</span>
+            </span>
+            <span className="flex items-center justify-between px-2.5 py-0.5">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-soft" />
+                미설치
+              </span>
+              <span className="font-mono">{items.length - installedCount}</span>
+            </span>
           </div>
         </section>
 
@@ -270,7 +302,12 @@ export function FilterRail() {
           <div className="rounded-lg bg-surface-soft p-2.5 text-[11px] text-muted space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1"><Icon name="sync" size="xs" /> 마지막 스캔</span>
-              <span className="font-mono text-muted-soft">{new Date(meta.scanned).toLocaleDateString("ko")}</span>
+              <span className="font-mono text-muted-soft">
+                {/* meta.scanned 누락·invalid 방어 — 서버가 값을 전달 못한 경우 "—" 표시 */}
+                {meta.scanned && !isNaN(new Date(meta.scanned).getTime())
+                  ? new Date(meta.scanned).toLocaleDateString("ko")
+                  : "—"}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1"><Icon name="dependency-nodes" size="xs" /> 중복 그룹</span>
@@ -288,16 +325,6 @@ export function FilterRail() {
         )}
       </div>
     </aside>
-  );
-}
-
-function StatusRow({ label, count, color }: { label: string; count: number; color: string }) {
-  return (
-    <div className="flex w-full cursor-default items-center gap-2 px-2.5 py-1.5 text-[13px] text-muted">
-      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
-      <span className="flex-1 text-left">{label}</span>
-      <span className="font-mono text-[11px] text-muted-soft">{count}</span>
-    </div>
   );
 }
 

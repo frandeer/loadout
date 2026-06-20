@@ -74,9 +74,19 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
   const item = items.find((i) => i.id === selected);
 
+  // isModalOpen/deleteOpen을 ref로 캡처해 핸들러를 재등록하지 않으면서 최신 상태 참조.
+  const isModalOpenRef = useRef(false);
+  const deleteOpenRef = useRef(false);
+  useEffect(() => { isModalOpenRef.current = isModalOpen; }, [isModalOpen]);
+  useEffect(() => { deleteOpenRef.current = deleteOpen; }, [deleteOpen]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelected(null);
+      if (e.key !== "Escape") return;
+      // 레이어 우선순위: 전체화면 모달 → 삭제 확인 → 패널 닫기
+      if (isModalOpenRef.current) { setIsModalOpen(false); return; }
+      if (deleteOpenRef.current) { setDeleteOpen(false); setDeleteText(""); return; }
+      setSelected(null);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -198,7 +208,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
       else if (item.equipped) await api.unequip(item.id);
       else await api.equip(item.id);
       await reloadData();
-    } catch {}
+    } catch (e: any) {
+      alert("장착/해제 중 오류가 발생했습니다: " + (e?.message || e));
+    }
     setEquipping(false);
   };
 
@@ -257,7 +269,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         setActiveTab("ko");
       }
       await reloadData();
-    } catch {}
+    } catch (e: any) {
+      alert("번역 중 오류가 발생했습니다: " + (e?.message || e));
+    }
     setTranslating(false);
   };
 
@@ -446,9 +460,13 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
               title="분석 엔진"
             >
               {engines.map((e) => (
-                <option key={e} value={e}>{e}</option>
+                <option key={e} value={e}>{e === "heuristic" ? "heuristic (규칙 기반)" : e}</option>
               ))}
             </select>
+            {/* heuristic을 명시적으로 선택한 경우 — 항상 '유지 권장 50%'를 반환하므로 참고용임을 안내 */}
+            {analyzeEngine === "heuristic" && (
+              <span className="text-[10px] text-muted-soft">규칙 기반 — 항상 유지 권장 50%, 참고용</span>
+            )}
 
             {analyzeEngine === "claude" && (
               <select
@@ -584,13 +602,13 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                 <p className="mt-1 text-[11px] leading-relaxed text-muted">
                   라이브(<span className="font-mono">~/.claude</span>) 사본 · vault 사본 · 소스를 모두
                   휴지통(<span className="font-mono">vault/.trash</span>)으로 옮깁니다. 복구 가능하지만
-                  카탈로그에서는 사라집니다. 진행하려면 아래에 <b className="text-body">{item.name}</b> 을(를) 그대로 입력하세요.
+                  카탈로그에서는 사라집니다. 진행하려면 아래에 <b className="text-body">{item.name.trim()}</b> 을(를) 그대로 입력하세요.
                 </p>
                 <input
                   type="text"
                   value={deleteText}
                   onChange={(e) => setDeleteText(e.target.value)}
-                  placeholder={item.name}
+                  placeholder={item.name.trim()}
                   autoFocus
                   className="mt-2 w-full rounded-md border border-hairline bg-canvas px-2.5 py-1.5 text-sm text-ink outline-none transition focus:border-accent-rose"
                 />
@@ -699,7 +717,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                 <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
                   <span className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> 상시
                 </div>
-                <div className="mt-0.5 font-mono text-base font-bold text-ink">{formatK(alwaysOn)}<span className="ml-0.5 text-[10px] font-medium text-muted-soft">tk</span></div>
+                <div className="mt-0.5 font-mono text-base font-bold text-ink">{alwaysOn ? formatK(alwaysOn) : "—"}<span className="ml-0.5 text-[10px] font-medium text-muted-soft">tk</span></div>
                 <div className="mt-0.5 text-[10px] leading-tight text-muted-soft">설명만 항상 로드</div>
               </div>
               <div className="rounded-lg bg-surface-soft px-3 py-2.5" title="이 자산이 실제 실행/호출될 때만 1회성으로 들어가는 본문 비용">

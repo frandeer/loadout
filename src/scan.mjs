@@ -12,10 +12,8 @@ const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const cfg = JSON.parse(await readFile(join(root, "src/config.json"), "utf8"));
 const dataDir = join(root, "data");
 
-let USAGE = {};
-try {
-  USAGE = JSON.parse(await readFile(join(dataDir, "usage.json"), "utf8")).counts || {};
-} catch {}
+// 사용량(usage.json)은 스캔이 읽지 않는다 — 영속 스코어/희귀도는 콘텐츠에서만 유도해 멱등성을 지킨다.
+// 런타임 사용량은 /api/index 가 it.uses 로 오버레이한다(server.mjs).
 
 // ---------- 유틸 ----------
 const clamp = (n, lo = 0, hi = 99) => Math.max(lo, Math.min(hi, Math.round(n)));
@@ -457,11 +455,16 @@ function detectRisks(content) {
   return risks;
 }
 
-// mcp: 명령 실행 자체가 위험이나 과잉 경고 금지. env에 KEY/TOKEN/SECRET 있으면 creds만.
+// mcp: env KEY/TOKEN/SECRET → creds. command/args도 skill과 동일하게 shell/network 검사.
+// MCP는 로컬 프로세스를 직접 실행하므로 skill과 동등한 리스크 표시가 필요하다.
 function detectMcpRisks(meta) {
   const risks = [];
   const envKeys = (meta?.env || []).join(" ");
   if (/key|token|secret/i.test(envKeys)) risks.push("creds");
+  // command + args를 한 문자열로 합쳐 shell/network 신호 검사
+  const cmdStr = [meta?.command || "", ...(meta?.args || [])].join(" ");
+  if (RISK_NETWORK.test(cmdStr)) risks.push("network");
+  if (RISK_SHELL.test(cmdStr)) risks.push("shell");
   return risks;
 }
 
@@ -594,10 +597,10 @@ async function handleMcpFile(rootPath, file) {
 
 function mcpItem(name, def, source) {
   const cmd = def?.command ? `${def.command} ${(def.args || []).join(" ")}`.trim() : (def?.url || "");
-  
-  // Real, dynamic stats for MCP
-  const uses = USAGE[name.toLowerCase()] ?? 0;
-  const popularity = clamp(60 + Math.min(25, uses * 4));
+
+  // popularity: 콘텐츠에서만 유도(멱등). USAGE(usage.json, 사용 시마다 변함)는 절대 포함하지 않는다.
+  // — /api/index 가 it.uses 로 런타임 오버레이하므로 영속 스코어/희귀도에 넣으면 멱등성 위반.
+  const popularity = clamp(60);
   const ageDays = source.mtime ? Math.max(0, (Date.now() - source.mtime) / 86400000) : null;
   const freshness = ageDays !== null ? clamp(100 - Math.min(100, Math.pow(ageDays / 365, 0.6) * 100)) : 70;
   const envCount = def?.env ? Object.keys(def.env).length : 0;
@@ -741,6 +744,8 @@ async function handleMemory(file, scope, memRoot) {
     score: r.score,
     rarity: r.rarity,
     cost: computeContentCost(content, st.size),
+    // walkMemory는 현재 MEMORY.md 파일만 수집하므로 layer는 항상 'index'.
+    // 'note' 분기(descCost:0)는 향후 노트 단위 수집 시를 위한 예약 — 현재는 도달 불가.
     descCost: layer === "note" ? 0 : Math.min(computeContentCost(content, st.size), MEMORY_INDEX_CAP),
     risks: detectRisks(content),
     contentHash: quickHash(content.slice(0, 4000) + st.size),

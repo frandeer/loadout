@@ -89,24 +89,37 @@ export function CardGrid() {
   }
 
   if (items.length === 0) {
+    // lg 미만 너비에서 FilterRail이 숨겨지므로, 빈 상태에서 어떤 필터가 걸려 있든
+    // 항상 전체 초기화 버튼을 제공한다 — 사용자가 "갇히는" 상황 방지.
+    const resetAllFilters = () => {
+      setFilter("kind", "all");
+      setFilter("rarity", "all");
+      setFilter("category", "all");
+      setFilter("equipOnly", false);
+      setFilter("favOnly", false);
+      setFilter("dupOnly", false);
+      setFilter("q", "");
+      setFilter("group", undefined);
+      setFilter("sort", "score");
+    };
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted">
         <Icon name="search" size="xl" className="opacity-20" />
         <p className="text-sm">검색 결과 없음</p>
         <p className="text-xs text-muted-soft">조건에 맞는 자산이 없습니다</p>
-        {/* 그룹 필터가 빈 결과로 남으면 해제 버튼이 없으면 갇힌다 — 빈 상태에서도 탈출구 제공. */}
-        {filters.group && (
-          <button
-            onClick={() => setFilter("group", undefined)}
-            className="mt-1 rounded-lg border border-hairline px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-surface-soft"
-          >
-            동일 계열 필터 해제 — 전체 보기
-          </button>
-        )}
+        <button
+          onClick={resetAllFilters}
+          className="mt-1 rounded-lg border border-hairline px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-surface-soft"
+        >
+          필터 초기화 — 전체 보기
+        </button>
       </div>
     );
   }
 
+  // 홈 뷰 조건 — 정렬이 기본값(score)을 벗어나면 홈을 나가 전체 라이브러리 정렬 결과를 보여준다.
+  // "최근 추가 →" 액션이 sort=freshness를 set하면 이 조건이 false가 되어 큐레이션 섹션 대신
+  // 신선도순 라이브러리 뷰가 노출된다.
   const isHome =
     filters.kind === "all" &&
     filters.rarity === "all" &&
@@ -114,7 +127,8 @@ export function CardGrid() {
     !filters.equipOnly &&
     !filters.favOnly &&
     !filters.dupOnly &&
-    !filters.group;
+    !filters.group &&
+    filters.sort === "score";
 
   const getLibraryTitle = () => {
     if (isHome) return "라이브러리";
@@ -399,7 +413,8 @@ function CompactCard({ item, lang, onClick }: { item: Item; lang: string; onClic
         </span>
         <span className="truncate text-[13px] font-semibold text-ink">{name}</span>
       </div>
-      <span className="mb-1 rounded bg-surface-soft px-1 py-0.5 text-[9px] font-medium uppercase text-muted w-fit">{item.kind}</span>
+      {/* KIND_LABELS 단일 출처 사용 — 원시 kind를 uppercase로 노출하면 'SKILL'/'MEMORY'가 되어 메인 카드·리스트 행의 'Skill'/'Memory'와 어긋난다. */}
+      <span className="mb-1 rounded bg-surface-soft px-1 py-0.5 text-[9px] font-medium text-muted w-fit">{KIND_LABELS[item.kind]}</span>
       <p className="line-clamp-2 text-[11px] leading-relaxed text-muted">{summarize(desc)}</p>
       <div className="mt-auto flex items-center gap-2 pt-2">
         {lvl !== null && <span className="font-mono text-[10px] font-bold text-body">Lv.{lvl}</span>}

@@ -32,12 +32,17 @@ function GraphNodeImpl({ data, selected }: NodeProps<AssetNode>) {
   const name = item.kind === "memory"
     ? (typeof item.source.repo === "string" ? item.source.repo : item.name)
     : item.displayName || item.name;
-  const short = name.length > 18 ? name.slice(0, 18) + "…" : name;
+  // JS slice 제거 — CSS truncate가 w-[150px] 안에서 레이아웃 정확하게 잘라줌(이중 절단 방지).
+  const ariaLabel = `${name} · ${KIND_LABELS[item.kind]} · ${r.ko} · ${dot.label} · ${item.score}점`;
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       title={`${name} · ${KIND_LABELS[item.kind]} · ${r.ko} · ${dot.label} · ${item.score}pt`}
-      className={`flex w-[150px] items-center gap-2 rounded-lg border bg-canvas px-2.5 py-2 shadow-sm transition ${
+      aria-label={ariaLabel}
+      aria-pressed={selected}
+      className={`flex w-[150px] items-center gap-2 rounded-lg border bg-canvas px-2.5 py-2 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
         selected ? "ring-2 ring-primary" : "border-hairline"
       }`}
       style={{
@@ -59,7 +64,7 @@ function GraphNodeImpl({ data, selected }: NodeProps<AssetNode>) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1">
-          <span className="truncate text-[11px] font-bold leading-tight text-ink">{short}</span>
+          <span className="truncate text-[11px] font-bold leading-tight text-ink">{name}</span>
           <span
             className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full"
             style={{ backgroundColor: dot.color }}

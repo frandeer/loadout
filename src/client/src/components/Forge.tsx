@@ -94,7 +94,7 @@ function SessionList({
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">세션 ({sessions.length})</h3>
         {sessions.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-800 py-12 text-center text-sm text-zinc-500">
-            아직 세션이 없습니다. 오른쪽에서 디자인을 설명하고 시작하세요.
+            아직 세션이 없습니다. 디자인을 설명하고 새 세션을 시작하세요.
           </div>
         ) : (
           <div className="space-y-2">
@@ -150,8 +150,9 @@ function SessionList({
 
           {caps && (
             <p className="mt-3 text-[11px] leading-relaxed text-zinc-600">
-              엔진: {caps.clis.length ? caps.clis.join(", ") : "(CLI 없음)"} · 이미지: {caps.imageEngines.join(", ")}.
+              엔진: {caps.clis.length ? caps.clis.join(", ") : "(CLI 없음)"} · 포지 이미지 변형 엔진: {caps.imageEngines.join(", ")}.
               HTML 변형은 CLI로, 이미지 변형은 로그인된 Chrome(CDP)로 생성됩니다.
+              (카드 이미지 생성 엔진은 설정에서 별도 관리합니다.)
             </p>
           )}
         </div>

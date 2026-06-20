@@ -111,7 +111,7 @@ export const useStore = create<AppState>((set, get) => ({
     } catch {
       set({ loading: false });
     }
-    // 이미지 엔진 설정(서버 영속) 로드 — 실패 시 기본 codex 유지.
+    // 이미지 엔진 설정(서버 영속) 로드 — 실패 시 기본 codex-api 유지.
     try {
       const s = await api.getSettings();
       if (s?.settings?.imageEngine) set({ imageEngine: s.settings.imageEngine });

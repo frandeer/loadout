@@ -22,12 +22,12 @@ const FAQ_ITEMS: FAQItem[] = [
     a: "아닙니다. Windows에서 파일 심링크 생성 시에는 관리자 권한이 필수적이지만, 폴더 대상 심링크에 해당하는 **Junction(디렉터리 연결점, `mklink /J`)**은 일반 사용자 권한에서도 자유롭게 생성할 수 있습니다. LOADOUT 시스템은 Junction 생성을 먼저 시도하며, 혹시 모를 권한 예외 시 수동 폴더 복사(fallback) 방식으로 작동을 보장합니다."
   },
   {
-    q: "AI 검증(Verify, ⚡+99) 기능은 무엇인가요?",
-    a: "카드 뒷면에서 '검증' 버튼을 누르면, 백엔드 서버가 로컬 AI Judge 모델을 호출하여 해당 스킬/에이전트의 코드 완성도와 유용성을 동적으로 분석합니다. 분석된 AI 점수가 반영되면 카드 스탯바의 유용성이 올라가고, 총합 점수가 상승하여 등급(Rarity)이 올라갈 수 있습니다."
+    q: "AI 분석(Analyze) 기능은 무엇인가요?",
+    a: "자산 상세 패널에서 'AI 분석' 버튼을 누르면, 백엔드 서버가 로컬 AI Judge 모델을 호출하여 해당 스킬/에이전트의 목적·품질·중복도를 분석하고 keep/drop 권고를 반환합니다. AI 유용성(usefulness) 점수가 기존 스코어에 15% 가중 적용(최대 +15점)되어 카드 등급에 영향을 줄 수 있습니다."
   },
   {
     q: "볼트(Vault) 백업과 라이브(Live) 파일 간의 '분기(Divergence)'는 무엇인가요?",
-    a: "디스크 관리 효율을 높이기 위해, 대용량 스킬 폴더를 비활성화하면 볼트(Vault) 디렉토리로 이동하여 임시 저장됩니다. 이때 로컬 작업 공간의 스كيل 코드와 볼트 백업 사이에 내용 불일치가 감지되면 '분기' 경고가 뜹니다. 인벤토리에서 Pull(볼트 데이터를 로컬로 가져오기) 또는 Push(로컬 변경본을 볼트에 덮어쓰기)를 통해 불일치를 동기화할 수 있습니다."
+    a: "디스크 관리 효율을 높이기 위해, 대용량 스킬 폴더를 비활성화하면 볼트(Vault) 디렉토리로 이동하여 임시 저장됩니다. 이때 로컬 작업 공간의 스킬 코드와 볼트 백업 사이에 내용 불일치가 감지되면 '분기' 경고가 뜹니다. 장착·보관 탭에서 Pull(볼트 데이터를 로컬로 가져오기) 또는 Push(로컬 변경본을 볼트에 덮어쓰기)를 통해 불일치를 동기화할 수 있습니다."
   }
 ];
 
@@ -153,7 +153,7 @@ export function HelpPage() {
                       <strong>게임 및 군사 용어</strong>: FPS나 RPG 게임(데스티니, 에이펙스 레전드, 콜 오브 듀티 등) 혹은 실제 군사 작전에서 <strong>'로드아웃(Loadout)'</strong>은 전장에 진입하기 직전, 요원이 소지할 무기, 탄약, 보호구, 특수 능력(스킬)들의 <strong>맞춤형 장비 세트 프리셋</strong>을 뜻합니다.
                     </li>
                     <li>
-                      <strong>본 프로젝트에서의 의미</strong>: Claude Code 터미널 환경에서 사용되는 수많은 개발 자산들(스킬, 에이전트 설정, MCP 서버)을 마치 게임 아이템처럼 수집하고 능력치(`⚡작전력`)를 비교해 가며, 마우스 클릭 한 번으로 활성화된 장비 세트인 <strong>'인벤토리/로드아웃'에 장착(Equip)</strong>하여 즉시 사용할 수 있도록 관리해주는 개인 제어 대시보드입니다.
+                      <strong>본 프로젝트에서의 의미</strong>: Claude Code 터미널 환경에서 사용되는 수많은 개발 자산들(스킬, 에이전트 설정, MCP 서버)을 마치 게임 아이템처럼 수집하고 능력치(`⚡작전력`)를 비교해 가며, 마우스 클릭 한 번으로 활성화된 장비 세트인 <strong>'장착·보관(로드아웃)'에 장착(Equip)</strong>하여 즉시 사용할 수 있도록 관리해주는 개인 제어 대시보드입니다.
                     </li>
                   </ul>
                 </div>
@@ -186,9 +186,9 @@ export function HelpPage() {
                       </tr>
                       <tr className="hover:bg-surface-app/30 transition-colors">
                         <td className="px-5 py-4 font-extrabold text-primary">Agent (에이전트)</td>
-                        <td className="px-5 py-4"><span className="inline-flex items-center gap-2 font-semibold text-ink"><Icon name="team" size="sm"/> 작전 요원 (팀원)</span></td>
+                        <td className="px-5 py-4"><span className="inline-flex items-center gap-2 font-semibold text-ink"><Icon name="team" size="sm"/> 작전 요원 (서브에이전트)</span></td>
                         <td className="px-5 py-4 text-body">독립된 에이전트 인격 및 파이프라인 유닛</td>
-                        <td className="px-5 py-4 text-muted-soft">작전실 포메이션 배치, 시너지 발동, 팀 프리셋</td>
+                        <td className="px-5 py-4 text-muted-soft">그래프에서 특성 연결 조회, 비교 후 장착</td>
                       </tr>
                       <tr className="hover:bg-surface-app/30 transition-colors">
                         <td className="px-5 py-4 font-extrabold text-primary">MCP Server (MCP)</td>
@@ -198,7 +198,7 @@ export function HelpPage() {
                       </tr>
                       <tr className="hover:bg-surface-app/30 transition-colors">
                         <td className="px-5 py-4 font-extrabold text-primary">Active Config</td>
-                        <td className="px-5 py-4"><span className="inline-flex items-center gap-2 font-semibold text-ink"><Icon name="backpack" size="sm"/> 인벤토리 / 로드아웃</span></td>
+                        <td className="px-5 py-4"><span className="inline-flex items-center gap-2 font-semibold text-ink"><Icon name="backpack" size="sm"/> 장착·보관 (로드아웃)</span></td>
                         <td className="px-5 py-4 text-body">현재 장착 완료되어 Claude Code에 로드된 자산 덱</td>
                         <td className="px-5 py-4 text-muted-soft">실시간 심링크 활성화, 볼트 백업 동기화</td>
                       </tr>
@@ -218,57 +218,70 @@ export function HelpPage() {
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* 카드 컬렉션 (홈) */}
+                {/* 대시보드 */}
                 <div className="p-6 rounded-2xl border border-hairline bg-surface-app/50 hover:bg-canvas hover:shadow-xs transition-all duration-200">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="home" size="md"/></div>
-                    <h3 className="font-extrabold text-ink text-base">홈 (Deck & Catalog)</h3>
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="dashboard-grid" size="md"/></div>
+                    <h3 className="font-extrabold text-ink text-base">대시보드 (관제탑)</h3>
                   </div>
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
-                    <li>스캔된 모든 스킬 카드를 그리드로 나열하여 탐색합니다.</li>
-                    <li>종합 스탯순, 신선도순, 이름순 정렬 및 카테고리별 필터를 지원합니다.</li>
-                    <li>카드 클릭 시 <strong>3D 플립 연출</strong>과 함께 뒷면의 세부 메타데이터, 도구 목록을 조회할 수 있습니다.</li>
-                    <li>비슷한 그룹의 중복 카드가 있을 때 <strong>'대결 비교'</strong> 및 <strong>'AI 감정'</strong>을 통해 우세한 카드를 추천받을 수 있습니다.</li>
+                    <li>전체 카탈로그의 현황을 한눈에 파악할 수 있는 관제 화면입니다.</li>
+                    <li>종류별(Skill/Agent/MCP) 자산 분포, 등급 비율, 최근 활동 등 핵심 지표를 대시보드로 제공합니다.</li>
+                    <li>주요 그룹·태그를 클릭하면 자산 탭으로 이동해 바로 필터링된 카탈로그를 확인할 수 있습니다.</li>
                   </ul>
                 </div>
 
-                {/* 작전 준비실 */}
+                {/* 자산 */}
                 <div className="p-6 rounded-2xl border border-hairline bg-surface-app/50 hover:bg-canvas hover:shadow-xs transition-all duration-200">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="team" size="md"/></div>
-                    <h3 className="font-extrabold text-ink text-base">작전 준비 (Ops Room)</h3>
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="library-books" size="md"/></div>
+                    <h3 className="font-extrabold text-ink text-base">자산 (Assets)</h3>
                   </div>
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
-                    <li>로스터에서 에이전트를 선택하여 <strong>Planner, Executor, Reviewer, Explorer, Verifier</strong> 슬롯에 드래프트/배치합니다.</li>
-                    <li>배치된 에이전트 간의 특성 매칭에 따라 <strong>시너지 링크(유대 효과)</strong>가 등급별로 발동합니다.</li>
-                    <li>완성된 팀 구성은 프리셋으로 저장할 수 있으며, AI 채점을 거쳐 팀 전투력(Elo)을 실시간으로 확인합니다.</li>
-                    <li>완성된 구성을 한 번에 Claude Code 팀 파이프라인 파일(OMC 설정)로 변환해 복사하거나 저장할 수 있습니다.</li>
+                    <li>스캔된 모든 스킬·에이전트·MCP 카드를 그리드로 나열하여 탐색합니다.</li>
+                    <li>종합 스탯순, 신선도순, 이름순 정렬 및 종류·등급·카테고리 필터를 지원합니다.</li>
+                    <li>카드 클릭 시 세부 메타데이터, 도구 목록, AI 분석 결과를 상세 패널에서 조회합니다.</li>
+                    <li>중복 그룹 카드는 <strong>'대결 비교'</strong> 및 <strong>'AI 분석'</strong>을 통해 keep/drop 권고를 받을 수 있습니다.</li>
                   </ul>
                 </div>
 
-                {/* 인벤토리 */}
+                {/* 그래프 */}
+                <div className="p-6 rounded-2xl border border-hairline bg-surface-app/50 hover:bg-canvas hover:shadow-xs transition-all duration-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="network" size="md"/></div>
+                    <h3 className="font-extrabold text-ink text-base">그래프 (Graph)</h3>
+                  </div>
+                  <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
+                    <li>자산 간 의존·유사·중복 관계를 React Flow 온톨로지 그래프로 시각화합니다.</li>
+                    <li>노드를 클릭하면 해당 자산의 상세 정보로 바로 이동할 수 있습니다.</li>
+                    <li>등급·종류별 색상 구분으로 카탈로그 전체 구조를 직관적으로 파악합니다.</li>
+                  </ul>
+                </div>
+
+                {/* 장착·보관 */}
                 <div className="p-6 rounded-2xl border border-hairline bg-surface-app/50 hover:bg-canvas hover:shadow-xs transition-all duration-200">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="backpack" size="md"/></div>
-                    <h3 className="font-extrabold text-ink text-base">인벤토리 (Inventory)</h3>
+                    <h3 className="font-extrabold text-ink text-base">장착·보관 (Loadout)</h3>
                   </div>
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
-                    <li>현재 장착되어 Claude Code 내에서 활성화된 스킬/에이전트 목록을 관리합니다.</li>
-                    <li>불필요한 디스크 용량을 차지하는 거대 자산의 경우 <strong>Vault 기능</strong>을 켜서 안전하게 보관 상태로 전환할 수 있습니다.</li>
-                    <li>작업 폴더의 파일 변경 시 볼트와의 <strong>분기(Divergence)</strong>를 추적하고 Push/Pull을 통해 손쉽게 동기화합니다.</li>
+                    <li>현재 장착(Equip)되어 Claude Code 내에서 활성화된 스킬/에이전트 목록을 관리합니다.</li>
+                    <li>거대 자산은 <strong>Vault 상주(→볼트)</strong> 기능으로 비활성화하여 디스크 공간을 절약합니다.</li>
+                    <li>파일 변경 시 볼트와의 <strong>분기(Divergence)</strong>를 추적하고 Push/Pull로 동기화합니다.</li>
+                    <li>불필요한 자산은 안전하게 휴지통으로 이동해 삭제할 수 있습니다.</li>
                   </ul>
                 </div>
 
-                {/* 포지 */}
-                <div className="p-6 rounded-2xl border border-hairline bg-surface-app/50 hover:bg-canvas hover:shadow-xs transition-all duration-200">
+                {/* 포지 (⚙ 보조 메뉴) */}
+                <div className="p-6 rounded-2xl border border-hairline bg-surface-app/50 hover:bg-canvas hover:shadow-xs transition-all duration-200 md:col-span-2">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="wrench" size="md"/></div>
-                    <h3 className="font-extrabold text-ink text-base">포지 (Design Forge)</h3>
+                    <h3 className="font-extrabold text-ink text-base">포지 (Design Forge) — ⚙ 설정 메뉴</h3>
                   </div>
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
-                    <li>특정 카드 생성 세션 단위로 AI 프롬프트 기반의 디자인 다형성(Variants)을 대량으로 생성합니다.</li>
-                    <li>생성된 다형성 디자인 후보들을 **Pairwise 매칭(토너먼트 대결)**하여 최적의 Elo 점수 서열을 형성합니다.</li>
-                    <li>가장 우수한 평가를 얻은 디자인 결과물을 정제해 최종 파일로 내보내기(Export)할 수 있습니다.</li>
+                    <li>AI 프롬프트 기반의 디자인 다형성(Variants)을 세션 단위로 대량 생성합니다.</li>
+                    <li>생성된 후보를 Pairwise 매칭으로 비교해 최적 결과를 가려내고 파일로 내보냅니다.</li>
+                    <li>헤더 우측 <strong>⚙ 설정 버튼 → 포지</strong>로 접근하며, 도움말도 같은 메뉴에 있습니다.</li>
                   </ul>
                 </div>
               </div>
@@ -368,7 +381,7 @@ export function HelpPage() {
                         onChange={(e) => setHasAi(e.target.checked)}
                         className="rounded border-hairline text-indigo-600 focus:ring-indigo-500 h-5 w-5"
                       />
-                      <span className="text-sm font-bold text-ink">AI Judge 검증 결과 (+99) 추가 적용</span>
+                      <span className="text-sm font-bold text-ink">AI Judge 분석 결과 (유용성 × 15%, 최대 +15점) 추가 적용</span>
                     </label>
                     
                     {hasAi && (
@@ -458,7 +471,7 @@ export function HelpPage() {
 
                   <div className="mt-8 pt-4 border-t border-hairline text-center">
                     <p className="text-xs text-muted-soft leading-normal">
-                      * 스코어 분포: 85점 이상 Legendary / 70~84점 Epic / 55~69점 Rare / 40~54점 Uncommon / 40점 미만 Common.
+                      * 위 점수는 휴리스틱 기준입니다. 카드의 최종 등급은 전체 카탈로그 점수 분포의 백분위(상위 3% 전설·15% 서사·40% 희귀·70% 고급)로 재산정되므로, 85점이어도 전설이 아닐 수 있습니다.
                     </p>
                   </div>
                 </div>
@@ -583,16 +596,16 @@ export function HelpPage() {
                     </div>
                     <div className="p-4 rounded-xl border border-hairline bg-surface-soft/40 hover:bg-surface-soft/60 transition-colors">
                       <strong className="text-ink text-sm font-extrabold block mb-1">verdicts.json</strong>
-                      <span className="text-muted-soft text-xs block mb-2 font-medium">작성 주체: 서버 (/verify)</span>
+                      <span className="text-muted-soft text-xs block mb-2 font-medium">작성 주체: 서버 (/verify, /analyze)</span>
                       <p className="text-xs text-body leading-relaxed">
-                        AI Judge가 판정한 개별 항목 점수(`+99`) 및 카드 대결 결과 캐시를 기록합니다.
+                        AI Judge가 판정한 개별 항목 분석 결과(유용성·품질·중복도) 및 카드 대결 캐시를 기록합니다.
                       </p>
                     </div>
-                    <div className="p-4 rounded-xl border border-hairline bg-surface-soft/40 hover:bg-surface-soft/60 transition-colors">
-                      <strong className="text-ink text-sm font-extrabold block mb-1">teams.json</strong>
-                      <span className="text-muted-soft text-xs block mb-2 font-medium">작성 주체: 서버 (작전 저장)</span>
+                    <div className="p-4 rounded-xl border border-hairline bg-surface-soft/40 hover:bg-surface-soft/60 transition-colors opacity-60">
+                      <strong className="text-ink text-sm font-extrabold block mb-1">teams.json <span className="text-xs font-normal text-muted-soft">(레거시)</span></strong>
+                      <span className="text-muted-soft text-xs block mb-2 font-medium">작성 주체: 서버 (내부 보존)</span>
                       <p className="text-xs text-body leading-relaxed">
-                        사용자가 작전실(Ops Room)에서 설계한 팀 포메이션 및 전술 프리셋을 영속 보관합니다.
+                        현재 UI에서는 접근하지 않는 레거시 파일입니다. 서버 엔드포인트는 보존되나, 팀 포메이션 UI는 현재 미제공 상태입니다.
                       </p>
                     </div>
                   </div>

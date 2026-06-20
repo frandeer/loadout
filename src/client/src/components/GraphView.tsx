@@ -28,7 +28,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import type { Item, Kind } from "../types";
-import { RARITY_CONFIG, KIND_LABELS } from "../types";
+import { RARITY_CONFIG, KIND_LABELS, isEquippable } from "../types";
 import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
 import { buildGraph, egoFilter, traitEdgeLabel, type GraphEdgeType, type GraphEdgeData } from "../lib/graph";
@@ -117,11 +117,12 @@ function GraphCanvas() {
   // ── 스코프 적용: 포커스(더블클릭 1자산 에고) > all > ego(장착·상주 + 1홉 이웃) ──
   const scopedItems = useMemo(() => {
     const opts = { showName, showTrait };
-    // 포커스 모드: 더블클릭한 자산의 1홉 에고만. 전체 items에서 빌드해 이웃이 잘리지 않게.
-    //   (equipOnly로 좁힌 prefiltered가 아니라 items 전체에서 이웃을 찾는다.)
+    // 포커스 모드: 더블클릭한 자산의 1홉 에고만. kindFiltered 범위 안에서만 이웃을 찾는다.
+    //   items 전체에서 빌드하면 사용자가 고른 kind 칩 필터가 무시돼 다른 종류가 쏟아진다(회귀 버그).
+    //   ego 스코프의 폴백(130-132)과 동일한 원칙: kind 경계를 절대 넘지 않는다.
     if (focusId) {
-      const { edges } = buildGraph(items, opts);
-      return egoFilter(items, focusId, 1, opts, edges);
+      const { edges } = buildGraph(kindFiltered, opts);
+      return egoFilter(kindFiltered, focusId, 1, opts, edges);
     }
     if (scope === "all") return prefiltered;
     // ego 스코프: prefiltered 전체 그래프를 한 번만 빌드해 egoFilter에 엣지를 재사용
@@ -154,8 +155,9 @@ function GraphCanvas() {
     [scopedItems, showName, showTrait],
   );
 
-  // 전체 스코프에서 노드 수가 많을 때 성능 경고용.
-  const allCount = prefiltered.length;
+  // 전체 스코프 버튼 라벨/경고용 수치 — '전체'가 실제로 렌더할 노드 수를 정직하게 표시.
+  //   equipOnly ON 시 prefiltered는 앵커만 담으므로 kindFiltered 전체가 실제 '전체' 수.
+  const allCount = equipOnly ? kindFiltered.length : prefiltered.length;
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AssetNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -355,9 +357,10 @@ function GraphCanvas() {
     [setSelected],
   );
 
-  // ── 다중 선택 추적(로컬). ──
+  // ── 다중 선택 추적(로컬). memory 노드는 장착 개념 없음 — 일괄 바 임계값 계산에서 제외.
   const onSelectionChange = useCallback<OnSelectionChangeFunc<AssetNode, Edge>>(
-    ({ nodes: sel }) => setSelectedIds(sel.map((n) => n.id)),
+    ({ nodes: sel }) =>
+      setSelectedIds(sel.filter((n) => isEquippable((n.data as { item: Item }).item.kind)).map((n) => n.id)),
     [],
   );
 
@@ -444,6 +447,7 @@ function GraphCanvas() {
       selectionOnDrag
       panOnDrag={[1, 2]}
       selectionMode={SelectionMode.Partial}
+      nodesFocusable
       proOptions={{ hideAttribution: true }}
       className="bg-surface-app"
     >

@@ -21,7 +21,16 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
   const [roots, setRoots] = useState<SourceRoot[]>([]);
   const [cloneUrl, setCloneUrl] = useState("");
   const [addPath, setAddPath] = useState("");
-  const [loading, setLoading] = useState(false);
+  // 작업별 로딩 상태 — 전역 단일 플래그 대신 각 동작을 독립적으로 관리
+  const [cloneLoading, setCloneLoading] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const [removeLoading, setRemoveLoading] = useState<string | null>(null); // 제거 중인 경로
+  const [rescanLoading, setRescanLoading] = useState(false);
+  // 작업 오류 — 각 섹션에 인접하게 표시
+  const [cloneError, setCloneError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [rescanError, setRescanError] = useState<string | null>(null);
   const reloadData = useStore((s) => s.reloadData);
 
   const fetchSources = async () => {
@@ -37,46 +46,99 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
 
   const handleClone = async () => {
     if (!cloneUrl.trim()) return;
-    setLoading(true);
+    setCloneError(null);
+    setCloneLoading(true);
     try {
-      await api.clone(cloneUrl.trim());
-      setCloneUrl("");
-      await fetchSources();
-      await reloadData();
-    } catch {}
-    setLoading(false);
+      const res = await fetch("/api/clone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: cloneUrl.trim() }),
+      });
+      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      if (!res.ok || !body.ok) {
+        setCloneError(body.error || `Clone 실패 (${res.status})`);
+      } else {
+        setCloneUrl("");
+        await fetchSources();
+        await reloadData();
+      }
+    } catch (err) {
+      setCloneError(err instanceof Error ? err.message : String(err));
+    }
+    setCloneLoading(false);
   };
 
   const handleAddSource = async () => {
     if (!addPath.trim()) return;
-    setLoading(true);
+    setAddError(null);
+    setAddLoading(true);
     try {
-      await api.addSource(addPath.trim());
-      setAddPath("");
-      await fetchSources();
-      await reloadData();
-    } catch {}
-    setLoading(false);
+      const res = await fetch("/api/sources/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: addPath.trim() }),
+      });
+      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      if (!res.ok || !body.ok) {
+        setAddError(body.error || `추가 실패 (${res.status})`);
+      } else {
+        setAddPath("");
+        await fetchSources();
+        await reloadData();
+      }
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : String(err));
+    }
+    setAddLoading(false);
   };
 
   const handleRemove = async (path: string) => {
-    setLoading(true);
+    setRemoveError(null);
+    setRemoveLoading(path);
     try {
-      await api.removeSource(path);
-      await fetchSources();
-      await reloadData();
-    } catch {}
-    setLoading(false);
+      const res = await fetch("/api/sources/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      if (!res.ok || !body.ok) {
+        setRemoveError(body.error || `제거 실패 (${res.status})`);
+      } else {
+        await fetchSources();
+        await reloadData();
+      }
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : String(err));
+    }
+    setRemoveLoading(null);
   };
 
   const handleRescan = async () => {
-    setLoading(true);
+    setRescanError(null);
+    setRescanLoading(true);
     try {
-      await api.rescan();
-      await reloadData();
-    } catch {}
-    setLoading(false);
+      const res = await fetch("/api/rescan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      if (!res.ok || !body.ok) {
+        setRescanError(body.error || `재스캔 실패 (${res.status})`);
+      } else {
+        await reloadData();
+      }
+    } catch (err) {
+      setRescanError(err instanceof Error ? err.message : String(err));
+    }
+    setRescanLoading(false);
   };
+
+  // 공통 오류 알림 컴포넌트 — 인라인 사용
+  const ErrorNote = ({ msg }: { msg: string | null }) =>
+    msg ? (
+      <p className="mt-1.5 text-xs text-accent-rose">{msg}</p>
+    ) : null;
 
   return (
     <Modal open={open} onClose={onClose} title="소스 관리" wide>
@@ -91,17 +153,19 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
               type="url"
               placeholder="https://github.com/owner/repo"
               value={cloneUrl}
-              onChange={(e) => setCloneUrl(e.target.value)}
+              onChange={(e) => { setCloneUrl(e.target.value); setCloneError(null); }}
+              onKeyDown={(e) => e.key === "Enter" && handleClone()}
               className="flex-1 rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-primary focus:outline-none"
             />
             <button
               onClick={handleClone}
-              disabled={loading}
+              disabled={cloneLoading}
               className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-active disabled:opacity-50"
             >
-              <Icon name="download" size="sm" className="text-white" /> Clone
+              <Icon name="download" size="sm" className="text-white" /> {cloneLoading ? "Clone 중…" : "Clone"}
             </button>
           </div>
+          <ErrorNote msg={cloneError} />
         </div>
 
         {/* 로컬 경로 */}
@@ -114,17 +178,19 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
               type="text"
               placeholder="/path/to/skills"
               value={addPath}
-              onChange={(e) => setAddPath(e.target.value)}
+              onChange={(e) => { setAddPath(e.target.value); setAddError(null); }}
+              onKeyDown={(e) => e.key === "Enter" && handleAddSource()}
               className="flex-1 rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-primary focus:outline-none"
             />
             <button
               onClick={handleAddSource}
-              disabled={loading}
+              disabled={addLoading}
               className="flex items-center gap-1.5 rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-body transition hover:bg-surface-soft disabled:opacity-50"
             >
-              <Icon name="add" size="sm" /> 추가
+              <Icon name="add" size="sm" /> {addLoading ? "추가 중…" : "추가"}
             </button>
           </div>
+          <ErrorNote msg={addError} />
         </div>
 
         {/* 세션에서 스킬 추출 (카드 드랍) */}
@@ -145,12 +211,14 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
             <h4 className="text-xs font-bold uppercase tracking-wide text-muted">등록된 소스</h4>
             <button
               onClick={handleRescan}
-              disabled={loading}
+              disabled={rescanLoading}
               className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-body transition hover:bg-surface-soft disabled:opacity-50"
             >
-              <Icon name="refresh" size="xs" /> {loading ? "작업 중..." : "전체 재스캔"}
+              <Icon name="refresh" size="xs" /> {rescanLoading ? "재스캔 중..." : "전체 재스캔"}
             </button>
           </div>
+          <ErrorNote msg={rescanError} />
+          <ErrorNote msg={removeError} />
           <div className="space-y-2">
             {roots.length === 0 ? (
               <p className="text-sm text-muted">등록된 소스가 없습니다.</p>
@@ -171,10 +239,10 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
                   </div>
                   <button
                     onClick={() => handleRemove(r.path)}
-                    disabled={loading}
+                    disabled={removeLoading === r.path}
                     className="ml-3 flex shrink-0 items-center gap-1 rounded-lg border border-hairline px-3 py-1.5 text-xs text-muted transition hover:border-accent-rose hover:text-accent-rose disabled:opacity-50"
                   >
-                    <Icon name="delete" size="xs" /> 제거
+                    <Icon name="delete" size="xs" /> {removeLoading === r.path ? "제거 중…" : "제거"}
                   </button>
                 </div>
               ))

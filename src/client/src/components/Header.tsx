@@ -27,14 +27,20 @@ export function Header({ onOpenSources }: HeaderProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [rescanning, setRescanning] = useState(false);
+  const [rescanError, setRescanError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
 
   const handleRescan = useCallback(async () => {
     setRescanning(true);
+    setRescanError(null);
     try {
       await api.rescan();
       await reloadData();
+    } catch (err) {
+      setRescanError(err instanceof Error ? err.message : "스캔 실패");
+      // 3초 후 자동으로 에러 메시지 제거
+      setTimeout(() => setRescanError(null), 3000);
     } finally {
       setRescanning(false);
     }
@@ -79,6 +85,7 @@ export function Header({ onOpenSources }: HeaderProps) {
           <input
             ref={searchRef}
             type="search"
+            aria-label="Skill, Agent, MCP 검색"
             placeholder="Skill, Agent, MCP 검색..."
             value={filters.q}
             onChange={(e) => setFilter("q", e.target.value)}
@@ -91,24 +98,27 @@ export function Header({ onOpenSources }: HeaderProps) {
 
         {/* 메인 탭 */}
         <nav className="flex items-center">
-          {VIEW_TABS.map((t) => {
+          {(() => {
             const path = location.pathname === "/" ? "/dashboard" : location.pathname;
-            const active = path === t.path;
-            return (
-              <button
-                key={t.key}
-                onClick={() => navigate(t.path)}
-                className={`relative flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
-                  active
-                    ? "bg-primary-soft text-primary"
-                    : "text-muted hover:text-ink hover:bg-surface-soft"
-                }`}
-              >
-                <Icon name={t.icon} size="sm" />
-                {t.label}
-              </button>
-            );
-          })}
+            return VIEW_TABS.map((t) => {
+              const active = path === t.path;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => navigate(t.path)}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
+                    active
+                      ? "bg-primary-soft text-primary"
+                      : "text-muted hover:text-ink hover:bg-surface-soft"
+                  }`}
+                >
+                  <Icon name={t.icon} size="sm" />
+                  {t.label}
+                </button>
+              );
+            });
+          })()}
         </nav>
 
         {/* 유틸리티 액션 */}
@@ -119,39 +129,51 @@ export function Header({ onOpenSources }: HeaderProps) {
           >
             <Icon name="add" size="sm" /> 새로 추가
           </button>
-          <button
-            onClick={handleRescan}
-            disabled={rescanning}
-            className="flex items-center gap-1.5 rounded-lg bg-surface-soft px-3 py-2 text-xs font-semibold text-body hover:bg-hairline transition-colors disabled:opacity-50"
-          >
-            <Icon name="sync" size="sm" className={rescanning ? "animate-spin" : ""} />
-            {rescanning ? "스캔 중..." : "가져오기"}
-          </button>
+          <div className="relative">
+            <button
+              onClick={handleRescan}
+              disabled={rescanning}
+              className="flex items-center gap-1.5 rounded-lg bg-surface-soft px-3 py-2 text-xs font-semibold text-body hover:bg-hairline transition-colors disabled:opacity-50"
+            >
+              <Icon name="sync" size="sm" className={rescanning ? "animate-spin" : ""} />
+              {rescanning ? "스캔 중..." : "가져오기"}
+            </button>
+            {rescanError && (
+              <div className="absolute right-0 top-full mt-1.5 w-56 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 shadow-sm z-50">
+                스캔 실패: {rescanError}
+              </div>
+            )}
+          </div>
 
           {/* 설정 */}
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => setSettingsOpen(!settingsOpen)}
+              aria-haspopup="menu"
+              aria-expanded={settingsOpen}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface-soft transition-colors"
               title="설정"
             >
               <Icon name="settings" size="md" />
             </button>
             {settingsOpen && (
-              <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-hairline bg-canvas py-1.5 shadow-lg z-50">
+              <div role="menu" className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-hairline bg-canvas py-1.5 shadow-lg z-50">
                 <button
+                  role="menuitem"
                   onClick={() => { setSettingsPanelOpen(true); setSettingsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
                 >
                   <Icon name="gear-alt" size="sm" /> 이미지 엔진 설정
                 </button>
                 <button
+                  role="menuitem"
                   onClick={() => { handleRescan(); setSettingsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
                 >
                   <Icon name="sync" size="sm" /> 다시 스캔
                 </button>
                 <button
+                  role="menuitem"
                   onClick={() => { onOpenSources(); setSettingsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
                 >
@@ -159,12 +181,14 @@ export function Header({ onOpenSources }: HeaderProps) {
                 </button>
                 <div className="my-1 border-t border-hairline" />
                 <button
+                  role="menuitem"
                   onClick={() => { navigate("/forge"); setSettingsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
                 >
                   <Icon name="wrench" size="sm" /> 포지
                 </button>
                 <button
+                  role="menuitem"
                   onClick={() => { navigate("/help"); setSettingsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-soft"
                 >

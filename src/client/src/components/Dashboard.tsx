@@ -13,8 +13,9 @@ import type { IconName } from "./Icon";
    세션 로그 기반 사용량은 희소하므로 항상 "기록 없음 ≠ 미사용" 단서를 붙인다. */
 
 // 활성(켜짐) 판정 — 장착됐거나 ~/.claude 에 링크/상주 중인 자산.
+// divergent 자산은 제외 (Inventory와 동일 기준 — /loadout에서 '분기' 별도 섹션으로 노출).
 function isActive(i: Item): boolean {
-  return !!i.equipped || i.claudeState === "resident" || i.claudeState === "link";
+  return (!!i.equipped || i.claudeState === "resident" || i.claudeState === "link") && !i.divergent;
 }
 
 const KIND_ICONS: Record<Kind, IconName> = {
@@ -172,14 +173,15 @@ export function Dashboard() {
     // (3b) 거대 자산 — 활성 + oversized (켜져 있어 컨텍스트를 먹는 거대 자산).
     const oversizedActive = active.filter((i) => i.oversized);
 
-    // (4) 사용 현황 — 활성 자산 중 uses>0 vs 기록 없음.
+    // (4) 사용 현황 — 전체 자산 중 uses>0 vs 기록 없음.
+    //     활성 자산만 스코프하면 "기록 있음 0"이 되는 경우가 있어 혼란을 줌.
     //     uses 는 세션 로그 기반이라 희소 → "기록 없음"이지 "미사용"이 아니다.
-    const usedActive = active
+    const usedAll = items
       .filter((i) => (i.uses ?? 0) > 0)
       .sort((a, b) => (b.uses ?? 0) - (a.uses ?? 0));
-    const usedCount = usedActive.length;
-    const noRecordCount = activeCount - usedCount;
-    const topUsed = usedActive.slice(0, 6);
+    const usedCount = usedAll.length;
+    const noRecordCount = total - usedCount;
+    const topUsed = usedAll.slice(0, 6);
 
     // (5) 헬스 — 분기 / 거대 / 중복그룹 / MCP(기록 전용).
     const divergentCount = items.filter((i) => i.divergent).length;
@@ -224,6 +226,7 @@ export function Dashboard() {
           <button
             onClick={doRescan}
             disabled={rescanning}
+            aria-busy={rescanning}
             className="flex items-center gap-1.5 rounded-lg border border-hairline px-4 py-2 text-xs font-medium text-body transition hover:bg-surface-soft disabled:opacity-50"
             title="소스를 다시 스캔해 카탈로그를 갱신합니다"
           >
@@ -233,6 +236,7 @@ export function Dashboard() {
           <button
             onClick={doRefreshUsage}
             disabled={syncing}
+            aria-busy={syncing}
             className="flex items-center gap-1.5 rounded-lg border border-hairline px-4 py-2 text-xs font-medium text-body transition hover:bg-surface-soft disabled:opacity-50"
             title="세션 로그를 다시 스캔해 사용량을 갱신합니다"
           >
@@ -248,7 +252,11 @@ export function Dashboard() {
           </button>
         </div>
         {actionError && (
-          <p className="flex w-full items-center gap-1.5 rounded-lg bg-accent-rose/10 px-3 py-2 text-xs font-medium text-accent-rose">
+          <p
+            role="alert"
+            aria-live="assertive"
+            className="flex w-full items-center gap-1.5 rounded-lg bg-accent-rose/10 px-3 py-2 text-xs font-medium text-accent-rose"
+          >
             <Icon name="warning" size="sm" className="shrink-0" />
             {actionError}
           </p>
@@ -263,6 +271,7 @@ export function Dashboard() {
             label={KIND_LABELS[k]}
             value={m.kindCounts[k]}
             icon={KIND_ICONS[k]}
+            onClick={() => { setFilters({ kind: k, group: undefined, dupOnly: false, rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false, sort: "score" }); navigate("/assets"); }}
           />
         ))}
         <StatCard
@@ -302,7 +311,7 @@ export function Dashboard() {
                       </span>
                     </div>
                     <button
-                      onClick={() => { setFilters({ dupOnly: true, group: undefined, kind: "all", rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false }); navigate("/assets"); }}
+                      onClick={() => { setFilters({ dupOnly: true, group: undefined, kind: "all", rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false, sort: "score" }); navigate("/assets"); }}
                       className="text-[11px] font-medium text-primary hover:underline"
                     >
                       자산에서 정리 →
@@ -315,7 +324,7 @@ export function Dashboard() {
                     {m.dupGroups.slice(0, 6).map((g) => (
                       <li key={g.group}>
                         <button
-                          onClick={() => { setFilters({ group: g.group, dupOnly: false, kind: "all", rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false }); navigate("/assets"); }}
+                          onClick={() => { setFilters({ group: g.group, dupOnly: false, kind: "all", rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false, sort: "score" }); navigate("/assets"); }}
                           title="이 동일 계열만 자산에서 비교"
                           className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-surface-soft"
                         >
@@ -373,6 +382,7 @@ export function Dashboard() {
                       <li key={i.id}>
                         <button
                           onClick={() => navigate("/loadout")}
+                          title="장착·보관에서 보기"
                           className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-surface-soft"
                         >
                           <span className="flex min-w-0 items-center gap-2">
@@ -385,11 +395,23 @@ export function Dashboard() {
                               {i.nameKo || i.displayName || i.name}
                             </span>
                           </span>
-                          {typeof i.cost === "number" && (
-                            <span className="shrink-0 rounded-full bg-[var(--color-accent-orange-soft)] px-2 py-0.5 font-mono text-[11px] font-semibold text-accent-orange">
-                              ~{i.cost.toLocaleString()} tok
+                          {/* 거대 자산의 본질은 "큰 본문" — oversized 판정 기준인 호출 시(on-demand) 본문 비용을
+                              보여준다(이게 vault 로 옮겼을 때 절약되는 양). 상시(descCost)는 작아서 여기선 무의미. */}
+                          {typeof i.cost === "number" ? (
+                            <span
+                              className="shrink-0 rounded-full bg-[var(--color-accent-orange-soft)] px-2 py-0.5 font-mono text-[11px] font-semibold text-accent-orange"
+                              title="호출 시 본문 비용 (on-demand) — vault 로 옮기면 절약되는 양"
+                            >
+                              본문 ~{i.cost.toLocaleString()} tok
                             </span>
-                          )}
+                          ) : typeof i.descCost === "number" ? (
+                            <span
+                              className="shrink-0 rounded-full bg-[var(--color-accent-orange-soft)] px-2 py-0.5 font-mono text-[11px] font-semibold text-accent-orange"
+                              title="상시 컨텍스트 비용 (always-on)"
+                            >
+                              상시 ~{i.descCost.toLocaleString()} tok
+                            </span>
+                          ) : null}
                         </button>
                       </li>
                     ))}
@@ -402,7 +424,7 @@ export function Dashboard() {
 
         {/* ── 4. 사용 현황 (정직) ── */}
         <section className="rounded-xl border border-hairline bg-canvas p-5">
-          <PanelHead icon="activity" title="사용 현황" note="활성 자산 기준" />
+          <PanelHead icon="activity" title="사용 현황" note="전체 자산 기준" />
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-hairline bg-surface-soft p-3">
@@ -416,8 +438,8 @@ export function Dashboard() {
               <div className="mt-1 font-mono text-2xl font-bold text-muted">{m.noRecordCount}</div>
             </div>
             <div className="rounded-lg border border-hairline bg-surface-soft p-3">
-              <div className="text-[11px] font-semibold text-muted">활성 합계</div>
-              <div className="mt-1 font-mono text-2xl font-bold text-ink">{m.activeCount}</div>
+              <div className="text-[11px] font-semibold text-muted">전체 합계</div>
+              <div className="mt-1 font-mono text-2xl font-bold text-ink">{m.total}</div>
             </div>
           </div>
 
@@ -434,6 +456,7 @@ export function Dashboard() {
                   <li key={i.id}>
                     <button
                       onClick={() => navigate("/loadout")}
+                      title="장착·보관에서 보기"
                       className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-surface-soft"
                     >
                       <span className="flex min-w-0 items-center gap-2">
@@ -478,7 +501,7 @@ export function Dashboard() {
               icon="copy"
               label="중복 그룹"
               value={m.dupGroupCount}
-              onClick={() => navigate("/assets")}
+              onClick={() => { setFilters({ dupOnly: true, group: undefined, kind: "all", rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false, sort: "score" }); navigate("/assets"); }}
             />
             <HealthChip icon="network" label="MCP (기록 전용)" value={m.mcpCount} />
           </div>
