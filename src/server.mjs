@@ -15,6 +15,9 @@ import { generateDrop, dropsDir } from "./drop.mjs";
 import { ensureImageFarm } from "./imagefarm.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
+// .env 가 있으면 로드(없어도 무시) — CODEX_IMAGE_API_KEY 등 비밀·설정을 git 밖에서 주입한다.
+// Node 20.12+ 의 내장 로더(의존성 0). PORT/HOST 도 .env 로 덮어쓸 수 있게 가장 먼저 로드.
+try { process.loadEnvFile?.(join(root, ".env")); } catch {}
 const clientDist = join(root, "src/client/dist");
 const webDir = existsSync(clientDist) ? clientDist : join(root, "src/web");
 const dataDir = join(root, "data");
