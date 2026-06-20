@@ -17,7 +17,10 @@ const dataDir = join(root, "data");
 
 // ---------- 유틸 ----------
 const clamp = (n, lo = 0, hi = 99) => Math.max(lo, Math.min(hi, Math.round(n)));
-const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9가-힣]+/g, "");
+// frontmatter 값이 배열/객체로 올 수 있다(예: 멀티값 `name:` 은 합법 YAML → 배열).
+// 사용 전 항상 문자열로 강제해 .toLowerCase() 등에서 TypeError 로 전체 스캔이 죽는 일을 막는다.
+const asStr = (v) => (Array.isArray(v) ? v.filter((x) => x != null).join(" ") : v == null ? "" : String(v));
+const norm = (s) => asStr(s).toLowerCase().replace(/[^a-z0-9가-힣]+/g, "");
 
 // ---------- git 신선도 (repo별 1회 배치 호출, 파일→마지막 커밋시각 맵) ----------
 // 성능: per-file git 호출(파일당 ~0.3s, 6000개면 수십 분)을 피하고
@@ -271,7 +274,9 @@ async function walk(dir, onFile, depth = 0) {
   for (const e of entries) {
     if (e.isFile()) {
       if (e.name.toLowerCase() === "skill.md") hasSkillMd = true;
-      await onFile(join(dir, e.name));
+      // 한 파일 처리 실패(손상된 frontmatter 등)가 전체 스캔을 중단시키지 않도록 격리한다.
+      try { await onFile(join(dir, e.name)); }
+      catch (err) { console.warn(`⚠️  스킵: ${join(dir, e.name)} — ${err?.message || err}`); }
     }
   }
   // 스킬 루트(SKILL.md 보유)면 하위로 더 내려가지 않는다 — 스킬의 하위 폴더는
@@ -391,12 +396,13 @@ function computeStats({ size, mtimeMs, freshMs, fm, refCount, repoStats }) {
   return { popularity, freshness, power, clarity, weight };
 }
 
+// 실측 4스탯 가중합(콘텐츠·git 유도, 멱등). rarityOf 와 freshness 재계산 post-pass 가 공유한다.
+const realStat = (s) => 0.25 * s.popularity + 0.2 * s.power + 0.2 * s.clarity + 0.2 * s.freshness;
 function rarityOf(stats, ai) {
   // 실측 4스탯은 콘텐츠·git에서 유도(멱등). AI 채점(usefulness)이 있으면 15%를 더하고,
   // 없으면 빈 슬롯을 (파워+명확도)/2로 채우던 '유령 가중'(이미 반영된 두 스탯의 중복)을 빼고
   // 4스탯만 정규화한다. 평균값에선 기존과 동일(척도 보존), 파워·명확도 편중만 정직해진다.
-  const real =
-    0.25 * stats.popularity + 0.2 * stats.power + 0.2 * stats.clarity + 0.2 * stats.freshness;
+  const real = realStat(stats);
   const base = ai?.usefulness != null ? real + 0.15 * ai.usefulness : real / 0.85;
   const score = clamp(base);
   let rarity = "common";
@@ -498,8 +504,8 @@ async function handleSkill(rootPath, file) {
   const dir = file.slice(0, file.length - basename(file).length);
   const refCount = await countSiblings(dir);
   const segs = relPath.split("/");
-  const name = fm.name || basename(dir.replace(/[\\/]+$/, "")) || "skill";
-  const description = (fm.description || "").toString();
+  const name = asStr(fm.name) || basename(dir.replace(/[\\/]+$/, "")) || "skill";
+  const description = asStr(fm.description);
   // 구조적 카테고리 후보: 스킬 폴더의 부모 디렉토리(단, repo명은 제외).
   const structSegs = [];
   if (segs.length >= 3) {
@@ -545,7 +551,7 @@ async function handleAgent(rootPath, file) {
   if (!st) return;
   const repo = repoOf(rootPath, file);
   const relPath = relative(rootPath, file).split(sep).join("/");
-  const name = fm.name || basename(file).replace(/\.md$/i, "");
+  const name = asStr(fm.name) || basename(file).replace(/\.md$/i, "");
   // git 신선도 (skill과 동일 방식)
   const repoDir = repoDirOf(rootPath, repo);
   const gitMap = await getGitMtimeMap(repoDir);
@@ -820,6 +826,25 @@ for (const rootPath of sourceRoots) {
 }
 await scanCcMcp();
 await scanMemory();
+
+// ── 멱등성: freshness/score 의 wall-clock 의존 제거 ───────────────────────────
+// computeStats 는 ageDays 계산에 Date.now() 를 써서, 같은 git 상태라도 "오늘 며칠인가"에 따라
+// freshness(→ score → 백분위 등급)가 매일 미세하게 드리프트했다(scan.mjs 멱등성 불변식 위반).
+// 'now' 기준을 카탈로그의 최신 커밋시각(= 모든 item.source.mtime 의 최댓값)으로 고정해
+// git 상태가 같으면 언제 스캔해도 동일한 출력이 나오게 한다(콘텐츠/깃 유도 → 멱등).
+// mtime===0(시간 비의존: cc-config MCP 등)은 건드리지 않는다.
+{
+  const NOW_REF = items.reduce((mx, it) => Math.max(mx, it.source?.mtime || 0), 0);
+  if (NOW_REF > 0) {
+    for (const it of items) {
+      const freshMs = it.source?.mtime || 0;
+      if (!it.stats || freshMs <= 0) continue;
+      const ageDays = Math.max(0, (NOW_REF - freshMs) / 86400000);
+      it.stats.freshness = clamp(100 - Math.min(100, Math.pow(ageDays / 365, 0.6) * 100));
+      it.score = clamp(realStat(it.stats) / 0.85); // rarityOf 의 무-AI 경로와 동일 공식
+    }
+  }
+}
 
 // ── 동일 내용 복사본 디듀프 ────────────────────────────────────────────────
 // antigravity-awesome-skills 등은 같은 스킬을 여러 번들 플러그인에 그대로 복제한다.

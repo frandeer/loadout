@@ -37,11 +37,14 @@
   --color-hairline-strong: #CBD5E1;
   --color-divider-soft: #F1F5F9;
 
+  /* 호버 틴트 — surface-card(#FFF) 보다 살짝 어두운 중립 회색 */
+  --color-surface-hover: #F1F5F9;
+
   /* Text */
   --color-ink: #0F172A;
   --color-body: #334155;
   --color-muted: #64748B;
-  --color-muted-soft: #94A3B8;
+  --color-muted-soft: #64748B; /* slate-500 ≈4.5:1, WCAG AA 준수로 조정 (#94A3B8은 ~2.6:1 미달) */
 
   /* Semantic */
   --color-success: #10B981;
@@ -69,6 +72,15 @@
   --font-sans: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   --font-display: "Space Grotesk", "Inter Tight", "Sora", var(--font-sans);
+}
+
+/* ── 키보드 포커스 링 (a11y) ───────────────────────────────────
+   포커스 가시성 전역 보장 — 마우스 사용자에겐 노출되지 않음.
+   border-radius: inherit 로 각 컴포넌트의 둥근 모서리를 따라감. */
+:where(button, [role="button"], a, select, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: inherit;
 }
 
 html {

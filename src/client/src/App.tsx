@@ -71,6 +71,8 @@ function PageView({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const loadData = useStore((s) => s.loadData);
+  const error = useStore((s) => s.error);
+  const dismissError = useStore((s) => s.dismissError);
   const [sourceOpen, setSourceOpen] = useState(false);
 
   useEffect(() => {
@@ -81,6 +83,31 @@ export default function App() {
     <HashRouter>
       <div className="min-h-screen bg-surface-app text-body">
         <Header onOpenSources={() => setSourceOpen(true)} />
+
+        {/* 서버 연결 실패 등 데이터 로드 오류 배너 — 닫기·재시도 제공 */}
+        {error && (
+          <div
+            role="alert"
+            className="flex items-center gap-3 bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-900"
+          >
+            <span className="flex-1">{error}</span>
+            <button
+              type="button"
+              onClick={() => loadData()}
+              className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-amber-100 hover:bg-amber-200 transition-colors"
+            >
+              다시 시도
+            </button>
+            <button
+              type="button"
+              aria-label="오류 배너 닫기"
+              onClick={dismissError}
+              className="shrink-0 rounded px-1.5 py-1 text-xs text-amber-700 hover:bg-amber-200 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

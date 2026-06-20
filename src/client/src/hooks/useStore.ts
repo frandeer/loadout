@@ -12,6 +12,7 @@ interface AppState {
   picked: Set<string>;
   lang: "ko" | "en";
   loading: boolean;
+  error: string | null; // 데이터 로드 실패 시 한국어 진단 메시지, 성공 시 null
   engines: string[];
   imageEngine: string; // 이미지 생성 엔진(codex|chatgpt|grok|image-farm|auto) — 서버 settings.json 영속
 
@@ -25,6 +26,7 @@ interface AppState {
   setImageEngine: (e: string) => void;
   loadData: () => Promise<void>;
   reloadData: () => Promise<void>;
+  dismissError: () => void; // 에러 배너 닫기
 
   filtered: () => Item[];
   panelWidth: number;
@@ -49,6 +51,7 @@ export const useStore = create<AppState>((set, get) => ({
   picked: new Set<string>(),
   lang: "ko",
   loading: true,
+  error: null,
   engines: ["heuristic"],
   imageEngine: "codex-api",
 
@@ -103,13 +106,18 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   loadData: async () => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const data = await api.getIndex();
       const engData = await api.getEngines();
-      set({ items: data.items, meta: data, engines: engData.engines, loading: false });
+      set({ items: data.items, meta: data, engines: engData.engines, loading: false, error: null });
     } catch {
-      set({ loading: false });
+      // 서버 미실행 등 네트워크/API 오류 — 사람이 읽을 수 있는 한국어 메시지로 표시.
+      set({
+        loading: false,
+        error: "데이터를 불러오지 못했습니다 — 서버(:4970)가 실행 중인지 확인하세요.",
+      });
+      return; // 이미지 엔진 설정 요청도 의미 없으므로 종료
     }
     // 이미지 엔진 설정(서버 영속) 로드 — 실패 시 기본 codex-api 유지.
     try {
@@ -117,6 +125,8 @@ export const useStore = create<AppState>((set, get) => ({
       if (s?.settings?.imageEngine) set({ imageEngine: s.settings.imageEngine });
     } catch {}
   },
+
+  dismissError: () => set({ error: null }),
 
   reloadData: async () => {
     try {

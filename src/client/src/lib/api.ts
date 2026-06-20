@@ -11,8 +11,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
-  if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
-  return res.json();
+  // JSON 본문을 먼저 파싱해 error 필드를 사람이 읽을 수 있는 메시지로 올린다.
+  const body = await res.json().catch(() => null) as ({ error?: string } & T) | null;
+  if (!res.ok) throw new Error(body?.error ?? `API ${path}: ${res.status}`);
+  return body as T;
 }
 
 // 서버 계약(src/server.mjs)이 진실의 원천 — 경로/페이로드를 서버에 맞춘다.

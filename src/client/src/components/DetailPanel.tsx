@@ -59,6 +59,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   // 실제 분석에 쓰인 엔진(서버 응답) — 요청 엔진이 실패하면 휴리스틱으로 폴백되므로
   // 결과에 그대로 노출해 "선택 엔진인 척하는 휴리스틱" 혼동을 막는다.
   const [analyzedEngine, setAnalyzedEngine] = useState<string | null>(null);
+  // stale-response용 ref — handleAnalyze 는 effect 가 아니라 이벤트 핸들러라 cleanup 이 없다.
+  // 분석 요청 시점의 id를 ref에 기록해, 응답 도착 시 현재 selected 와 비교한다.
+  const analyzeForIdRef = useRef<string | null>(null);
 
   // engines가 부팅보다 늦게 도착하면 초깃값이 "heuristic"으로 고정될 수 있다(useState는 1회 평가).
   // 실엔진이 들어오면 아직 휴리스틱이던 선택을 claude(없으면 첫 실엔진)로 한 번 재동기화한다.
@@ -103,6 +106,13 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     setAnalyzeError(null);
     setAnalyzing(false);
     setAnalyzedEngine(null);
+    // 카드 전환 시 일시적 처리 상태(장착·번역·삭제) 초기화 — 이전 카드에서 걸린 '처리 중...' 가 남지 않도록.
+    setEquipping(false);
+    setTranslating(false);
+    setTranslatingContent(false);
+    setDeleting(false);
+    // 분석 stale-response ref도 초기화 — 이전 카드의 응답이 새 카드에 반영되지 않도록.
+    analyzeForIdRef.current = null;
   }, [item?.id]);
 
   useEffect(() => {
@@ -111,9 +121,14 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     setContentKo("");
     setActiveTab("original");
     setLoadingContent(true);
+    // stale-response 방지: 이 effect가 발화된 시점의 id를 캡처한다.
+    // cleanup(카드/subPath 전환) 시 alive=false 로 만들어 응답이 늦게 도착해도 상태를 덮어쓰지 않는다.
+    const capturedId = item.id;
+    let alive = true;
     api
-      .getContent(item.id, subPath || undefined)
+      .getContent(capturedId, subPath || undefined)
       .then((d) => {
+        if (!alive) return; // 다른 카드가 이미 선택됐으면 무시
         setContent(d.content);
         if (d.contentKo) {
           setContentKo(d.contentKo);
@@ -123,8 +138,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           setFiles(d.files);
         }
       })
-      .catch(() => setContent(""))
-      .finally(() => setLoadingContent(false));
+      .catch(() => { if (alive) setContent(""); })
+      .finally(() => { if (alive) setLoadingContent(false); });
+    return () => { alive = false; };
   }, [item?.id, subPath]);
 
   const currentWidthRef = useRef(panelWidth);
@@ -235,16 +251,22 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
   const handleAnalyze = async () => {
     if (!item) return;
+    // stale-response 방지: 분석 요청 시점의 id를 ref에 기록한다.
+    // 느린 응답(30~60초)이 돌아왔을 때 ref가 달라졌으면(카드 전환) 결과를 버린다.
+    const capturedId = item.id;
+    analyzeForIdRef.current = capturedId;
     setAnalyzing(true);
     setAnalyzeError(null);
     setAnalysis(null);
     setAnalyzedEngine(null);
     try {
       const res = await api.analyze(
-        item.id,
+        capturedId,
         analyzeEngine,
         analyzeEngine === "claude" ? analyzeModel : undefined,
       );
+      // 응답 도착 시 ref가 달라졌으면(다른 카드가 선택됐으면) 무시
+      if (analyzeForIdRef.current !== capturedId) return;
       if (res.ok && res.analysis) {
         setAnalysis(res.analysis);
         // 서버는 요청 엔진 실패 시 휴리스틱으로 폴백하고 실제 사용 엔진을 res.engine으로 돌려준다.
@@ -253,16 +275,25 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         setAnalyzeError("분석에 실패했습니다 (엔진 미설치 또는 응답 오류)");
       }
     } catch {
+      if (analyzeForIdRef.current !== capturedId) return;
       setAnalyzeError("분석 요청 중 오류가 발생했습니다");
     } finally {
-      setAnalyzing(false);
+      // 현재 카드의 요청일 때만 스피너를 끈다. stale 응답(카드 전환 후 늦게 도착)이
+      // 새로 선택된 카드의 진행 중 상태를 꺼버리는 깜빡임을 막는다(카드 전환 effect가 별도로 리셋).
+      if (analyzeForIdRef.current === capturedId) setAnalyzing(false);
     }
   };
 
   const handleTranslate = async () => {
     setTranslating(true);
     try {
-      await api.translate(item.id);
+      // HTTP 200이라도 {ok:false}를 반환할 수 있다(엔진 미설치·타임아웃).
+      // ok 여부를 명시적으로 확인해 실패를 UI에 노출한다.
+      const translateRes = await api.translate(item.id);
+      if (!translateRes.ok) {
+        alert("번역에 실패했습니다: " + (translateRes.error || "엔진 미설치 또는 타임아웃"));
+        return;
+      }
       const contentRes = await api.translateContent(item.id).catch(() => null);
       if (contentRes && contentRes.contentKo) {
         setContentKo(contentRes.contentKo);
@@ -271,8 +302,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
       await reloadData();
     } catch (e: any) {
       alert("번역 중 오류가 발생했습니다: " + (e?.message || e));
+    } finally {
+      setTranslating(false);
     }
-    setTranslating(false);
   };
 
   const handleTranslateContent = async () => {

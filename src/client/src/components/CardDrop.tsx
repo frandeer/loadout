@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, KIND_LABELS } from "../types";
 import type { DropResp } from "../types";
@@ -56,6 +56,18 @@ export function CardDrop({ onReveal }: CardDropProps) {
     onReveal?.();
   };
 
+  // 리빌 오버레이가 열려 있을 때 Escape 키로 닫을 수 있도록 한다.
+  useEffect(() => {
+    if (!dropped) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeReveal();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  // closeReveal은 컴포넌트 내부에서 dropped/items/onReveal에 의존하므로 직접 deps에 포함
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dropped]);
+
   const full = dropped ? items.find((i) => i.id === dropped.id) : undefined;
   const r = full ? RARITY_CONFIG[full.rarity] : RARITY_CONFIG.legendary;
 
@@ -83,6 +95,9 @@ export function CardDrop({ onReveal }: CardDropProps) {
 
       {dropped && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="신규 카드 획득"
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={closeReveal}
           data-testid="card-drop-reveal"

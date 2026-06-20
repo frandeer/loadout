@@ -67,7 +67,8 @@ export function BatchBar() {
       } finally {
         done++;
         setCurrent(done);
-        await reloadData();
+        // reloadData는 개별 항목마다 호출하지 않음 — N회 전체 refetch·그리드 thrash 방지.
+        // 전체 완료 후 한 번만 호출한다(아래 Promise.all 이후).
       }
     };
 
@@ -80,6 +81,9 @@ export function BatchBar() {
     await Promise.all(
       Array.from({ length: Math.min(CONCURRENCY, pickedItems.length) }, () => worker()),
     );
+
+    // 모든 항목이 완료(성공·실패 불문)된 후 단 한 번만 인덱스를 다시 로드한다.
+    await reloadData();
 
     setGenerating(false);
     const icon = failCount === 0 ? "✅" : okCount === 0 ? "❌" : "⚠️";

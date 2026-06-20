@@ -109,6 +109,7 @@ function HealthChip({ icon, label, value, danger, onClick }: HealthChipProps) {
 
 export function Dashboard() {
   const items = useStore((s) => s.items);
+  const loading = useStore((s) => s.loading);
   const reloadData = useStore((s) => s.reloadData);
   const setFilters = useStore((s) => s.setFilters);
   const navigate = useNavigate();
@@ -275,6 +276,45 @@ export function Dashboard() {
           </p>
         )}
       </header>
+
+      {/* ── 1b. 첫 실행 온보딩 패널 — 카탈로그가 진짜 비어 있을 때만(로딩 중·오류 아님) ── */}
+      {/* 필터로 결과가 0개인 경우와 구별: 이 패널은 items 배열 자체가 0개인 경우에만 표시. */}
+      {!loading && items.length === 0 && (
+        <section
+          role="region"
+          aria-label="첫 실행 안내"
+          className="mb-6 rounded-xl border border-primary/20 bg-primary-soft p-6 text-center"
+        >
+          <div className="mb-3 flex justify-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Icon name="backpack" size="lg" className="text-primary" />
+            </span>
+          </div>
+          <h2 className="mb-1.5 text-base font-bold text-ink">아직 자산이 없습니다</h2>
+          <p className="mb-4 text-sm text-muted">
+            Skill·Agent·MCP·Memory를 추가하면 이 대시보드에서 한눈에 관리할 수 있습니다.
+            <br />
+            소스를 등록하거나 다시 스캔해 카탈로그를 채워보세요.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              onClick={() => navigate("/assets")}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-active"
+            >
+              <Icon name="upload" size="sm" /> 소스 추가
+            </button>
+            <button
+              onClick={doRescan}
+              disabled={rescanning}
+              aria-busy={rescanning}
+              className="flex items-center gap-1.5 rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-body transition hover:bg-surface-soft disabled:opacity-50"
+            >
+              <Icon name="refresh" size="sm" className={rescanning ? "animate-spin" : ""} />
+              {rescanning ? "스캔 중..." : "다시 스캔"}
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* ── 2. 통계 카드 ── */}
       {/* 정직한 2지표: '로드아웃 장착'(Loadout으로 의도적으로 켠 것) ≠ '설치 베이스'(~/.claude에 그냥 있는 설치물). */}

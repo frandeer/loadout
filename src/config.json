@@ -14,7 +14,7 @@
     "poolSize": 2,
     "autoLaunchChrome": true,
     "startupTimeoutMs": 30000,
-    "profileDir": "C:/Users/HP/AppData/Local/loadout/chrome-profile"
+    "profileDir": ""
   },
   "codex": {
     "scriptPath": "",

@@ -81,9 +81,27 @@ export function CardGrid() {
   }, [loadMore]);
 
   if (loading) {
+    // 스켈레톤 카드 — 로딩 중 레이아웃 이동(CLS)을 줄이기 위해 최소 높이를 예약한다.
+    const SKELETON_COUNT = 12;
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div
+        aria-busy="true"
+        aria-label="자산 목록 로딩 중"
+        className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4"
+      >
+        {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+          <div
+            key={i}
+            className="min-h-[160px] animate-pulse rounded-xl border border-hairline bg-surface-card"
+          >
+            <div className="p-3.5 space-y-2">
+              <div className="h-3 w-1/2 rounded bg-surface-soft" />
+              <div className="h-2.5 w-3/4 rounded bg-surface-soft" />
+              <div className="h-2 w-full rounded bg-surface-soft" />
+              <div className="h-2 w-5/6 rounded bg-surface-soft" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

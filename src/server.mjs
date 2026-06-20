@@ -1,7 +1,7 @@
 // Loadout 로컬 서버 — 정적 SPA 서빙 + 행동 API(장착/검증/이미지생성/슬라이스/clone/rescan).
 // Node 내장 http만 사용. 이미지 생성은 skills/web-image-forge/lib(CDP)를 지연 로드.
 import { createServer } from "node:http";
-import { readFile, writeFile, stat, mkdir, symlink, cp, rm, rename, readdir } from "node:fs/promises";
+import { readFile, writeFile, stat, mkdir, symlink, cp, rm, rename, readdir, realpath } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
 import { extname, resolve, join, dirname, basename, sep, relative } from "node:path";
 import { homedir } from "node:os";
@@ -27,24 +27,49 @@ const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; cha
   ".webp": "image/webp", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
 
 const json = (res, code, val) => { res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" }); res.end(JSON.stringify(val)); };
-async function body(req) { const c = []; for await (const ch of req) c.push(ch); return JSON.parse(Buffer.concat(c).toString("utf8") || "{}"); }
+// 요청 본문 상한 — base64 이미지 슬라이스를 포함해도 32MB면 충분. 무제한 수신으로 인한 메모리/디스크 고갈 방지.
+const MAX_BODY = 32 * 1024 * 1024;
+async function body(req) {
+  const c = []; let n = 0;
+  for await (const ch of req) { n += ch.length; if (n > MAX_BODY) { req.destroy(); throw new Error("요청 본문이 너무 큽니다 (32MB 초과)"); } c.push(ch); }
+  return JSON.parse(Buffer.concat(c).toString("utf8") || "{}");
+}
+// 원자적 JSON 쓰기 — tmp 파일에 쓴 뒤 rename(동일 파일시스템 원자 연산). 크래시/전원/디스크풀 중에도
+// 라이브 파일이 반쪽(찢어진) 상태로 남지 않는다. loadout.json 등 상태 DB의 손실/손상을 방지.
+async function writeJsonAtomic(filePath, value) {
+  await mkdir(dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    await writeFile(tmp, typeof value === "string" ? value : JSON.stringify(value, null, 2), "utf8");
+    await rename(tmp, filePath);
+  } catch (e) { await rm(tmp, { force: true }).catch(() => {}); throw e; }
+}
 
 let INDEX = null;
-async function loadIndex() { INDEX = JSON.parse(await readFile(join(dataDir, "index.json"), "utf8")); return INDEX; }
+async function loadIndex() {
+  let raw;
+  try { raw = await readFile(join(dataDir, "index.json"), "utf8"); }
+  catch { throw new Error("data/index.json 이 없습니다 — 먼저 `npm run scan` 을 실행하세요."); }
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new Error("data/index.json 이 손상되었습니다 — `npm run scan` 으로 다시 생성하세요."); }
+  if (!parsed || !Array.isArray(parsed.items)) throw new Error("data/index.json 형식 오류(items 배열 없음) — `npm run scan` 을 실행하세요.");
+  INDEX = parsed; return INDEX;
+}
 // 사용량(경험치) 캐시 — { "<이름 소문자>": 횟수 }. 시작 시 data/usage.json 로드, 없으면 빈 객체.
 // /api/usage/refresh 가 collectUsage()로 갱신하고, /api/index 병합부에서 it.uses 로 부여.
 let USAGE = {};
 async function loadUsage() { try { USAGE = JSON.parse(await readFile(join(dataDir, "usage.json"), "utf8")).counts || {}; } catch { USAGE = {}; } return USAGE; }
 async function loadout() { try { return JSON.parse(await readFile(join(dataDir, "loadout.json"), "utf8")); } catch { return { equipped: {} }; } }
-async function saveLoadout(lo) { await mkdir(dataDir, { recursive: true }); await writeFile(join(dataDir, "loadout.json"), JSON.stringify(lo, null, 2)); }
+async function saveLoadout(lo) { await writeJsonAtomic(join(dataDir, "loadout.json"), lo); }
 // 팀 프리셋: { teams: { id: { name, slots: {role: itemId|null}, at } } } — 작전 준비 화면이 사용.
 async function loadTeams() { try { return JSON.parse(await readFile(join(dataDir, "teams.json"), "utf8")); } catch { return { teams: {} }; } }
-async function saveTeams(t) { await mkdir(dataDir, { recursive: true }); await writeFile(join(dataDir, "teams.json"), JSON.stringify(t, null, 2)); }
+async function saveTeams(t) { await writeJsonAtomic(join(dataDir, "teams.json"), t); }
 // 사용자 설정(영속): 이미지 생성 엔진 등. 기본 엔진은 codex-api(원격 API, 가장 안정적).
 const settingsPath = join(dataDir, "settings.json");
 const DEFAULT_SETTINGS = { imageEngine: "codex-api" };
 async function loadSettings() { try { return { ...DEFAULT_SETTINGS, ...JSON.parse(await readFile(settingsPath, "utf8")) }; } catch { return { ...DEFAULT_SETTINGS }; } }
-async function saveSettings(s) { await mkdir(dataDir, { recursive: true }); const merged = { ...DEFAULT_SETTINGS, ...s }; await writeFile(settingsPath, JSON.stringify(merged, null, 2)); return merged; }
+async function saveSettings(s) { const merged = { ...DEFAULT_SETTINGS, ...s }; await writeJsonAtomic(settingsPath, merged); return merged; }
 // gen-cards.mjs가 생성한 { itemId: "/media/generated/cards/xxx.png" } 매핑
 const cardImagesPath = join(dataDir, "card-images.json");
 async function cardImages() { try { return JSON.parse(await readFile(cardImagesPath, "utf8")); } catch { return {}; } }
@@ -62,8 +87,7 @@ function setCardImage(id, webPath) {
     .then(async () => {
       const map = await cardImages();
       map[id] = webPath;
-      await mkdir(dataDir, { recursive: true });
-      await writeFile(cardImagesPath, JSON.stringify(map, null, 2), "utf8");
+      await writeJsonAtomic(cardImagesPath, map);
       if (INDEX) { const it = INDEX.items.find((x) => x.id === id); if (it) it.image = webPath; } // 메모리 인덱스 즉시 반영
     })
     .catch((e) => { console.warn("setCardImage 실패:", e.message); });
@@ -73,7 +97,17 @@ function setCardImage(id, webPath) {
 // 한국어 번역본(별도 관리) — { [id]: { name, description, at, engine } }. 원문은 건드리지 않음.
 const translationsPath = join(dataDir, "translations.json");
 async function loadTranslations() { try { return JSON.parse(await readFile(translationsPath, "utf8")); } catch { return {}; } }
-async function saveTranslations(t) { await mkdir(dataDir, { recursive: true }); await writeFile(translationsPath, JSON.stringify(t, null, 2)); }
+async function saveTranslations(t) { await writeJsonAtomic(translationsPath, t); }
+
+// CSRF 방어 — 상태 변경(비-GET) 요청은 동일 출처(loopback)에서만 허용한다.
+// 브라우저는 cross-origin 요청에 Origin(또는 Referer)을 붙인다. 헤더가 없으면 브라우저 cross-site가
+// 아니라 CLI/스크립트로 보고 통과시킨다(로컬 도구 사용성 유지). 외부 사이트發 drive-by POST를 차단.
+function sameOrigin(req) {
+  const raw = req.headers.origin || req.headers.referer;
+  if (!raw) return true;
+  try { const h = new URL(raw).hostname; return h === "127.0.0.1" || h === "localhost" || h === "[::1]" || h === "::1"; }
+  catch { return false; }
+}
 
 // id → 실제 파일 경로 찾기. 우선 item.source.root, 없으면 관리 루트 순회.
 function resolveItemPath(item, roots) {
@@ -523,7 +557,12 @@ function runEngine(engine, prompt, timeoutMs, model) {
         shell: process.platform === "win32",
       });
     } catch { return done(null); }
-    proc.stdout.on("data", (c) => { output += c.toString("utf8"); });
+    // stdout 상한 — 폭주/오염된 CLI 가 무한 출력으로 메모리를 고갈시키지 못하게 한다(8MB 초과 시 중단).
+    const MAX_OUT = 8 * 1024 * 1024;
+    proc.stdout.on("data", (c) => {
+      output += c.toString("utf8");
+      if (output.length > MAX_OUT) { try { proc.kill(); } catch {} done(output.slice(0, MAX_OUT)); }
+    });
     proc.on("close", () => done(output));
     proc.on("error", () => done(null));
     if (useStdin) { try { proc.stdin.write(prompt); proc.stdin.end(); } catch {} }
@@ -608,8 +647,12 @@ async function translateItems(items, reqEngine) {
 
 // scan.mjs 재실행 + 인덱스 리로드(소스 추가/삭제/클론/rescan 공용).
 async function runScan() {
-  const code = await new Promise((r) =>
-    spawn(process.execPath, [join(root, "src/scan.mjs")], { stdio: "ignore" }).on("close", r));
+  const code = await new Promise((r) => {
+    const proc = spawn(process.execPath, [join(root, "src/scan.mjs")], { stdio: "ignore" });
+    const t = setTimeout(() => { try { proc.kill(); } catch {} r(-1); }, 120000); // 무한 hang 방지(120s)
+    proc.on("close", (c) => { clearTimeout(t); r(c); });
+    proc.on("error", () => { clearTimeout(t); r(-1); });
+  });
   if (code === 0) await loadIndex();
   return code === 0;
 }
@@ -673,6 +716,9 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${port}`);
     const path = url.pathname;
+
+    // CSRF: 상태 변경 요청은 동일 출처에서만. (GET은 부작용 없음 → 통과)
+    if (req.method !== "GET" && !sameOrigin(req)) return json(res, 403, { ok: false, error: "cross-origin 요청이 거부되었습니다." });
 
     // --- GET API ---
     if (req.method === "GET" && path === "/api/index") {
@@ -793,10 +839,11 @@ const server = createServer(async (req, res) => {
           const itemDir = dirname(file);
           const target = resolve(itemDir, rel);
           
-          // 경로 탈출 공격(Directory Traversal) 방지 검증
+          // 경로 탈출 공격(Directory Traversal) 방지 검증 — prefix 가 아니라 경로 경계로 확인한다.
+          // (startsWith 만 쓰면 형제 디렉토리 `/foo-bar` 가 `/foo` 검사를 통과하는 오탐이 생긴다.)
           const itemDirNormalized = resolve(itemDir);
           const targetNormalized = resolve(target);
-          if (!targetNormalized.startsWith(itemDirNormalized)) {
+          if (targetNormalized !== itemDirNormalized && !targetNormalized.startsWith(itemDirNormalized + sep)) {
             return json(res, 403, { ok: false, error: "접근 권한이 없거나 비정상적인 경로입니다." });
           }
           targetFile = targetNormalized;
@@ -1414,7 +1461,14 @@ const server = createServer(async (req, res) => {
       catch { return json(res, 400, { ok: false, error: "요청 본문 파싱 실패 — JSON 형식을 확인해 주세요." }); }
       const m = /github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(b.url || "");
       if (!m) return json(res, 400, { ok: false, error: "GitHub URL 형식 오류 — 예: https://github.com/owner/repo" });
-      const dest = join(root, "sources", `${m[1]}__${m[2]}`);
+      const owner = m[1], repo = m[2];
+      // owner/repo 위생 검사 + canonical https URL 재구성 — ssh/scp 형식이나 자격증명 임베드를 그대로
+      // git 에 넘기지 않는다(피해자 ssh 키로 임의 클론 강제 방지). '-' 시작/'..' 포함 거부.
+      if (/^[-.]/.test(owner) || /^[-.]/.test(repo) || owner.includes("..") || repo.includes("..")) {
+        return json(res, 400, { ok: false, error: "owner/repo 형식 오류" });
+      }
+      const cloneUrl = `https://github.com/${owner}/${repo}.git`;
+      const dest = join(root, "sources", `${owner}__${repo}`);
       if (existsSync(dest)) return json(res, 409, { ok: false, error: "이미 존재합니다. 삭제 후 다시 시도하거나 rescan을 실행하세요." });
       await mkdir(join(root, "sources"), { recursive: true });
       // 실패 시 부분 복제 디렉토리를 정리하는 헬퍼 — 재시도가 409(이미 존재)에 막히지 않도록.
@@ -1422,7 +1476,7 @@ const server = createServer(async (req, res) => {
       let cloneCode;
       try {
         cloneCode = await new Promise((resolve, reject) => {
-          const proc = spawn("git", ["clone", "--depth", "1", b.url, dest], { stdio: "ignore" });
+          const proc = spawn("git", ["clone", "--depth", "1", "--", cloneUrl, dest], { stdio: "ignore" });
           proc.on("close", resolve);
           proc.on("error", (e) => reject(e));
           setTimeout(() => { try { proc.kill(); } catch {} reject(new Error("git clone 타임아웃 (60초 초과)")); }, 60000);
@@ -1433,7 +1487,7 @@ const server = createServer(async (req, res) => {
       }
       if (cloneCode !== 0) { await cleanupDest(); return json(res, 500, { ok: false, error: "git clone 실패 — URL을 확인하거나 네트워크 연결을 점검해 주세요." }); }
       // 실시간 반영: 클론한 폴더를 소스로 등록하고 즉시 재스캔.
-      await addRepo(b.url, dest);
+      await addRepo(cloneUrl, dest);
       const ok = await runScan();
       return json(res, ok ? 200 : 500, { ok, dest, total: INDEX?.total });
     }
@@ -1700,23 +1754,58 @@ const server = createServer(async (req, res) => {
     if (req.method !== "GET") return json(res, 405, { ok: false, error: "method not allowed" });
 
     // --- 정적 파일 ---
+    // data/ 디렉토리는 통째 서빙하지 않는다 — secrets.json·loadout.json 등 상태 DB/자격증명 노출 방지.
+    // SPA가 실제로 읽는 것은 forge 생성물(/data/forge/**)뿐이라 그것만 허용하고 나머지 /data/* 는 403.
     let rel = decodeURIComponent(path);
-    let fileBase = webDir;
-    if (rel.startsWith("/data/")) { fileBase = root; }
-    else if (rel.startsWith("/media/")) { fileBase = root; }
-    else if (rel === "/") rel = "/index.html";
-    const filePath = rel.startsWith("/data/") || rel.startsWith("/media/")
-      ? join(root, rel) : join(webDir, rel);
-    if (!filePath.startsWith(root)) { res.writeHead(403); return res.end("forbidden"); }
-    if (!existsSync(filePath) || (await stat(filePath)).isDirectory()) { res.writeHead(404); return res.end("not found"); }
-    const ext = extname(filePath).toLowerCase();
+    if (rel === "/") rel = "/index.html";
+    let baseDir;
+    if (rel.startsWith("/data/forge/")) baseDir = join(dataDir, "forge");
+    else if (rel.startsWith("/data/")) { res.writeHead(403); return res.end("forbidden"); }
+    else if (rel.startsWith("/media/")) baseDir = mediaDir;
+    else baseDir = webDir;
+    // 경로 경계 안전: resolve 후 base 디렉토리 내부에 있는지 확인(prefix 오탐 차단). URL이 ../ 를 이미
+    // 정규화하지만 방어적으로 한 번 더 검사한다.
+    const baseResolved = resolve(baseDir);
+    let target = baseDir === webDir ? resolve(join(webDir, rel)) : resolve(join(root, rel));
+    if (target !== baseResolved && !target.startsWith(baseResolved + sep)) { res.writeHead(403); return res.end("forbidden"); }
+    if (!existsSync(target) || (await stat(target)).isDirectory()) { res.writeHead(404); return res.end("not found"); }
+    // 심링크 방어(defense-in-depth): forge/media 는 사용자 쓰기 가능 영역이라, 안에 심어진 심링크가
+    // 경계 밖(secrets.json 등)을 가리켜 readFile 이 따라가지 못하도록 realpath 후 경계를 재확인한다.
+    if (baseDir !== webDir) {
+      const real = await realpath(target).catch(() => null);
+      if (!real || (real !== baseResolved && !real.startsWith(baseResolved + sep))) { res.writeHead(403); return res.end("forbidden"); }
+      target = real;
+    }
+    const ext = extname(target).toLowerCase();
     // 개발용 로컬 도구 — JS/CSS/HTML이 브라우저 캐시에 묶여 옛 코드가 도는 일을 막는다.
     res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream", "Cache-Control": "no-store" });
-    res.end(await readFile(filePath));
+    res.end(await readFile(target));
   } catch (e) { json(res, 500, { ok: false, error: e.message }); }
 });
 
 await ensureSourcesFile().catch(() => {}); // data/sources.json 시드 고정(관리 UI 노출용)
 await loadIndex().catch(() => console.warn("⚠️ index.json 없음 — 먼저 node src/scan.mjs 실행"));
 await loadUsage(); // 사용량(경험치) 캐시 로드(없으면 빈 객체)
-server.listen(port, () => console.log(`🎒 Loadout: http://localhost:${port}`));
+// 기본은 loopback(127.0.0.1) 바인딩 — 같은 네트워크의 타 기기가 무인증으로 ~/.claude 를 조작하거나
+// 상태/시크릿을 읽지 못하게 한다. LAN 노출이 꼭 필요하면 HOST=0.0.0.0 로 명시적 opt-in.
+const host = process.env.HOST || "127.0.0.1";
+server.listen(port, host, () => console.log(`🎒 Loadout: http://localhost:${port}`));
+
+server.on("error", (e) => {
+  if (e && e.code === "EADDRINUSE") {
+    console.error(`❌ 포트 ${port} 가 이미 사용 중입니다 — 기존 인스턴스를 종료하거나 PORT 환경변수로 다른 포트를 지정하세요.`);
+    process.exit(1);
+  }
+  console.error("서버 오류:", e);
+});
+// 미처리 예외/거부가 단일 http 프로세스를 통째로 죽이지 않도록 로깅만 하고 계속 동작.
+process.on("uncaughtException", (e) => console.error("uncaughtException:", e));
+process.on("unhandledRejection", (e) => console.error("unhandledRejection:", e));
+// graceful shutdown — 진행 중 응답을 마치고 종료. 3초 내 안 끝나면 강제 종료.
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    console.log(`\n${sig} 수신 — 종료 중...`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 3000).unref();
+  });
+}

@@ -106,15 +106,17 @@ export function Header({ onOpenSources }: HeaderProps) {
                 <button
                   key={t.key}
                   onClick={() => navigate(t.path)}
+                  aria-label={t.label}
                   aria-current={active ? "page" : undefined}
-                  className={`relative flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
+                  className={`relative flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
                     active
                       ? "bg-primary-soft text-primary"
                       : "text-muted hover:text-ink hover:bg-surface-soft"
                   }`}
                 >
                   <Icon name={t.icon} size="sm" />
-                  {t.label}
+                  {/* sm 미만에서는 텍스트 레이블 숨김 — 아이콘+aria-label 로 접근성 유지 */}
+                  <span className="hidden sm:inline">{t.label}</span>
                 </button>
               );
             });

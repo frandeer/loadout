@@ -19,6 +19,7 @@ interface SourceRoot {
 
 export function SourceManager({ open, onClose }: SourceManagerProps) {
   const [roots, setRoots] = useState<SourceRoot[]>([]);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
   const [cloneUrl, setCloneUrl] = useState("");
   const [addPath, setAddPath] = useState("");
   // 작업별 로딩 상태 — 전역 단일 플래그 대신 각 동작을 독립적으로 관리
@@ -34,10 +35,14 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
   const reloadData = useStore((s) => s.reloadData);
 
   const fetchSources = async () => {
+    setSourcesError(null);
     try {
       const data = await api.getSources();
       setRoots(data.roots || []);
-    } catch {}
+    } catch (err) {
+      // 조회 실패를 "등록된 소스 없음"으로 오해하지 않도록 별도 오류 상태로 구분.
+      setSourcesError(err instanceof Error ? err.message : "소스 목록을 불러오지 못했습니다 — 서버 연결을 확인하세요.");
+    }
   };
 
   useEffect(() => {
@@ -219,8 +224,26 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
           </div>
           <ErrorNote msg={rescanError} />
           <ErrorNote msg={removeError} />
+          {/* 소스 조회 실패 — 빈 목록(등록 없음)과 오류를 명확히 구분 */}
+          {sourcesError && (
+            <div
+              role="alert"
+              className="flex items-center justify-between gap-2 rounded-lg bg-accent-rose/5 px-3 py-2.5 text-xs text-accent-rose"
+            >
+              <span className="flex items-center gap-1.5">
+                <Icon name="warning" size="xs" className="shrink-0" />
+                {sourcesError}
+              </span>
+              <button
+                onClick={fetchSources}
+                className="shrink-0 font-semibold underline hover:no-underline"
+              >
+                다시 시도
+              </button>
+            </div>
+          )}
           <div className="space-y-2">
-            {roots.length === 0 ? (
+            {!sourcesError && roots.length === 0 ? (
               <p className="text-sm text-muted">등록된 소스가 없습니다.</p>
             ) : (
               roots.map((r) => (
