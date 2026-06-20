@@ -338,7 +338,7 @@ function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
       </span>
       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{name}</span>
       <span className="hidden shrink-0 rounded bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted sm:inline">
-        {item.kind === "memory" ? "기억" : item.kind}
+        {KIND_LABELS[item.kind]}
       </span>
       <span className="hidden w-12 shrink-0 text-right font-mono text-[11px] font-bold text-body md:inline">{lvl !== null ? `Lv.${lvl}` : ""}</span>
       <span className="w-12 shrink-0 text-right font-mono text-xs font-semibold text-ink">{item.score}pt</span>

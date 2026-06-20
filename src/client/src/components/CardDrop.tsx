@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { useStore } from "../hooks/useStore";
-import { RARITY_CONFIG } from "../types";
-import type { DropResp, Kind } from "../types";
+import { RARITY_CONFIG, KIND_LABELS } from "../types";
+import type { DropResp } from "../types";
 import { api } from "../lib/api";
 import { Icon } from "./Icon";
-
-const KIND_LABEL: Record<Kind, string> = { skill: "스킬", agent: "에이전트", mcp: "장비", memory: "메모리" };
 
 interface CardDropProps {
   /**
@@ -101,7 +99,7 @@ export function CardDrop({ onReveal }: CardDropProps) {
               <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white" style={{ backgroundColor: r.color }}>
                 {r.ko}
               </span>
-              <span className="ml-2 text-xs text-muted">{KIND_LABEL[dropped.kind]}</span>
+              <span className="ml-2 text-xs text-muted">{KIND_LABELS[dropped.kind]}</span>
             </div>
             <div className="mt-4 text-xl font-bold text-ink">{full?.displayName || dropped.name}</div>
             {full?.description && (

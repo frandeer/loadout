@@ -5,6 +5,7 @@ import { RARITY_CONFIG, KIND_LABELS } from "../types";
 import type { Item, Kind } from "../types";
 import { api } from "../lib/api";
 import { teamCost } from "../lib/traits";
+import { formatSource, alwaysOnCost, formatK } from "../lib/utils";
 import { ManaGauge } from "./ManaGauge";
 import { Modal } from "./Modal";
 import { Icon } from "./Icon";
@@ -63,9 +64,11 @@ export function Inventory() {
   // 보관: vault 관리 대상이며 ~/.claude 에는 없음(꺼짐).
   const stored = useMemo(() => items.filter((i) => i.managed && i.claudeState === "absent"), [items]);
 
-  // 마나 게이지 = 활성 + 상주 자산의 총 컨텍스트 부하(실제로 ~/.claude 에서 로드되는 것).
+  // 마나 게이지 = 활성 + 상주 자산의 "상시" 컨텍스트 부하만(설명/스키마 — 항상 로드).
+  //   본문은 호출 시 1회성이라 상시 부하가 아니다 → 본문 합계를 더하면 거짓 과적재가 된다.
   const liveItems = useMemo(() => [...active, ...resident], [active, resident]);
-  const totalCost = teamCost(liveItems);
+  const alwaysOnTotal = useMemo(() => liveItems.reduce((s, m) => s + alwaysOnCost(m), 0), [liveItems]);
+  const onDemandTotal = teamCost(liveItems); // 본문 전체 합계 — 호출 시에만, 동시 로드 아님(정보용)
 
   const isEmpty = !active.length && !resident.length && !stored.length && !divergent.length;
 
@@ -199,10 +202,15 @@ export function Inventory() {
         </button>
       </div>
 
-      {/* ── 마나 게이지(활성+상주 부하) ── */}
+      {/* ── 마나 게이지: "상시" 부하만(설명/스키마). 본문은 호출 시 1회성이라 정보로만 표기. ── */}
       {liveItems.length > 0 && (
         <div className="mb-6 rounded-xl border border-hairline bg-canvas px-4 py-3">
-          <ManaGauge cost={totalCost} label="활성 컨텍스트 부하 (활성 + 상주)" />
+          <ManaGauge cost={alwaysOnTotal} label="상시 컨텍스트 부하 (장착 + 상주 · 설명만)" />
+          <p className="mt-2 text-[11px] leading-tight text-muted-soft">
+            막대는 <b className="text-muted">상시</b> 부하 — 장착·상주만 해도 항상 로드되는 설명/스키마입니다.
+            각 자산의 본문(합계 약 <span className="font-mono text-muted">{formatK(onDemandTotal)} tk</span>)은
+            실제로 <b className="text-muted">호출될 때만</b> 1회성으로 들어갑니다(동시 로드 아님).
+          </p>
         </div>
       )}
 
@@ -523,8 +531,8 @@ function Row({
           </span>
           <span className="font-mono">{item.score}pt</span>
           <span className="text-muted-soft">{KIND_LABELS[item.kind]}</span>
-          <span className="truncate">
-            {item.source.owner}/{item.source.repo}
+          <span className="truncate" title={item.source.path}>
+            {formatSource(item.source)}
           </span>
           {!!item.uses && item.uses > 0 && (
             <span className="font-mono text-accent-emerald">{item.uses}회 사용</span>

@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import type { Item } from "../types";
-import { RARITY_CONFIG, isEquippable } from "../types";
+import { RARITY_CONFIG, isEquippable, KIND_LABELS } from "../types";
 import { summarize, computeLevel, computeXp, iconFor, pickDesc, rarityFrame } from "../lib/utils";
 import { traitsOf } from "../lib/traits";
 import { useStore } from "../hooks/useStore";
@@ -166,7 +166,7 @@ export const Card = memo(function Card({ item, index = 0 }: CardProps) {
       {/* 타입 + 점수 */}
       <div className="mb-2 flex items-center gap-2">
         <span className="shrink-0 whitespace-nowrap rounded-md bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted">
-          {item.kind === "memory" ? "기억" : item.kind}
+          {KIND_LABELS[item.kind]}
         </span>
         {item.kind === "memory" ? (
           <span className="text-[10px] text-primary truncate max-w-[120px] font-medium" title={`${typeof item.source.repo === "string" ? item.source.repo : ""}/${item.source.path}`}>

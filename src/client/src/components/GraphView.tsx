@@ -28,7 +28,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import type { Item, Kind } from "../types";
-import { RARITY_CONFIG } from "../types";
+import { RARITY_CONFIG, KIND_LABELS } from "../types";
 import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
 import { buildGraph, egoFilter, traitEdgeLabel, type GraphEdgeType, type GraphEdgeData } from "../lib/graph";
@@ -41,12 +41,13 @@ const EDGE_COLOR: Record<GraphEdgeType, string> = {
   trait: "#14B8A6", // teal — 엣지 전용(등급색 아님)
 };
 
+// kind 칩 — 라벨은 KIND_LABELS 단일 출처에서. "전체"는 종류가 아닌 all-필터라 그대로 둔다.
 const KIND_CHIPS: { key: Kind | "all"; label: string }[] = [
   { key: "all", label: "전체" },
-  { key: "skill", label: "스킬" },
-  { key: "agent", label: "요원" },
-  { key: "mcp", label: "장비" },
-  { key: "memory", label: "기억" },
+  { key: "skill", label: KIND_LABELS.skill },
+  { key: "agent", label: KIND_LABELS.agent },
+  { key: "mcp", label: KIND_LABELS.mcp },
+  { key: "memory", label: KIND_LABELS.memory },
 ];
 
 const nodeTypes = { asset: GraphNode };
@@ -99,13 +100,19 @@ function GraphCanvas() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batch, setBatch] = useState<{ running: boolean; done: number; total: number; label: string } | null>(null);
 
+  // ── kind 필터만 (스코프·equipOnly 적용 전) ──
+  //   빈-앵커 폴백이 종류 경계를 넘어 확장되지 않도록 별도 보관한다.
+  //   (예: "요원"만 골랐는데 장착·상주 요원이 0개여도 스킬까지 쏟아지던 버그 차단.)
+  const kindFiltered = useMemo(
+    () => (kind === "all" ? items : items.filter((i) => i.kind === kind)),
+    [items, kind],
+  );
+
   // ── 1차 필터: kind + 장착·상주만 (스코프 적용 전) ──
-  const prefiltered = useMemo(() => {
-    let xs = items;
-    if (kind !== "all") xs = xs.filter((i) => i.kind === kind);
-    if (equipOnly) xs = xs.filter(isAnchor);
-    return xs;
-  }, [items, kind, equipOnly]);
+  const prefiltered = useMemo(
+    () => (equipOnly ? kindFiltered.filter(isAnchor) : kindFiltered),
+    [kindFiltered, equipOnly],
+  );
 
   // ── 스코프 적용: 포커스(더블클릭 1자산 에고) > all > ego(장착·상주 + 1홉 이웃) ──
   const scopedItems = useMemo(() => {
@@ -120,8 +127,9 @@ function GraphCanvas() {
     // ego 스코프: prefiltered 전체 그래프를 한 번만 빌드해 egoFilter에 엣지를 재사용
     //   (egoFilter 내부 중복 buildGraph 회피).
     // 앵커가 없으면(장착 자산 0) 점수 상위 일부를 시드로 — 빈 캔버스 방지.
-    //   equipOnly로 prefiltered가 비면 전체 items에서 시드를 뽑아 빈 화면을 피한다.
-    const pool = prefiltered.length ? prefiltered : items;
+    //   단, 폴백은 kindFiltered(같은 종류)로만 넓힌다. items 전체로 넓히면
+    //   사용자가 고른 kind 필터가 무시돼 다른 종류까지 다 나온다(회귀 버그).
+    const pool = prefiltered.length ? prefiltered : kindFiltered;
     const { edges } = buildGraph(pool, opts);
     const anchorIds = pool.filter(isAnchor).map((i) => i.id);
     const seeds = anchorIds.length
@@ -138,7 +146,7 @@ function GraphCanvas() {
       .filter((i) => !seedSet.has(i.id))
       .sort((a, b) => (b.score || 0) - (a.score || 0));
     return [...kept, ...rest].slice(0, Math.max(EGO_CAP, kept.length));
-  }, [prefiltered, items, scope, showName, showTrait, focusId]);
+  }, [prefiltered, kindFiltered, items, scope, showName, showTrait, focusId]);
 
   // ── 그래프 빌드(노드/엣지) — items/필터/스코프/관계토글 변화 시에만 재계산 ──
   const graph = useMemo(
@@ -555,8 +563,8 @@ function GraphCanvas() {
         </div>
       </Panel>
 
-      {/* ── 좌하단 범례 ── */}
-      <Panel position="bottom-left" className="!m-3">
+      {/* ── 하단 중앙 범례 — 좌하단 줌 컨트롤·우하단 미니맵과 겹치지 않게 중앙 배치 ── */}
+      <Panel position="bottom-center" className="!mb-3">
         <div className="flex flex-col gap-1.5 rounded-xl border border-hairline bg-canvas/95 p-2.5 text-[10px] shadow-sm backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1 text-muted">

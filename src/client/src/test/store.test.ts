@@ -74,9 +74,9 @@ describe("useStore", () => {
     const result = useStore.getState().filtered();
     expect(result.length).toBe(2);
     expect(result.every((i) => i.kind === "memory")).toBe(true);
-    // 기억 카드는 장착 개념이 없는 읽기 전용 — 뱃지 라벨 "기억"
+    // memory 카드는 장착 개념이 없는 읽기 전용 — 뱃지 라벨은 통일된 "Memory"
     expect(result.every((i) => !isEquippable(i.kind))).toBe(true);
-    expect(KIND_LABELS.memory).toBe("기억");
+    expect(KIND_LABELS.memory).toBe("Memory");
     // 기존 kind는 장착 가능 — 분기 미파손 확인
     expect(isEquippable("skill")).toBe(true);
   });

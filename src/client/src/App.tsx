@@ -55,12 +55,15 @@ function AssetsView() {
   );
 }
 
-/** 자산 외 탭(대시보드/그래프/장착·보관/포지/도움말) 공통 래퍼 — 카드 선택 시 오버레이 유지 */
+/** 자산 외 탭(대시보드/그래프/장착·보관/포지/도움말) 공통 래퍼.
+ *  카드 선택 시 우측 인스펙터가 본문을 "덮지" 않고 "밀어내도록" — 넓은 화면(xl)에서는
+ *  본문에 패널 폭만큼 우측 패딩을 줘 도킹 효과를 낸다(/assets 의 도킹과 동일한 결과).
+ *  좁은 화면에서는 패딩 없이 오버레이가 본문 위를 덮는다(/assets 모바일과 동일). */
 function PageView({ children }: { children: React.ReactNode }) {
   const selected = useStore((s) => s.selected);
   return (
     <>
-      {children}
+      <div className={selected ? "with-detail-panel" : undefined}>{children}</div>
       {selected && <DetailPanel variant="overlay" />}
     </>
   );

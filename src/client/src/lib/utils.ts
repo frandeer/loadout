@@ -1,4 +1,37 @@
-import type { Item, Rarity } from "../types";
+import type { Item, ItemSource, Rarity } from "../types";
+
+/** 출처 라벨 — 앱 전역 단일 출처(중복/혼동 방지).
+ *  로컬 직접설치(~/.claude/skills·agents)·플러그인 캐시는 GitHub owner/repo가 없어
+ *  scan이 owner=repo(폴더명)로 폴백한다 → "name/name" 중복으로 보이던 문제를 정직하게 축약.
+ *  실제 위치는 항상 별도 '경로' 표기가 보여준다. 클론 리포는 owner/repo 그대로 노출. */
+/** 토큰 추정 — UTF-8 바이트/4. 스캐너 computeContentCost(bytes/4)와 동일 척도. */
+export function estTokens(text: string): number {
+  return Math.ceil(new TextEncoder().encode(text || "").length / 4);
+}
+
+// 프론트매터(name:/description:/--- 구분자) 키 오버헤드 근사 — 상시 비용에 가산.
+const FRONTMATTER_OVERHEAD_TK = 20;
+
+/** 상시(always-on) 컨텍스트 비용 — 장착/상주 중 "항상" 컨텍스트에 들어가는 부분만.
+ *  핵심: skill/agent는 프론트매터(이름+설명)만 상시 로드되고 본문은 *호출 시 1회성*이다.
+ *    → item.cost(본문 전체)를 상시 부하로 합산하면 과대평가(거짓 과적재)된다.
+ *  mcp : 도구 스키마가 항상 상주하므로 전체 비용을 상시로 본다.
+ *  memory: MEMORY.md 인덱스는 상시, 개별 노트는 회상 시 → index만 상시로 근사. */
+export function alwaysOnCost(item: Item): number {
+  if (item.kind === "mcp") return item.cost || 0;
+  if (item.kind === "memory") return item.layer === "note" ? 0 : estTokens(item.description || "");
+  return estTokens(`${item.name} ${item.description || ""}`) + FRONTMATTER_OVERHEAD_TK;
+}
+
+export function formatSource(s: ItemSource): string {
+  const root = s.root || "";
+  if (/[/\\]\.claude[/\\](skills|agents)\/?$/.test(root)) return "직접 설치";
+  if (root.includes(".claude/plugins") || root.includes(".claude\\plugins")) return "플러그인";
+  // 자동메모리(…/memory)와 프로젝트 로컬(.memory) 모두 — 끝 세그먼트로 앵커해 중간 일치 오분류 방지.
+  if (/[/\\]\.?memory\/?$/.test(root)) return "로컬 메모리";
+  if (s.owner && s.owner !== s.repo) return `${s.owner}/${s.repo}`;
+  return s.repo || s.owner || "—";
+}
 
 /** 아이콘 카테고리 매칭 패턴 — 모듈 로드 시 1회 컴파일(렌더마다 new RegExp 생성 방지). */
 const ICON_PATTERNS: [RegExp, string][] = [

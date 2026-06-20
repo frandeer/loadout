@@ -79,7 +79,7 @@ export function Header({ onOpenSources }: HeaderProps) {
           <input
             ref={searchRef}
             type="search"
-            placeholder="에셋, 스킬, MCP 검색..."
+            placeholder="Skill, Agent, MCP 검색..."
             value={filters.q}
             onChange={(e) => setFilter("q", e.target.value)}
             className="h-9 w-full rounded-[10px] bg-surface-soft pl-9 pr-12 text-sm text-ink placeholder:text-muted-soft focus:bg-canvas focus:ring-2 focus:ring-primary/10 focus:outline-none transition-colors"

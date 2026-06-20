@@ -1,12 +1,14 @@
 export type Kind = "skill" | "agent" | "mcp" | "memory";
 export type Rarity = "legendary" | "epic" | "rare" | "uncommon" | "common";
 
-// kind 라벨 — 카드/디테일 뱃지 표기. memory는 한국어 "기억"(읽기 전용 카드).
+// kind 라벨 — 앱 전역 단일 출처. 카드/디테일 뱃지·필터 칩·그래프 노드 모두 이 맵을 참조한다.
+//   네 종류 이름을 영문으로 통일: Skill / Agent / MCP / Memory.
+//   (이전엔 스킬/요원/장비/기억, CardDrop은 에이전트/메모리, Card·DetailPanel은 raw kind로 제각각이었음.)
 export const KIND_LABELS: Record<Kind, string> = {
-  skill: "스킬",
-  agent: "요원",
-  mcp: "장비",
-  memory: "기억",
+  skill: "Skill",
+  agent: "Agent",
+  mcp: "MCP",
+  memory: "Memory",
 };
 
 // memory kind는 장착 개념이 없는 읽기 전용 카드 — 장착/해제 UI를 숨긴다.

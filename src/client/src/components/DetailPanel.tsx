@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useStore } from "../hooks/useStore";
-import { RARITY_CONFIG, isEquippable } from "../types";
-import { computeLevel, formatK, pickDesc } from "../lib/utils";
+import { RARITY_CONFIG, isEquippable, KIND_LABELS } from "../types";
+import { computeLevel, formatK, pickDesc, formatSource, alwaysOnCost } from "../lib/utils";
 import { traitsOf } from "../lib/traits";
 import type { Item } from "../types";
 import { api } from "../lib/api";
@@ -176,6 +176,10 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const name = item.displayName;
   const isMcp = item.kind === "mcp";
   const desc = pickDesc(item, lang);
+  // 출처 라벨 — 단일 출처 helper. 직접설치/플러그인은 "직접 설치"/"플러그인", 클론은 owner/repo.
+  const sourceLabel = formatSource(item.source);
+  // 상시(항상 로드) 비용 — skill/agent는 설명만, mcp는 스키마 전체. 본문(item.cost)은 호출 시에만.
+  const alwaysOn = alwaysOnCost(item);
   const traits = traitsOf(item);
   const equippable = isEquippable(item.kind);
   // vault on/off 토글 대상: vault 관리 항목 또는 ~/.claude 상주 실폴더.
@@ -276,13 +280,14 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     : [];
 
   // 정직한 라벨 — popularity는 git 활동량(추천/인기 아님), power는 파일 부피(역량 아님).
-  const STAT_LABELS: Record<string, string> = {
-    popularity: "repo 활동성",
-    power: "규모",
-    clarity: "명확도",
-    freshness: "신선도",
-    weight: "무게",
-  };
+  // 점수 근거 4지표 — 작전력(score)에 실제로 들어가는 입력만. weight(무게)는 점수 미반영 +
+  //   cost와 중복(둘 다 크기 기반)이라 지표에서 제거. 라벨은 평이하게, 의미는 툴팁으로.
+  const STAT_META: { key: "popularity" | "freshness" | "power" | "clarity"; label: string; hint: string }[] = [
+    { key: "popularity", label: "출처 활성도", hint: "원본 저장소의 git 커밋·기여자·리모트 연결 — 유지보수 활발도(추천·인기 아님)" },
+    { key: "freshness", label: "최신성", hint: "마지막 수정 이후 경과 — 최근일수록 높음" },
+    { key: "power", label: "분량·기능", hint: "본문 분량 + 허용 도구 수 + 참조/스크립트 — 자산의 실속" },
+    { key: "clarity", label: "설명 품질", hint: "description의 길이·트리거 문구·문장 구성 — 발견 가능성" },
+  ];
 
   const RISK_LABELS: Record<string, string> = {
     network: "외부 통신",
@@ -314,17 +319,8 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         <div className="fixed inset-0 z-[100] cursor-col-resize" />
       )}
 
-      {/* Header Buttons: Korean translation button + close button */}
+      {/* Header Button: 닫기만 상단 우측에 고정. 한국어 번역은 아래 설명 위(삭제와 같은 행)로 이동. */}
       <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-        <button
-          onClick={handleTranslate}
-          disabled={translating}
-          className="flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-canvas px-2.5 text-xs font-bold text-muted transition hover:bg-surface-soft hover:text-body disabled:opacity-50"
-          title="한국어 번역 (이름, 설명, 상세문서)"
-        >
-          <Icon name="translate" size="xs" />
-          {translating ? "번역 중..." : item.translated ? "재번역" : "한국어 번역"}
-        </button>
         <button
           onClick={() => setSelected(null)}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-surface-soft hover:text-ink"
@@ -336,45 +332,54 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
 
       <div className="flex-1 overflow-y-auto p-5">
         {/* 헤더: 등급 + 이름 + 타입 */}
-        <div className="mb-4 pr-32"> {/* pr-32 to prevent overlay with the top buttons */}
-          <div className="mb-2 flex items-center gap-2">
+        <div className="mb-4 pr-12"> {/* 우상단 닫기(X) 버튼만 피하면 됨 — 번역 버튼이 빠져 여백 축소 */}
+          {/* 좁은 패널 폭에서 배지가 원형으로 찌그러져 글자가 세로로 줄바꿈되던 문제 방지:
+              줄바꿈(flex-wrap) 허용 + 각 배지는 shrink-0/whitespace-nowrap 로 형태 유지. */}
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <span
-              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+              className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
               style={{ backgroundColor: r.color }}
               title="이번 스캔 상위 백분위 기준 — 절대 품질 아님"
             >
               {r.ko}
             </span>
             {item.equipped && (
-              <span className="flex items-center gap-1 rounded-full bg-surface-success px-2.5 py-0.5 text-xs font-semibold text-accent-emerald">
+              <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-surface-success px-2.5 py-0.5 text-xs font-semibold text-accent-emerald">
                 <Icon name="check-circle" size="xs" />
                 장착 중
               </span>
             )}
             {item.claudeState === "resident" ? (
-              <span className="rounded-full bg-accent-orange-soft px-2.5 py-0.5 text-xs font-semibold text-accent-orange">
+              <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-orange-soft px-2.5 py-0.5 text-xs font-semibold text-accent-orange">
                 상주
               </span>
             ) : lockedInstalled ? (
               <span
-                className="rounded-full bg-surface-soft px-2.5 py-0.5 text-xs font-semibold text-muted"
+                className="shrink-0 whitespace-nowrap rounded-full bg-surface-soft px-2.5 py-0.5 text-xs font-semibold text-muted"
                 title="이미 ~/.claude 에 설치돼 있어 토글할 수 없습니다(읽기 전용)"
               >
                 고정 (설치됨)
               </span>
             ) : null}
-            <span className="ml-auto font-mono text-sm font-bold text-ink">{item.score}pt</span>
           </div>
-          <h2 className="text-xl font-bold text-ink">{name}</h2>
+          {/* 제목 + 작전력 점수 — 떠다니던 pt를 제목 옆 고정 위치로(등급색). */}
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="min-w-0 text-xl font-bold text-ink">{name}</h2>
+            <div className="shrink-0 text-right leading-none" title="작전력 — 4지표(출처 활성·최신성·분량·설명) 가중합. 등급은 이번 스캔 상위 백분위.">
+              <div className="font-mono text-2xl font-black" style={{ color: r.color }}>{item.score}</div>
+              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-soft">작전력</div>
+            </div>
+          </div>
           <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-            <span className="shrink-0 whitespace-nowrap rounded-md bg-surface-soft px-1.5 py-0.5 font-medium uppercase">{item.kind === "memory" ? "기억" : item.kind}</span>
+            <span className="shrink-0 whitespace-nowrap rounded-md bg-surface-soft px-1.5 py-0.5 font-medium uppercase">{KIND_LABELS[item.kind]}</span>
             {lvl !== null && (
               <>
-                <span>·</span>
-                <span className="font-mono" title={`실사용 ${item.uses}회 기반 레벨`}>Lv.{lvl}</span>
+                <span className="shrink-0">·</span>
+                <span className="shrink-0 font-mono" title={`실사용 ${item.uses}회 기반 레벨`}>Lv.{lvl}</span>
               </>
             )}
-            <span className="ml-auto text-muted-soft">{item.source.owner}/{typeof item.source.repo === "string" ? item.source.repo : ""}</span>
+            {/* 출처는 길면 줄바꿈 대신 말줄임 — min-w-0+truncate 로 한 줄 유지(전체는 아래 출처/경로 섹션). */}
+            <span className="ml-auto min-w-0 truncate text-muted-soft" title={sourceLabel}>{sourceLabel}</span>
           </div>
         </div>
 
@@ -423,13 +428,15 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           </button>
         </div>
 
-        {/* AI 분석 — 자산의 용도/품질/중복을 평가해 유지·정리 권고. 엔진/모델 선택. */}
-        <div className="mb-5 rounded-xl border border-hairline bg-canvas p-4">
-          <div className="mb-3 flex items-center gap-1.5">
+        {/* AI 분석 — 보조 도구라 기본 접힘(공간 절약). 펼치면 엔진으로 용도/품질/중복 평가. */}
+        <details className="group mb-5 rounded-xl border border-hairline bg-canvas">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 p-4 text-sm font-bold uppercase tracking-wide text-muted">
             <Icon name="flask" size="sm" className="text-primary" />
-            <h4 className="text-sm font-bold uppercase tracking-wide text-muted">AI 분석</h4>
-          </div>
-
+            AI 분석
+            <span className="ml-auto text-[10px] font-medium normal-case text-muted-soft">용도·품질·중복 평가</span>
+            <span className="text-muted-soft transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <div className="px-4 pb-4">
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={analyzeEngine}
@@ -544,19 +551,32 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
               )}
             </div>
           )}
-        </div>
+          </div>
+        </details>
 
-        {/* 위험 구역: 스킬/에이전트 삭제 — 이름 입력 재확인(휴지통 이동, 복구 가능) */}
-        {equippable && (
-          <div className="mb-5">
-            {!deleteOpen ? (
+        {/* 번역(좌) · 삭제(우) — 바로 아래 설명/문서를 한국어로 번역 + 위험 작업(삭제, 휴지통 이동·복구 가능) */}
+        <div className="mb-5">
+          {!deleteOpen ? (
+            <div className="flex items-center justify-between gap-2">
               <button
-                onClick={() => { setDeleteOpen(true); setDeleteText(""); }}
-                className="flex items-center gap-1.5 text-xs font-medium text-muted-soft transition hover:text-accent-rose"
+                onClick={handleTranslate}
+                disabled={translating}
+                className="flex items-center gap-1.5 rounded-lg border border-hairline bg-canvas px-2.5 py-1.5 text-xs font-bold text-muted transition hover:bg-surface-soft hover:text-body disabled:opacity-50"
+                title="이름·설명·상세문서를 한국어로 번역"
               >
-                <Icon name="delete" size="xs" /> 이 자산 삭제
+                <Icon name="translate" size="xs" />
+                {translating ? "번역 중..." : item.translated ? "재번역" : "한국어 번역"}
               </button>
-            ) : (
+              {equippable && (
+                <button
+                  onClick={() => { setDeleteOpen(true); setDeleteText(""); }}
+                  className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-soft transition hover:text-accent-rose"
+                >
+                  <Icon name="delete" size="xs" /> 이 자산 삭제
+                </button>
+              )}
+            </div>
+          ) : (
               <div className="rounded-lg border border-accent-rose/30 bg-accent-rose/5 p-3">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-accent-rose">
                   <Icon name="warning" size="xs" /> 삭제 확인
@@ -593,7 +613,6 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
               </div>
             )}
           </div>
-        )}
 
         {/* 설명 */}
         <div className="mb-5">
@@ -610,25 +629,24 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           )}
         </div>
 
-        {/* 특성 태그 */}
-        <div className="mb-5">
-          <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">특성</h4>
-          {traits.length > 0 ? (
+        {/* 분류 태그 — 이름·설명에서 자동 추출한 도메인 태그(게임 스킨). 참고용이라 강등 표기, 없으면 숨김. */}
+        {traits.length > 0 && (
+          <div className="mb-5">
+            <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-soft">분류 태그</h4>
+            <p className="mb-2 text-[10px] leading-tight text-muted-soft">이름·설명에서 자동 추출한 도메인 태그(참고용).</p>
             <div className="flex flex-wrap gap-1.5">
               {traits.map((t) => (
                 <span
                   key={t.key}
-                  className="rounded-full bg-surface-soft px-3 py-1 text-xs font-medium text-muted"
-                  title={`특성 ${t.label}`}
+                  className="rounded-full bg-surface-soft px-2.5 py-0.5 text-[11px] font-medium text-muted-soft"
+                  title={`도메인 태그: ${t.label}`}
                 >
                   {t.label}
                 </span>
               ))}
             </div>
-          ) : (
-            <span className="text-sm text-muted-soft">특성 없음</span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* 성능 지표 — MCP는 스탯이 스캔 상수(조작값)이므로 막대 대신 실제 구성 신호를 노출 */}
         {isMcp ? (
@@ -643,25 +661,56 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           </div>
         ) : (
           <div className="mb-5">
-            <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">성능 지표</h4>
+            <div className="mb-1 flex items-baseline justify-between">
+              <h4 className="text-sm font-bold uppercase tracking-wide text-muted">점수 근거</h4>
+              <span className="text-[10px] text-muted-soft">작전력 {item.score}점의 입력 4지표</span>
+            </div>
+            <p className="mb-3 text-[10px] leading-tight text-muted-soft">콘텐츠·git에서 자동 산출한 휴리스틱(절대 품질 아님). 막대 위에 마우스를 올리면 의미가 보입니다.</p>
             <div className="space-y-3">
-              {(["popularity", "freshness", "power", "clarity", "weight"] as const).map((k) => (
-                <StatBar key={k} label={STAT_LABELS[k] ?? k} value={item.stats?.[k] ?? 0} color={r.color} />
+              {STAT_META.map((s) => (
+                <StatBar key={s.key} label={s.label} hint={s.hint} value={item.stats?.[s.key] ?? 0} color={r.color} />
               ))}
             </div>
           </div>
         )}
 
-        {/* 코스트 + 위험 */}
+        {/* 컨텍스트 비용 — 상시(항상 로드) vs 호출 시(실행 때만). 핵심: skill/agent 본문은
+            장착만으로 컨텍스트에 들어가지 않는다 — 설명만 상시, 본문은 호출 시 1회. */}
         <div className="mb-5 space-y-3">
-          <div className="flex items-center justify-between rounded-lg bg-surface-soft px-4 py-3">
-            <span className="flex items-center gap-1.5 text-sm text-muted">
-              <Icon name="gauge" size="xs" /> 컨텍스트 비용
-            </span>
-            <span className="font-mono text-sm font-semibold text-accent-orange">
-              {item.cost ? `${formatK(item.cost)} tk` : "—"}
-            </span>
-          </div>
+          <h4 className="text-sm font-bold uppercase tracking-wide text-muted">컨텍스트 비용</h4>
+          {item.kind === "memory" ? (
+            <div className="flex items-center justify-between rounded-lg bg-surface-soft px-4 py-3" title="MEMORY.md 인덱스는 상시, 개별 노트는 회상 시 로드">
+              <span className="flex items-center gap-1.5 text-sm text-muted"><Icon name="gauge" size="xs" /> 인덱스 상시</span>
+              <span className="font-mono text-sm font-semibold text-accent-emerald">{alwaysOn ? `${formatK(alwaysOn)} tk` : "—"}</span>
+            </div>
+          ) : isMcp ? (
+            <div className="rounded-lg bg-surface-soft px-4 py-3" title="MCP 도구 스키마는 항상 컨텍스트에 상주한다">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-sm text-muted">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent-orange" /> 상시 (도구 스키마)
+                </span>
+                <span className="font-mono text-sm font-semibold text-accent-orange">{item.cost ? `${formatK(item.cost)} tk` : "—"}</span>
+              </div>
+              <p className="mt-1 text-[10px] leading-tight text-muted-soft">MCP는 도구 정의가 항상 컨텍스트에 상주합니다.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-surface-soft px-3 py-2.5" title="장착·상주만 해도 항상 컨텍스트에 들어가는 비용 — 프론트매터(이름+설명)">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent-emerald" /> 상시
+                </div>
+                <div className="mt-0.5 font-mono text-base font-bold text-ink">{formatK(alwaysOn)}<span className="ml-0.5 text-[10px] font-medium text-muted-soft">tk</span></div>
+                <div className="mt-0.5 text-[10px] leading-tight text-muted-soft">설명만 항상 로드</div>
+              </div>
+              <div className="rounded-lg bg-surface-soft px-3 py-2.5" title="이 자산이 실제 실행/호출될 때만 1회성으로 들어가는 본문 비용">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent-orange" /> 호출 시
+                </div>
+                <div className="mt-0.5 font-mono text-base font-bold text-ink">{item.cost ? formatK(item.cost) : "—"}<span className="ml-0.5 text-[10px] font-medium text-muted-soft">tk</span></div>
+                <div className="mt-0.5 text-[10px] leading-tight text-muted-soft">본문 — 실행 때만 1회</div>
+              </div>
+            </div>
+          )}
           {risks.length > 0 && (
             <div className="rounded-lg border border-accent-rose/20 bg-accent-rose/5 px-3 py-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-accent-rose">
@@ -678,15 +727,15 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           )}
         </div>
 
-        {/* 소스 메타 */}
-        <div className="mb-5 rounded-lg bg-surface-soft p-3 space-y-1.5 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-muted"><Icon name="folder" size="xs" /> 출처</span>
-            <span className="font-mono text-body">{item.source.owner}/{typeof item.source.repo === "string" ? item.source.repo : ""}</span>
+        {/* 소스 메타 — 라벨 위, 값 아래로 스택. 경로는 자르지 않고 전체 표기(break-all). */}
+        <div className="mb-5 space-y-2.5 rounded-lg bg-surface-soft p-3 text-sm">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-muted"><Icon name="folder" size="xs" /> 출처</div>
+            <div className="mt-0.5 break-all font-mono text-body">{sourceLabel}</div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-muted"><Icon name="file" size="xs" /> 경로</span>
-            <span className="max-w-[200px] truncate font-mono text-body" title={item.source.path}>{item.source.path}</span>
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-muted"><Icon name="file" size="xs" /> 경로</div>
+            <div className="mt-0.5 break-all font-mono text-body">{item.source.path}</div>
           </div>
         </div>
 
@@ -959,10 +1008,16 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   );
 }
 
-function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
+function StatBar({ label, value, color, hint }: { label: string; value: number; color: string; hint?: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-14 text-sm text-muted">{label}</span>
+      {/* 라벨 컬럼 — nowrap. hint 있으면 점선 밑줄 + help 커서로 툴팁 신호 */}
+      <span
+        className={`w-20 shrink-0 whitespace-nowrap text-sm text-muted ${hint ? "cursor-help decoration-dotted underline-offset-2 hover:underline" : ""}`}
+        title={hint}
+      >
+        {label}
+      </span>
       <div className="h-2 flex-1 rounded-full bg-surface-soft">
         <div
           className="h-full rounded-full stat-bar-fill"

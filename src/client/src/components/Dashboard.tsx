@@ -216,7 +216,7 @@ export function Dashboard() {
             관제탑
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            스킬·에이전트·MCP·메모리 — 무엇이 있고, 무엇이 켜져 있고, 무엇을 정리할지 한눈에.
+            Skill·Agent·MCP·Memory — 무엇이 있고, 무엇이 켜져 있고, 무엇을 정리할지 한눈에.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -241,7 +241,7 @@ export function Dashboard() {
           <button
             onClick={() => navigate("/assets")}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary-active"
-            title="자산 탭에서 새 스킬·요원·MCP를 가져옵니다"
+            title="자산 탭에서 새 Skill·Agent·MCP를 가져옵니다"
           >
             <Icon name="upload" size="sm" /> 가져오기
           </button>

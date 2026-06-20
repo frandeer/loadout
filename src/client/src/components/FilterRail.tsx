@@ -1,16 +1,17 @@
 import { useMemo, useState, useCallback } from "react";
 import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
-import { RARITY_CONFIG, SORT_OPTIONS } from "../types";
+import { RARITY_CONFIG, SORT_OPTIONS, KIND_LABELS } from "../types";
 import type { Kind, Rarity, SortKey } from "../types";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 
+// 라벨은 KIND_LABELS 단일 출처(Skill/Agent/MCP/Memory). 아이콘만 레일 전용.
 const KIND_FILTERS: { key: Kind | "all"; label: string; icon: IconName }[] = [
-  { key: "skill", label: "스킬", icon: "bolt-logo" },
-  { key: "agent", label: "에이전트", icon: "agent-badge" },
-  { key: "mcp", label: "MCP", icon: "wrench" },
-  { key: "memory", label: "메모리", icon: "memory-chip" },
+  { key: "skill", label: KIND_LABELS.skill, icon: "bolt-logo" },
+  { key: "agent", label: KIND_LABELS.agent, icon: "agent-badge" },
+  { key: "mcp", label: KIND_LABELS.mcp, icon: "wrench" },
+  { key: "memory", label: KIND_LABELS.memory, icon: "memory-chip" },
 ];
 
 export function FilterRail() {

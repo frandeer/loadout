@@ -178,4 +178,14 @@ body {
   transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* 우측 인스펙터 도킹 — 넓은 화면(xl≥1280px)에서 본문에 패널 폭만큼 우측 여백을 줘
+   고정(fixed) 오버레이 패널이 본문을 덮지 않고 옆으로 밀어내도록 한다.
+   --panel-width 는 DetailPanel 이 런타임에 설정(기본 400px 폴백). */
+@media (min-width: 1280px) {
+  .with-detail-panel {
+    padding-right: var(--panel-width, 400px);
+    transition: padding-right 0.2s ease;
+  }
+}
+
 /* ── LOADOUT Icons — Canvas-sliced <img>, no CSS sprite needed ── */

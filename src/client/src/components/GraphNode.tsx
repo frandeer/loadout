@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { Item } from "../types";
-import { RARITY_CONFIG } from "../types";
+import { RARITY_CONFIG, KIND_LABELS } from "../types";
 import { iconFor } from "../lib/utils";
 import { Icon } from "./Icon";
 
@@ -24,13 +24,6 @@ function stateDot(item: Item): { color: string; label: string } {
   return { color: "var(--color-muted-soft)", label: "보관" };
 }
 
-const KIND_KO: Record<Item["kind"], string> = {
-  skill: "스킬",
-  agent: "요원",
-  mcp: "장비",
-  memory: "기억",
-};
-
 /** 그래프 노드 — 컴팩트 카드. 등급색 좌측 보더/링, kind 아이콘, 이름, 상태 점, 점수. */
 function GraphNodeImpl({ data, selected }: NodeProps<AssetNode>) {
   const item = data.item;
@@ -43,7 +36,7 @@ function GraphNodeImpl({ data, selected }: NodeProps<AssetNode>) {
 
   return (
     <div
-      title={`${name} · ${KIND_KO[item.kind]} · ${r.ko} · ${dot.label} · ${item.score}pt`}
+      title={`${name} · ${KIND_LABELS[item.kind]} · ${r.ko} · ${dot.label} · ${item.score}pt`}
       className={`flex w-[150px] items-center gap-2 rounded-lg border bg-canvas px-2.5 py-2 shadow-sm transition ${
         selected ? "ring-2 ring-primary" : "border-hairline"
       }`}
@@ -74,7 +67,7 @@ function GraphNodeImpl({ data, selected }: NodeProps<AssetNode>) {
           />
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-[9px] uppercase tracking-wide text-muted-soft">{KIND_KO[item.kind]}</span>
+          <span className="text-[9px] uppercase tracking-wide text-muted-soft">{KIND_LABELS[item.kind]}</span>
           <span className="ml-auto font-mono text-[10px] font-semibold text-body">{item.score}</span>
         </div>
       </div>
