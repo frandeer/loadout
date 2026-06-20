@@ -382,7 +382,8 @@ function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
   const name = item.displayName;
   // 상주는 claudeState==="resident"로만 — installed(소스가 ~/.claude 하위)는 카탈로그 대부분이라
   // "상주"로 라벨하면 Inventory 상주 섹션과 어긋난다(정직 모델 동기).
-  const status = item.equipped ? "장착 중" : item.claudeState === "resident" ? "상주" : null;
+  // 앰비언트(설치 베이스)는 Loadout 의도적 장착이 아니므로 '상주'와 구분 표기(Dashboard/Inventory 일관).
+  const status = item.equipped ? "장착 중" : item.ambient ? "설치 베이스" : item.claudeState === "resident" ? "상주" : null;
 
   return (
     <button

@@ -208,11 +208,13 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const alwaysOn = alwaysOnCost(item);
   const traits = traitsOf(item);
   const equippable = isEquippable(item.kind);
-  // vault on/off 토글 대상: vault 관리 항목 또는 ~/.claude 상주 실폴더.
-  const vaultToggleable = item.managed || item.claudeState === "resident";
-  // installed지만 토글 불가(cc-config 등 레거시) → 읽기 전용 "고정 (설치됨)".
-  // "상주"(claudeState==="resident")와는 구분 — 상주는 vault 토글 가능.
-  const lockedInstalled = !!item.installed && !vaultToggleable;
+  // 앰비언트(설치 베이스) = 플러그인·직접 설치로 ~/.claude 에 있으나 Loadout 의도적 장착 아님.
+  //   상세에선 읽기 전용 — 장착/이동은 '장착·보관'(Inventory)의 확인 흐름에서만(풋건 방지).
+  const ambient = !!item.ambient;
+  // vault on/off 토글 대상: vault 관리 항목 또는 ~/.claude 상주 실폴더. 앰비언트는 제외(상세에선 토글 안 함).
+  const vaultToggleable = (item.managed || item.claudeState === "resident") && !ambient;
+  // installed지만 토글 불가(cc-config 등 레거시)·앰비언트 → 읽기 전용 "고정/설치 베이스".
+  const lockedInstalled = ambient || (!!item.installed && !vaultToggleable);
 
   const handleEquip = async () => {
     if (!equippable || lockedInstalled) return;
@@ -395,7 +397,14 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                 장착 중
               </span>
             )}
-            {item.claudeState === "resident" ? (
+            {ambient ? (
+              <span
+                className="shrink-0 whitespace-nowrap rounded-full bg-accent-orange-soft px-2.5 py-0.5 text-xs font-semibold text-accent-orange"
+                title="플러그인·직접 설치로 ~/.claude 에 있는 자산(설치 베이스) — 관리는 '장착·보관'에서"
+              >
+                설치 베이스
+              </span>
+            ) : item.claudeState === "resident" ? (
               <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-orange-soft px-2.5 py-0.5 text-xs font-semibold text-accent-orange">
                 상주
               </span>
@@ -452,7 +461,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
               title={item.claudeState === "resident" ? "해제하면 vault(보관함)로 끌어와 관리합니다" : undefined}
             >
               {lockedInstalled
-                ? "고정 (설치됨)"
+                ? ambient ? "설치 베이스 (관리는 장착·보관)" : "고정 (설치됨)"
                 : equipping
                   ? "처리 중..."
                   : item.equipped
