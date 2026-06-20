@@ -12,7 +12,7 @@
 라이브 실측 (현재 실행 중인 :4970):
 ```
 GET http://localhost:4970/data/secrets.json  →  200
-{ "codexImageApiKey": "nxi_952d4247…e7174e56" }
+{ "codexImageApiKey": "nxi_<redacted>" }   ← 실제 키가 평문 노출됐었음
 ```
 → **이 키는 이미 유출된 것으로 간주하고 즉시 폐기·재발급.**
 
