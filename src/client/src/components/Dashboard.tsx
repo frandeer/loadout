@@ -102,6 +102,7 @@ function HealthChip({ icon, label, value, danger, onClick }: HealthChipProps) {
 export function Dashboard() {
   const items = useStore((s) => s.items);
   const reloadData = useStore((s) => s.reloadData);
+  const setFilters = useStore((s) => s.setFilters);
   const navigate = useNavigate();
 
   const [rescanning, setRescanning] = useState(false);
@@ -301,7 +302,7 @@ export function Dashboard() {
                       </span>
                     </div>
                     <button
-                      onClick={() => navigate("/assets")}
+                      onClick={() => { setFilters({ dupOnly: true, group: undefined, kind: "all", rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false }); navigate("/assets"); }}
                       className="text-[11px] font-medium text-primary hover:underline"
                     >
                       자산에서 정리 →
@@ -314,7 +315,8 @@ export function Dashboard() {
                     {m.dupGroups.slice(0, 6).map((g) => (
                       <li key={g.group}>
                         <button
-                          onClick={() => navigate("/assets")}
+                          onClick={() => { setFilters({ group: g.group, dupOnly: false, kind: "all", rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false }); navigate("/assets"); }}
+                          title="이 동일 계열만 자산에서 비교"
                           className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-surface-soft"
                         >
                           <span className="flex min-w-0 items-center gap-2">

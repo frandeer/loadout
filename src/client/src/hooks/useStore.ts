@@ -16,6 +16,7 @@ interface AppState {
   imageEngine: string; // 이미지 생성 엔진(codex|chatgpt|grok|image-farm|auto) — 서버 settings.json 영속
 
   setFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
+  setFilters: (partial: Partial<FilterState>) => void;
   setSelected: (id: string | null) => void;
   toggleFavorite: (id: string) => void;
   togglePick: (id: string) => void;
@@ -53,6 +54,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   setFilter: (key, value) =>
     set((s) => ({ filters: { ...s.filters, [key]: value } })),
+
+  // 여러 필터 일괄 설정 — 대시보드 그룹 클릭 등에서 한 번에 전환(리렌더 1회).
+  setFilters: (partial) =>
+    set((s) => ({ filters: { ...s.filters, ...partial } })),
 
   setSelected: (id) => set({ selected: id }),
 
@@ -128,6 +133,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (filters.rarity !== "all") xs = xs.filter((i) => i.rarity === filters.rarity);
     if (filters.category !== "all") xs = xs.filter((i) => i.category === filters.category);
     if (filters.dupOnly) xs = xs.filter((i) => i.group);
+    if (filters.group) xs = xs.filter((i) => i.group === filters.group);
     if (filters.equipOnly) xs = xs.filter((i) => i.equipped);
     if (filters.favOnly) xs = xs.filter((i) => favorites.has(i.id));
     if (filters.q) {

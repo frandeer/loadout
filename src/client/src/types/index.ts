@@ -55,7 +55,8 @@ export interface Item {
   image?: string;
   nameKo?: string;
   descKo?: string;
-  cost?: number;        // 컨텍스트 토큰 비용 추정 (~20000 캡) — 마나 게이지
+  cost?: number;        // 호출 시(on-demand) 본문 토큰 비용 추정 (~20000 캡)
+  descCost?: number;    // 상시(always-on) 비용 — skill/agent는 설명만, mcp는 스키마(상한), scan 산출
   risks?: string[];     // "network" | "shell" | "creds" — 위험 신호
   uses?: number;        // 세션 로그 집계 사용 횟수 — 경험치(LV/XP)
   translated?: boolean;
@@ -96,6 +97,7 @@ export interface FilterState {
   dupOnly: boolean;
   equipOnly: boolean;
   favOnly: boolean;
+  group?: string;        // 동일 계열(중복) 묶음 필터 — 대시보드에서 그룹 클릭 시 set
 }
 
 // White SaaS 등급 팔레트 — index.css 토큰과 톤 동기 유지.

@@ -425,6 +425,24 @@ function computeMcpCost(meta) {
   return Math.min(COST_CAP, cost);
 }
 
+// ---------- descCost(상시/always-on 컨텍스트 비용) ----------
+// Claude Code가 세션 내내 컨텍스트에 "항상" 올려두는 부분만 집계한다(본문은 호출 시 1회성이라 제외).
+//   skill/agent: 프론트매터 name + description 만 상시 로드된다.
+//     공식 문서상 스킬/에이전트 목록의 description(+when_to_use)은 1,536자에서 절단되므로 동일 상한 적용.
+//     (https://code.claude.com/docs/en/skills.md, sub-agents.md)
+//   mcp: Tool Search(기본 ON)에서 도구 스키마는 on-demand, 이름+서버 지침(≤2KB)만 상시 →
+//     스키마 추정치를 보수적 상한(MCP_DESC_CAP)으로 깎아 상시 근사.
+//   memory: MEMORY.md 인덱스는 상시, 개별 노트는 회상 시 → 인덱스만 상시(노트는 0 근사).
+const DESC_LISTING_CAP = 1536; // chars — 스킬/에이전트 목록 description 절단 길이
+const MCP_DESC_CAP = 512;      // ≈ 서버 지침 2KB/4 — Tool Search ON 가정
+const MEMORY_INDEX_CAP = 6250; // ≈ MEMORY.md 25KB/4 상한
+
+function computeDescCost(fm) {
+  const name = (fm?.name || "").toString();
+  const desc = (fm?.description || "").toString().slice(0, DESC_LISTING_CAP);
+  return computeContentCost(`${name}\n${desc}`);
+}
+
 // 콘텐츠 정규식 보안 신호. 해당 키만 포함, 없으면 [].
 const RISK_NETWORK = /curl\s+http|fetch\(|axios|https?:\/\/(?!github\.com|docs\.|raw\.githubusercontent)/i;
 const RISK_SHELL = /rm\s+-rf|sudo\s|chmod\s+777|curl[^\n]*\|\s*(ba)?sh/i;
@@ -507,6 +525,7 @@ async function handleSkill(rootPath, file) {
     score: r.score,
     rarity: r.rarity,
     cost: computeContentCost(head, st.size),
+    descCost: computeDescCost(fm),
     risks: detectRisks(head),
     contentHash: quickHash(head.slice(0, 4000) + st.size),
     nameKey: norm(name),
@@ -549,6 +568,7 @@ async function handleAgent(rootPath, file) {
     score: r.score,
     rarity: r.rarity,
     cost: computeContentCost(head, st.size),
+    descCost: computeDescCost(fm),
     risks: detectRisks(head),
     contentHash: quickHash(head.slice(0, 4000) + st.size),
     nameKey: norm(name),
@@ -609,6 +629,7 @@ function mcpItem(name, def, source) {
     meta,
     stats, score: r.score, rarity: r.rarity,
     cost: computeMcpCost(meta),
+    descCost: Math.min(computeMcpCost(meta), MCP_DESC_CAP),
     risks: detectMcpRisks(meta),
     contentHash: quickHash(JSON.stringify(def)),
     nameKey: norm(name), image: null, equipped: false
@@ -720,6 +741,7 @@ async function handleMemory(file, scope, memRoot) {
     score: r.score,
     rarity: r.rarity,
     cost: computeContentCost(content, st.size),
+    descCost: layer === "note" ? 0 : Math.min(computeContentCost(content, st.size), MEMORY_INDEX_CAP),
     risks: detectRisks(content),
     contentHash: quickHash(content.slice(0, 4000) + st.size),
     nameKey: norm(name),

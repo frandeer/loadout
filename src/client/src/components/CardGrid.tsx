@@ -94,6 +94,15 @@ export function CardGrid() {
         <Icon name="search" size="xl" className="opacity-20" />
         <p className="text-sm">검색 결과 없음</p>
         <p className="text-xs text-muted-soft">조건에 맞는 자산이 없습니다</p>
+        {/* 그룹 필터가 빈 결과로 남으면 해제 버튼이 없으면 갇힌다 — 빈 상태에서도 탈출구 제공. */}
+        {filters.group && (
+          <button
+            onClick={() => setFilter("group", undefined)}
+            className="mt-1 rounded-lg border border-hairline px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-surface-soft"
+          >
+            동일 계열 필터 해제 — 전체 보기
+          </button>
+        )}
       </div>
     );
   }
@@ -104,7 +113,8 @@ export function CardGrid() {
     !filters.q &&
     !filters.equipOnly &&
     !filters.favOnly &&
-    !filters.dupOnly;
+    !filters.dupOnly &&
+    !filters.group;
 
   const getLibraryTitle = () => {
     if (isHome) return "라이브러리";
@@ -125,6 +135,23 @@ export function CardGrid() {
 
   return (
     <div className="space-y-8">
+      {/* 동일 계열(중복) 필터 배너 — 대시보드에서 그룹 클릭 진입. 비교 후 전체 보기로 해제. */}
+      {filters.group && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-accent-orange/30 bg-accent-orange-soft px-4 py-2.5">
+          <span className="flex min-w-0 items-center gap-2 text-sm text-body">
+            <Icon name="duplicate" size="sm" className="shrink-0 text-accent-orange" />
+            <span className="truncate">
+              동일 계열 <b className="text-ink">{items[0]?.displayName || items[0]?.name || ""}</b> · {items.length}개 — 비교 후 하나만 두고 정리하세요.
+            </span>
+          </span>
+          <button
+            onClick={() => setFilter("group", undefined)}
+            className="shrink-0 whitespace-nowrap text-xs font-semibold text-primary hover:underline"
+          >
+            전체 보기
+          </button>
+        </div>
+      )}
       {isHome && (
         <>
           {/* ─── 즐겨찾기 ─── */}

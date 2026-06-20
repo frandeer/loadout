@@ -18,6 +18,8 @@ const FRONTMATTER_OVERHEAD_TK = 20;
  *  mcp : 도구 스키마가 항상 상주하므로 전체 비용을 상시로 본다.
  *  memory: MEMORY.md 인덱스는 상시, 개별 노트는 회상 시 → index만 상시로 근사. */
 export function alwaysOnCost(item: Item): number {
+  // scan이 descCost를 산출하면 그걸 신뢰(서버가 진실의 원천). 없으면(구 데이터) 클라 추정.
+  if (typeof item.descCost === "number") return item.descCost;
   if (item.kind === "mcp") return item.cost || 0;
   if (item.kind === "memory") return item.layer === "note" ? 0 : estTokens(item.description || "");
   return estTokens(`${item.name} ${item.description || ""}`) + FRONTMATTER_OVERHEAD_TK;
