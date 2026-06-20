@@ -11,12 +11,13 @@ export function EquippedBar() {
   const equipped = items.filter((i) => i.equipped);
   const shown = equipped.slice(0, 5);
   const overflow = equipped.length - shown.length;
-  // 전 페이지에 걸친 "현재 장착" 글랜스 바(원래 동작 유지). /loadout 에서는 본문이 이미
-  // 전체 목록이라 바로가기 버튼만 숨긴다. 바깥 컨테이너는 더 이상 role=button 이 아니다
-  // (칩 버튼을 role=button 안에 중첩하던 WCAG 위반 제거) — 이동은 전용 버튼으로 한다.
+  // 다른 페이지에서 "현재 장착"을 한눈에 보는 글랜스 바. /loadout 에서는 숨긴다 —
+  // 그 페이지 본문이 이미 전체 장착·보관 목록이라 중복이고, 하단에 배치 액션 바(z-50)가
+  // 떠서 이 바(z-40)와 겹치며 바 뒤 칩 버튼이 포커스 트랩이 된다(H#3).
+  // 바깥 컨테이너는 role=button 이 아니다(칩 버튼 중첩 WCAG 위반 제거) — 이동은 전용 버튼으로.
   const onLoadout = location.pathname === "/loadout";
 
-  if (equipped.length === 0) return null;
+  if (equipped.length === 0 || onLoadout) return null;
 
   return (
     <div
@@ -53,16 +54,14 @@ export function EquippedBar() {
           )}
         </div>
 
-        {/* 바로가기 — /loadout 이 아닐 때만(이미 그 페이지면 불필요). 전용 버튼이라 칩과 포커스가 충돌하지 않는다. */}
-        {!onLoadout && (
-          <button
-            onClick={() => navigate("/loadout")}
-            aria-label="장착·보관 페이지 열기"
-            className="shrink-0 rounded-lg border border-hairline bg-canvas px-2.5 py-1 text-xs font-medium text-body transition hover:border-primary hover:bg-primary-soft"
-          >
-            장착·보관 →
-          </button>
-        )}
+        {/* 바로가기 — 이 바는 /loadout 이 아닐 때만 렌더되므로 항상 표시. 전용 버튼이라 칩과 포커스가 충돌하지 않는다. */}
+        <button
+          onClick={() => navigate("/loadout")}
+          aria-label="장착·보관 페이지 열기"
+          className="shrink-0 rounded-lg border border-hairline bg-canvas px-2.5 py-1 text-xs font-medium text-body transition hover:border-primary hover:bg-primary-soft"
+        >
+          장착·보관 →
+        </button>
       </div>
     </div>
   );

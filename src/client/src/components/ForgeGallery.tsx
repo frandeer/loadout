@@ -8,7 +8,9 @@ interface Props {
   onRestore: (id: string) => void;
   onStartPairwise: () => void;
   onExport: (variantId?: string) => void;
-  onRefine: (variantId: string, instructions: string) => void;
+  // 새 변형(성공) 또는 null(실패)을 돌려준다 — 카드가 await 해 진행 표시를 띄우고,
+  // 실패 시 패널·지시를 보존해 바로 재시도하게 한다(H#4).
+  onRefine: (variantId: string, instructions: string) => void | Promise<ForgeVariant | null>;
   busy: boolean;
 }
 
@@ -79,12 +81,29 @@ function VariantCard({
   onEliminate: () => void;
   onRestore: () => void;
   onExport: () => void;
-  onRefine: (instructions: string) => void;
+  onRefine: (instructions: string) => void | Promise<ForgeVariant | null>;
   busy: boolean;
 }) {
   const [refineOpen, setRefineOpen] = useState(false);
   const [instr, setInstr] = useState("");
+  const [refining, setRefining] = useState(false); // 이 카드의 개선 생성 진행 중 — 멈춘 듯 보이는 문제 해소(H#4)
   const isHtml = v.file?.endsWith(".html");
+
+  // 개선 생성 — 패널을 바로 닫지 않고 await 하며 진행 표시를 띄운다.
+  // 성공(새 변형 반환)에만 패널을 닫고 지시를 비운다. 실패(null)면 지시를 보존해 바로 재시도(에러는 상단 배너).
+  const submitRefine = async () => {
+    if (!instr.trim() || refining) return;
+    setRefining(true);
+    try {
+      const result = await onRefine(instr);
+      if (result) {
+        setRefineOpen(false);
+        setInstr("");
+      }
+    } finally {
+      setRefining(false);
+    }
+  };
 
   return (
     <div
@@ -173,7 +192,12 @@ function VariantCard({
         </div>
 
         {v.status === "done" && (
-          refineOpen ? (
+          refining ? (
+            <div className="flex items-center gap-2 rounded border border-accent-orange/30 bg-accent-orange-soft px-2 py-1.5 text-[11px] text-accent-orange">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent-orange" />
+              개선본 생성 중… 완료되면 새 변형 카드로 추가됩니다
+            </div>
+          ) : refineOpen ? (
             <div className="space-y-1.5">
               <textarea
                 value={instr}
@@ -184,13 +208,13 @@ function VariantCard({
               />
               <div className="flex gap-1.5">
                 <button
-                  onClick={() => { onRefine(instr); setRefineOpen(false); setInstr(""); }}
+                  onClick={submitRefine}
                   disabled={busy || !instr.trim()}
                   className="flex-1 rounded bg-accent-orange-soft py-1 text-[11px] text-accent-orange disabled:opacity-40"
                 >
                   개선 생성
                 </button>
-                <button onClick={() => setRefineOpen(false)} className="rounded border border-hairline px-2 py-1 text-[11px] text-muted">
+                <button onClick={() => { setRefineOpen(false); setInstr(""); }} className="rounded border border-hairline px-2 py-1 text-[11px] text-muted">
                   취소
                 </button>
               </div>

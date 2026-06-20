@@ -88,7 +88,13 @@ export function Header({ onOpenSources }: HeaderProps) {
             aria-label="Skill, Agent, MCP 검색"
             placeholder="Skill, Agent, MCP 검색..."
             value={filters.q}
-            onChange={(e) => setFilter("q", e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setFilter("q", v);
+              // 검색 결과는 자산 카탈로그(/assets)에서만 보인다 — 다른 탭에서 입력하면
+              // 죽은 컨트롤이 되므로 결과가 보이는 /assets 로 이동(H#5). 지우는 중엔 머문다.
+              if (v && location.pathname !== "/assets") navigate("/assets");
+            }}
             className="h-9 w-full rounded-[10px] bg-surface-soft pl-9 pr-12 text-sm text-ink placeholder:text-muted-soft focus:bg-canvas focus:ring-2 focus:ring-primary/10 focus:outline-none transition-colors"
           />
           <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-hairline bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-muted-soft">
