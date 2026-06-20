@@ -25,10 +25,10 @@ export function ForgeGallery({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="text-sm text-zinc-400">
+        <div className="text-sm text-muted">
           {generating ? (
             <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+              <span className="h-2 w-2 animate-pulse rounded-full bg-accent-orange" />
               생성 중… {done.length}/{variants.length}
             </span>
           ) : (
@@ -39,14 +39,14 @@ export function ForgeGallery({
           <button
             onClick={onStartPairwise}
             disabled={live.length < 2}
-            className="h-8 rounded-md border border-amber-500/50 bg-amber-500/20 px-3 text-xs font-medium text-amber-300 transition hover:bg-amber-500/30 disabled:opacity-40"
+            className="h-8 rounded-md border border-accent-orange/40 bg-accent-orange-soft px-3 text-xs font-medium text-accent-orange transition hover:opacity-80 disabled:opacity-40"
           >
             A/B 비교 ({live.length})
           </button>
           <button
             onClick={() => onExport()}
             disabled={!live.some((v) => v.file?.endsWith(".html"))}
-            className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs text-zinc-300 hover:text-white disabled:opacity-40"
+            className="h-8 rounded-md border border-hairline bg-canvas px-3 text-xs text-body hover:bg-surface-soft disabled:opacity-40"
           >
             풀 키트 내보내기
           </button>
@@ -88,12 +88,12 @@ function VariantCard({
 
   return (
     <div
-      className={`overflow-hidden rounded-xl border bg-zinc-900 transition ${
-        eliminated ? "border-zinc-800 opacity-40" : "border-zinc-700 hover:border-zinc-600"
+      className={`overflow-hidden rounded-xl border bg-canvas shadow-xs transition ${
+        eliminated ? "border-hairline opacity-40" : "border-hairline hover:border-hairline-strong hover:shadow-sm"
       }`}
     >
       {/* 미리보기 */}
-      <div className="relative h-44 overflow-hidden border-b border-zinc-800 bg-zinc-950">
+      <div className="relative h-44 overflow-hidden border-b border-hairline bg-surface-soft">
         {v.status === "done" && v.file ? (
           isHtml ? (
             <iframe
@@ -106,22 +106,22 @@ function VariantCard({
             <img src={v.file} alt={v.id} className="h-full w-full object-cover" />
           )
         ) : v.status === "error" ? (
-          <div className="flex h-full items-center justify-center p-3 text-center text-xs text-rose-400">
+          <div className="flex h-full items-center justify-center p-3 text-center text-xs text-accent-rose">
             ⚠ {v.error || "생성 실패"}
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-zinc-500">
+          <div className="flex h-full items-center justify-center text-xs text-muted">
             <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+              <span className="h-2 w-2 animate-pulse rounded-full bg-accent-orange" />
               {v.status === "running" ? "생성 중…" : "대기 중"}
             </span>
           </div>
         )}
-        <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-zinc-200">
+        <span className="absolute left-2 top-2 rounded bg-ink/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
           {KIND_LABEL[v.kind] || v.kind}
         </span>
         {v.status === "done" && (
-          <span className="absolute right-2 top-2 rounded bg-amber-500/80 px-1.5 py-0.5 text-[10px] font-bold text-black">
+          <span className="absolute right-2 top-2 rounded bg-accent-orange-soft px-1.5 py-0.5 text-[10px] font-bold text-accent-orange">
             Elo {v.elo}
           </span>
         )}
@@ -129,14 +129,14 @@ function VariantCard({
 
       {/* 메타 + 액션 */}
       <div className="space-y-2 p-3">
-        <div className="flex flex-wrap gap-1 text-[10px] text-zinc-400">
+        <div className="flex flex-wrap gap-1 text-[10px] text-muted">
           <Badge>{v.engine}</Badge>
           {v.strategy && <Badge>{v.strategy}</Badge>}
           {v.style && <Badge>{v.style}</Badge>}
           {v.derivedFrom && <Badge>↳ 개선본</Badge>}
         </div>
         {v.status === "done" && (
-          <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+          <div className="flex items-center gap-2 text-[10px] text-muted-soft">
             <span>{(v.fileSize / 1024).toFixed(1)}KB</span>
             <span>· {(v.generationTimeMs / 1000).toFixed(1)}s</span>
             <span>· {v.wins}승 {v.losses}패</span>
@@ -149,24 +149,24 @@ function VariantCard({
               href={v.file}
               target="_blank"
               rel="noreferrer"
-              className="flex-1 rounded border border-zinc-700 py-1 text-center text-[11px] text-zinc-300 hover:text-white"
+              className="flex-1 rounded border border-hairline py-1 text-center text-[11px] text-body hover:bg-surface-soft hover:text-ink"
             >
               열기
             </a>
           )}
           {eliminated ? (
-            <button onClick={onRestore} className="flex-1 rounded border border-zinc-700 py-1 text-[11px] text-zinc-300 hover:text-white">
+            <button onClick={onRestore} className="flex-1 rounded border border-hairline py-1 text-[11px] text-body hover:bg-surface-soft hover:text-ink">
               복구
             </button>
           ) : (
             v.status === "done" && (
-              <button onClick={onEliminate} className="flex-1 rounded border border-zinc-700 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10">
+              <button onClick={onEliminate} className="flex-1 rounded border border-hairline py-1 text-[11px] text-accent-rose hover:bg-accent-rose/5">
                 탈락
               </button>
             )
           )}
           {v.status === "done" && isHtml && (
-            <button onClick={onExport} className="rounded border border-zinc-700 px-2 py-1 text-[11px] text-amber-300 hover:bg-amber-500/10">
+            <button onClick={onExport} className="rounded border border-accent-orange/30 px-2 py-1 text-[11px] text-accent-orange hover:bg-accent-orange-soft">
               ★키트
             </button>
           )}
@@ -180,23 +180,23 @@ function VariantCard({
                 onChange={(e) => setInstr(e.target.value)}
                 placeholder="개선 지시 (예: 여백을 넓히고 색을 더 차분하게)"
                 rows={2}
-                className="w-full rounded border border-zinc-700 bg-zinc-950 p-1.5 text-[11px] text-white placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none"
+                className="w-full rounded border border-hairline bg-canvas p-1.5 text-[11px] text-ink placeholder:text-muted-soft focus:border-primary focus:outline-none"
               />
               <div className="flex gap-1.5">
                 <button
                   onClick={() => { onRefine(instr); setRefineOpen(false); setInstr(""); }}
                   disabled={busy || !instr.trim()}
-                  className="flex-1 rounded bg-amber-500/20 py-1 text-[11px] text-amber-300 disabled:opacity-40"
+                  className="flex-1 rounded bg-accent-orange-soft py-1 text-[11px] text-accent-orange disabled:opacity-40"
                 >
                   개선 생성
                 </button>
-                <button onClick={() => setRefineOpen(false)} className="rounded border border-zinc-700 px-2 py-1 text-[11px] text-zinc-400">
+                <button onClick={() => setRefineOpen(false)} className="rounded border border-hairline px-2 py-1 text-[11px] text-muted">
                   취소
                 </button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setRefineOpen(true)} className="w-full rounded border border-dashed border-zinc-700 py-1 text-[11px] text-zinc-400 hover:text-zinc-200">
+            <button onClick={() => setRefineOpen(true)} className="w-full rounded border border-dashed border-hairline py-1 text-[11px] text-muted hover:text-body">
               + 이 변형으로 개선
             </button>
           )
@@ -207,5 +207,5 @@ function VariantCard({
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="rounded bg-zinc-800 px-1.5 py-0.5">{children}</span>;
+  return <span className="rounded bg-surface-soft px-1.5 py-0.5 text-muted">{children}</span>;
 }

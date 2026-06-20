@@ -35,10 +35,10 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
 
   if (!pair) {
     return (
-      <div className="py-16 text-center text-sm text-zinc-400">
+      <div className="py-16 text-center text-sm text-muted">
         비교할 변형이 2개 이상 필요합니다.
         <div className="mt-3">
-          <button onClick={onDone} className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:text-white">
+          <button onClick={onDone} className="rounded-md border border-hairline px-3 py-1.5 text-xs text-body hover:bg-surface-soft hover:text-ink">
             갤러리로
           </button>
         </div>
@@ -58,8 +58,8 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
   return (
     <div>
       <div className="mb-4 flex items-center gap-3">
-        <h3 className="text-sm font-semibold text-white">A/B 비교 · 라운드 {rounds + 1}</h3>
-        <button onClick={onDone} className="ml-auto rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:text-white">
+        <h3 className="text-sm font-semibold text-ink">A/B 비교 · 라운드 {rounds + 1}</h3>
+        <button onClick={onDone} className="ml-auto rounded-md border border-hairline px-3 py-1.5 text-xs text-body hover:bg-surface-soft hover:text-ink">
           갤러리로 돌아가기
         </button>
       </div>
@@ -71,25 +71,25 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
       </div>
 
       <div className="mt-4 flex justify-center gap-3">
-        <button onClick={() => decide(0.5)} className="rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs text-zinc-300 hover:text-white">
+        <button onClick={() => decide(0.5)} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-body hover:bg-surface-soft">
           무승부 / 둘 다 별로
         </button>
-        <button onClick={() => setSkipSeed((s) => s + 1)} className="rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs text-zinc-400 hover:text-white">
+        <button onClick={() => setSkipSeed((s) => s + 1)} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-muted hover:bg-surface-soft hover:text-body">
           건너뛰기 →
         </button>
       </div>
 
       {/* 현재 랭킹 */}
       <div className="mt-8">
-        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">현재 Elo 랭킹</h4>
+        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">현재 Elo 랭킹</h4>
         <div className="space-y-1">
           {ranked.map((v, idx) => (
-            <div key={v.id} className="flex items-center gap-3 rounded border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs">
-              <span className="w-5 text-zinc-500">{idx + 1}</span>
-              <span className="text-zinc-300">{v.engine}</span>
-              <span className="text-zinc-600">{v.strategy}/{v.style}</span>
-              <span className="ml-auto font-mono text-amber-400">{v.elo}</span>
-              <span className="text-zinc-600">{v.wins}승 {v.losses}패</span>
+            <div key={v.id} className="flex items-center gap-3 rounded border border-hairline bg-canvas px-3 py-1.5 text-xs">
+              <span className="w-5 text-muted">{idx + 1}</span>
+              <span className="text-body">{v.engine}</span>
+              <span className="text-muted-soft">{v.strategy}/{v.style}</span>
+              <span className="ml-auto font-mono text-accent-orange">{v.elo}</span>
+              <span className="text-muted-soft">{v.wins}승 {v.losses}패</span>
             </div>
           ))}
         </div>
@@ -101,20 +101,20 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
 function Side({ v, label, onWin }: { v: ForgeVariant; label: string; onWin: () => void }) {
   const isHtml = v.file?.endsWith(".html");
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900">
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-400">{label}</span>
-        <span className="text-xs text-zinc-400">{v.engine} · {v.strategy}/{v.style}</span>
-        <span className="ml-auto font-mono text-xs text-amber-400">Elo {v.elo}</span>
+    <div className="overflow-hidden rounded-xl border border-hairline bg-canvas shadow-sm">
+      <div className="flex items-center gap-2 border-b border-hairline px-3 py-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-orange-soft text-xs font-bold text-accent-orange">{label}</span>
+        <span className="text-xs text-muted">{v.engine} · {v.strategy}/{v.style}</span>
+        <span className="ml-auto font-mono text-xs text-accent-orange">Elo {v.elo}</span>
       </div>
-      <div className="h-80 overflow-hidden bg-zinc-950">
+      <div className="h-80 overflow-hidden bg-surface-soft">
         {v.file && isHtml ? (
           <iframe src={v.file} title={v.id} className="h-full w-full" />
         ) : v.file ? (
           <img src={v.file} alt={v.id} className="h-full w-full object-contain" />
         ) : null}
       </div>
-      <button onClick={onWin} className="w-full bg-amber-500/20 py-2.5 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/30">
+      <button onClick={onWin} className="w-full bg-accent-orange-soft py-2.5 text-sm font-semibold text-accent-orange transition hover:opacity-80">
         이쪽이 더 낫다 ▲
       </button>
     </div>
