@@ -49,6 +49,7 @@ export interface Item {
   // ── vault (장착/해제 토글) — 서버가 /api/index 에 병합해 내려준다 ──
   managed?: boolean;                            // vault 관리 대상 — on/off 토글로 장착/해제
   claudeState?: "link" | "resident" | "absent"; // ~/.claude 상태: 링크 / 상주 / 꺼짐(보관)
+  ambient?: boolean;                            // 앰비언트(설치 베이스) — 플러그인·직접 설치로 ~/.claude에 물리적 존재(미관리). 의도적 장착 아님 → 활성 KPI 제외
   oversized?: boolean;                          // 거대 자산 — 끄면 vault로 이동 보관(지연)
   divergent?: boolean;                          // vault와 라이브 사본이 분기 — pull/push 해소 필요
   tags?: string[];     // scan이 부여한 특성 태그 (신호 링크)

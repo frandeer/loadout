@@ -60,10 +60,11 @@ export function Inventory() {
       ),
     [items],
   );
-  // 상주: 직접 설치된 실폴더 — 해제하면 vault 로 이동 보관. 분기는 제외(분기 섹션에서만 해소).
-  // isEquippable 가드: memory 아이템이 ~/.claude 하위 경로에 있어도 상주 섹션에 노출되지 않는다.
-  const resident = useMemo(
-    () => items.filter((i) => isEquippable(i.kind) && i.claudeState === "resident" && !i.divergent),
+  // 설치 베이스(앰비언트): 플러그인·직접 설치로 ~/.claude 에 물리적으로 있는 실폴더 — Loadout 으로 의도적으로
+  // 장착한 게 아니다(서버가 ambient=true 로 표시). 활성과 분리해 별도 접이식 섹션으로 보여준다(정직한 2지표).
+  // isEquippable·!divergent 가드: memory/mcp·분기는 여기 노출 안 됨.
+  const ambient = useMemo(
+    () => items.filter((i) => isEquippable(i.kind) && i.ambient && !i.divergent),
     [items],
   );
   // 보관: vault 관리 대상이며 ~/.claude 에는 없음(꺼짐).
@@ -72,13 +73,14 @@ export function Inventory() {
     [items],
   );
 
-  // 마나 게이지 = 활성 + 상주 자산의 "상시" 컨텍스트 부하만(설명/스키마 — 항상 로드).
+  // 마나 게이지 = 실제 로드되는 자산(활성 + 설치 베이스)의 "상시" 컨텍스트 부하만(설명/스키마 — 항상 로드).
+  //   앰비언트도 ~/.claude 에 물리적으로 있어 설명이 항상 로드되므로 상시 부하에 포함(정직).
   //   본문은 호출 시 1회성이라 상시 부하가 아니다 → 본문 합계를 더하면 거짓 과적재가 된다.
-  const liveItems = useMemo(() => [...active, ...resident], [active, resident]);
+  const liveItems = useMemo(() => [...active, ...ambient], [active, ambient]);
   const alwaysOnTotal = useMemo(() => liveItems.reduce((s, m) => s + alwaysOnCost(m), 0), [liveItems]);
   const onDemandTotal = teamCost(liveItems); // 본문 전체 합계 — 호출 시에만, 동시 로드 아님(정보용)
 
-  const isEmpty = !active.length && !resident.length && !stored.length && !divergent.length;
+  const isEmpty = !active.length && !ambient.length && !stored.length && !divergent.length;
 
   // ── 단건 액션 ─────────────────────────────────────────
   // 해제 라우팅(단일 진실) — 관리/링크/상주는 vault 토글 off(안전 이동), 레거시 미관리는 unequip.
@@ -164,17 +166,26 @@ export function Inventory() {
     });
   const clearSel = () => setSel(new Set());
 
-  // 선택 항목을 섹션별로 분리 — 활성/상주는 해제, 보관은 켜기.
+  // 선택 항목을 섹션별로 분리 — 활성/설치베이스는 해제(내림), 보관은 켜기.
   const selOffItems = useMemo(
-    () => [...active, ...resident].filter((i) => selected.has(i.id)),
-    [active, resident, selected],
+    () => [...active, ...ambient].filter((i) => selected.has(i.id)),
+    [active, ambient, selected],
   );
   const selOnItems = useMemo(() => stored.filter((i) => selected.has(i.id)), [stored, selected]);
 
-  // 일괄 해제 — 활성/상주 선택분을 순차 처리.
+  // 일괄 해제 — 활성/설치베이스 선택분을 순차 처리.
+  // 설치 베이스(앰비언트)가 섞이면 실폴더를 vault로 대량 이동하게 되므로 먼저 확인(풋건 방지).
   const batchOff = async () => {
     const list = selOffItems;
     if (!list.length) return;
+    const ambientHits = list.filter((i) => i.ambient).length;
+    if (
+      ambientHits > 0 &&
+      !window.confirm(
+        `선택 ${list.length}개 중 설치 베이스 ${ambientHits}개가 포함됩니다 — ~/.claude 에서 내려 vault(보관함)로 실제 폴더를 이동합니다. 계속할까요?`,
+      )
+    )
+      return;
     setActionError(null);
     setBatch({ kind: "off", done: 0, total: list.length });
     let failed = 0;
@@ -252,9 +263,9 @@ export function Inventory() {
       {/* ── 마나 게이지: "상시" 부하만(설명/스키마). 본문은 호출 시 1회성이라 정보로만 표기. ── */}
       {liveItems.length > 0 && (
         <div className="mb-6 rounded-xl border border-hairline bg-canvas px-4 py-3">
-          <ManaGauge cost={alwaysOnTotal} label="상시 컨텍스트 부하 (장착 + 상주 · 설명만)" />
+          <ManaGauge cost={alwaysOnTotal} label="상시 컨텍스트 부하 (장착 + 설치 베이스 · 설명만)" />
           <p className="mt-2 text-[11px] leading-tight text-muted-soft">
-            막대는 <b className="text-muted">상시</b> 부하 — 장착·상주만 해도 항상 로드되는 설명/스키마입니다.
+            막대는 <b className="text-muted">상시</b> 부하 — 장착·설치된 자산은 본문 없이도 설명/스키마가 항상 로드됩니다.
             각 자산의 본문(합계 약 <span className="font-mono text-muted">{formatK(onDemandTotal)} tk</span>)은
             실제로 <b className="text-muted">호출될 때만</b> 1회성으로 들어갑니다(동시 로드 아님).
             {divergent.length > 0 && (
@@ -280,6 +291,13 @@ export function Inventory() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* 활성(의도적 장착)이 0이면, 비어 보이지 않도록 안내 — 아래 설치 베이스와 구분 */}
+          {active.length === 0 && (
+            <div className="rounded-xl border border-dashed border-hairline-strong bg-canvas px-4 py-3 text-[12px] text-muted">
+              아직 Loadout 으로 의도적으로 <b className="text-body">장착</b>한 자산이 없습니다 — 자산 탭에서 장착하면 여기 '활성'에 모입니다.
+              아래 <b className="text-body">설치 베이스</b>는 플러그인·직접 설치로 이미 ~/.claude 에 있는 자산입니다.
+            </div>
+          )}
           {/* 1. 활성 */}
           <Section
             title="활성"
@@ -311,22 +329,21 @@ export function Inventory() {
             ))}
           </Section>
 
-          {/* 2. 상주 (직접 설치됨) */}
+          {/* 2. 설치 베이스 (앰비언트) — 직접/플러그인 설치로 ~/.claude 에 있는 자산. 의도적 장착 아님 → 접이식. */}
           <Section
-            title="상주"
-            note="직접 설치됨 — 우리가 만든 링크가 아닙니다"
-            count={resident.length}
-            icon="lock"
+            title="설치 베이스"
+            note="플러그인·직접 설치 — Loadout 장착이 아닙니다"
+            count={ambient.length}
+            icon="package"
             tone="warm"
+            collapsible
           >
-            {resident.length > 0 && (
-              <div className="mb-1 rounded-lg bg-surface-warm px-3 py-2 text-[11px] text-body">
-                직접 설치한 실폴더입니다. <strong className="font-semibold">해제 → 보관함</strong>을 누르면
-                ~/.claude 에서 내리고 vault(보관함)로 <strong className="font-semibold">안전 이동</strong>합니다.
-                필요할 때 보관 섹션에서 다시 켤 수 있습니다.
-              </div>
-            )}
-            {resident.map((item) => (
+            <div className="mb-1 rounded-lg bg-surface-warm px-3 py-2 text-[11px] text-body">
+              ~/.claude 에 직접·플러그인으로 설치된 실폴더입니다. 컨텍스트엔 로드되지만 Loadout 으로 장착한 건 아닙니다.
+              <strong className="font-semibold"> 해제 → 보관함</strong>을 누르면 ~/.claude 에서 내리고 vault(보관함)로
+              <strong className="font-semibold"> 안전 이동</strong>합니다(필요할 때 보관 섹션에서 다시 켤 수 있음).
+            </div>
+            {ambient.map((item) => (
               <Row
                 key={item.id}
                 item={item}
@@ -338,9 +355,9 @@ export function Inventory() {
                 badge={
                   <span
                     className="rounded-full bg-accent-orange-soft px-2 py-0.5 text-[10px] font-semibold text-accent-orange"
-                    title="이 자산은 직접 설치된 실폴더입니다"
+                    title="플러그인·직접 설치로 ~/.claude 에 있는 자산(앰비언트). Loadout 장착이 아닙니다."
                   >
-                    상주 · 직접 설치
+                    설치 베이스
                   </span>
                 }
                 actions={
@@ -492,13 +509,14 @@ export function Inventory() {
   );
 }
 
-/* ── 섹션 패널 — 비어 있으면 렌더하지 않는다 ── */
+/* ── 섹션 패널 — 비어 있으면 렌더하지 않는다. collapsible 이면 기본 접힘(큰 목록용). ── */
 function Section({
   title,
   note,
   count,
   icon,
   tone,
+  collapsible = false,
   children,
 }: {
   title: string;
@@ -506,8 +524,10 @@ function Section({
   count: number;
   icon: string;
   tone: "success" | "warm" | "danger" | "default";
+  collapsible?: boolean;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(!collapsible); // collapsible 섹션은 기본 접힘
   if (count === 0) return null;
   const toneCls =
     tone === "success"
@@ -517,19 +537,35 @@ function Section({
         : tone === "danger"
           ? "bg-accent-rose/10 text-accent-rose"
           : "bg-surface-soft text-muted";
+  const header = (
+    <>
+      <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${toneCls}`}>
+        <Icon name={icon} size="sm" />
+      </span>
+      <h3 className="text-sm font-bold text-ink">{title}</h3>
+      <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[11px] font-semibold text-muted">
+        <span className="font-mono">{count}</span>
+      </span>
+      <span className="text-[11px] text-muted">{note}</span>
+      {collapsible && (
+        <Icon name="chevron-down" size="sm" className={`ml-auto text-muted-soft transition-transform ${open ? "rotate-180" : ""}`} />
+      )}
+    </>
+  );
   return (
     <section className="rounded-xl border border-hairline bg-canvas p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${toneCls}`}>
-          <Icon name={icon} size="sm" />
-        </span>
-        <h3 className="text-sm font-bold text-ink">{title}</h3>
-        <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[11px] font-semibold text-muted">
-          <span className="font-mono">{count}</span>
-        </span>
-        <span className="text-[11px] text-muted">{note}</span>
-      </div>
-      <div className="space-y-2">{children}</div>
+      {collapsible ? (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className={`flex w-full items-center gap-3 text-left ${open ? "mb-3" : ""}`}
+        >
+          {header}
+        </button>
+      ) : (
+        <div className="mb-3 flex items-center gap-3">{header}</div>
+      )}
+      {open && <div className="space-y-2">{children}</div>}
     </section>
   );
 }

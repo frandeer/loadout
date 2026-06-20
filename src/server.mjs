@@ -96,7 +96,7 @@ function isInstalled(item) {
 
 // vault.json에 보관할 카탈로그 스냅샷(끄면 scan에서 사라지므로, 카탈로그에 되살리기 위함). 휘발 필드는 제외.
 function vaultSnapshot(item) {
-  const { equipped, managed, claudeState, oversized, divergent, uses, installed, ...rest } = item;
+  const { equipped, managed, claudeState, oversized, divergent, ambient, uses, installed, ...rest } = item;
   return rest;
 }
 
@@ -717,8 +717,12 @@ const server = createServer(async (req, res) => {
               it.equipped = ls.claudeState !== "absent";
             }
           } else if (ls.claudeState === "resident") {
-            it.claudeState = "resident";                 // 미관리 상주(예: 거대 번들 gstack/browse)
-            it.equipped = true;                          // 상주=활성(on). 끄면 vault로 lazy 이동(해제할 때만 가져오기).
+            // 미관리 상주 = 앰비언트: 플러그인·직접 설치로 ~/.claude 에 물리적으로 존재하는 "설치 베이스".
+            // Loadout 으로 의도적으로 장착(link/vault)한 게 아니므로 활성(equipped)이 아니라 ambient 로 분리한다.
+            // (활성 KPI = 의도적 로드아웃만, 앰비언트는 별도 지표/섹션으로 — 정직한 2지표)
+            it.claudeState = "resident";
+            it.ambient = true;
+            it.equipped = false;
           }
           if (ls.oversized || rec?.oversized) it.oversized = true;
         }

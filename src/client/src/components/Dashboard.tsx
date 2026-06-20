@@ -12,10 +12,15 @@ import type { IconName } from "./Icon";
    무엇을 정리할지 한눈에. 가짜 지표(파워/Elo/시너지) 금지,
    세션 로그 기반 사용량은 희소하므로 항상 "기록 없음 ≠ 미사용" 단서를 붙인다. */
 
-// 활성(켜짐) 판정 — 장착됐거나 ~/.claude 에 링크/상주 중인 자산.
-// divergent 자산은 제외 (Inventory와 동일 기준 — /loadout에서 '분기' 별도 섹션으로 노출).
+// 활성(의도적 장착) 판정 — Loadout으로 링크(claudeState==="link")했거나 장착(equipped)한 자산.
+// 앰비언트(ambient: 플러그인·직접 설치로 ~/.claude에 그냥 있는 설치 베이스)와 분기는 제외 —
+// 활성 KPI는 "내가 의도적으로 켠 로드아웃"만 센다. 앰비언트는 별도 '설치 베이스' 지표로 분리(정직한 2지표).
 function isActive(i: Item): boolean {
-  return (!!i.equipped || i.claudeState === "resident" || i.claudeState === "link") && !i.divergent;
+  return (!!i.equipped || i.claudeState === "link") && !i.divergent && !i.ambient;
+}
+// 앰비언트(설치 베이스) — ~/.claude에 물리적으로 있으나 Loadout이 의도적으로 장착한 게 아닌 항목.
+function isAmbient(i: Item): boolean {
+  return !!i.ambient && !i.divergent;
 }
 
 const KIND_ICONS: Record<Kind, IconName> = {
@@ -31,9 +36,10 @@ interface StatCardProps {
   value: number;
   icon: IconName;
   accent?: boolean;
+  title?: string;
   onClick?: () => void;
 }
-function StatCard({ label, value, icon, accent, onClick }: StatCardProps) {
+function StatCard({ label, value, icon, accent, title, onClick }: StatCardProps) {
   const base = `rounded-xl border border-hairline bg-canvas p-4 ${
     accent ? "ring-1 ring-primary/20" : ""
   }`;
@@ -50,13 +56,14 @@ function StatCard({ label, value, icon, accent, onClick }: StatCardProps) {
     return (
       <button
         onClick={onClick}
+        title={title}
         className={`${base} text-left transition hover:border-hairline-strong hover:shadow-sm`}
       >
         {inner}
       </button>
     );
   }
-  return <div className={base}>{inner}</div>;
+  return <div className={base} title={title}>{inner}</div>;
 }
 
 // ── 패널 헤더 ──
@@ -147,6 +154,11 @@ export function Dashboard() {
 
     const active = items.filter(isActive);
     const activeCount = active.length;
+    // 앰비언트(설치 베이스) — 활성과 별도로 집계. 컨텍스트엔 로드되지만 의도적 로드아웃은 아님.
+    const ambient = items.filter(isAmbient);
+    const ambientCount = ambient.length;
+    // 실제로 컨텍스트에 로드되는 자산(활성 + 앰비언트) — 거대 자산 패널의 모집단.
+    const live = [...active, ...ambient];
 
     // (3a) 중복 자산 — item.group 이 같은 묶음 = 동일 이름 N개.
     const groupMap = new Map<string, Item[]>();
@@ -170,8 +182,8 @@ export function Dashboard() {
     const dupGroupCount = dupGroups.length;
     const dupItemTotal = dupGroups.reduce((s, g) => s + g.count, 0);
 
-    // (3b) 거대 자산 — 활성 + oversized (켜져 있어 컨텍스트를 먹는 거대 자산).
-    const oversizedActive = active.filter((i) => i.oversized);
+    // (3b) 거대 자산 — 실제 로드되는 자산(활성+앰비언트) 중 oversized. 설치 베이스의 거대 번들(gstack 등)도 포함.
+    const oversizedActive = live.filter((i) => i.oversized);
 
     // (4) 사용 현황 — 전체 자산 중 uses>0 vs 기록 없음.
     //     활성 자산만 스코프하면 "기록 있음 0"이 되는 경우가 있어 혼란을 줌.
@@ -192,6 +204,7 @@ export function Dashboard() {
       total,
       kindCounts,
       activeCount,
+      ambientCount,
       dupGroups,
       dupGroupCount,
       dupItemTotal,
@@ -264,7 +277,8 @@ export function Dashboard() {
       </header>
 
       {/* ── 2. 통계 카드 ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {/* 정직한 2지표: '로드아웃 장착'(Loadout으로 의도적으로 켠 것) ≠ '설치 베이스'(~/.claude에 그냥 있는 설치물). */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {(Object.keys(KIND_LABELS) as Kind[]).map((k) => (
           <StatCard
             key={k}
@@ -275,10 +289,18 @@ export function Dashboard() {
           />
         ))}
         <StatCard
-          label="활성 (장착·상주)"
+          label="로드아웃 장착"
           value={m.activeCount}
           icon="backpack"
           accent
+          title="Loadout으로 의도적으로 장착(링크)한 자산. 자산 탭에서 장착하면 늘어납니다."
+          onClick={() => navigate("/loadout")}
+        />
+        <StatCard
+          label="설치 베이스"
+          value={m.ambientCount}
+          icon="package"
+          title="플러그인·직접 설치로 ~/.claude에 이미 있는 자산(앰비언트). 장착과 별개로 컨텍스트에 로드됩니다."
           onClick={() => navigate("/loadout")}
         />
       </div>

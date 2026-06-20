@@ -649,13 +649,28 @@ export async function status(items, vaultRoot = defaultVaultRoot) {
 // /api/index 오버레이에서 항목마다 ~/.claude 점유 상태(on/off)를 싸게 확인하는 용도.
 // 절대 쓰지 않는다(이동/삭제/링크/수정 없음). liveName이 주어지면 그 "원래 이름" 자리를, 없으면 유도한다.
 export function liveState(item, liveName = null) {
-  const name = liveName || originalLiveName(item);
   let livePath = null;
-  if (name) {
+  if (liveName) {
     livePath = item.kind === "agent"
-      ? join(claudeAgents, /\.md$/i.test(name) ? name : `${name}.md`)
-      : join(claudeSkills, name);
+      ? join(claudeAgents, /\.md$/i.test(liveName) ? liveName : `${liveName}.md`)
+      : join(claudeSkills, liveName);
+  } else {
+    // 미관리 항목(skill/agent 한정): 소스가 원래 ~/.claude 아래에 있다면 그 소스 경로 자체를 라이브로 판단한다.
+    // mcp(record-only)·memory(장착 개념 없음)는 제외 — originalLiveName 과 동일 가드. 안 그러면
+    // .mcp.json/메모리 파일이 "상주"로 잘못 잡혀 활성 카운트를 오염시킨다.
+    if ((item?.kind === "skill" || item?.kind === "agent") && item?.source?.root && item?.source?.path) {
+      const root = resolve(item.source.root);
+      const homeNorm = resolve(claudeHome);
+      const underHome =
+        root === homeNorm ||
+        root.toLowerCase().startsWith((homeNorm + sep).toLowerCase());
+      if (underHome) {
+        const full = resolve(item.source.root, item.source.path);
+        livePath = item.kind === "skill" ? dirname(full) : full;
+      }
+    }
   }
+
   let claudeState = "absent", oversized = false;
   if (livePath && existsSync(livePath)) {
     claudeState = isLink(livePath) ? "link" : "resident";
