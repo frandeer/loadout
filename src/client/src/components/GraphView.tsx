@@ -30,6 +30,7 @@ import "@xyflow/react/dist/style.css";
 import type { Item, Kind } from "../types";
 import { RARITY_CONFIG, KIND_LABELS, isEquippable } from "../types";
 import { useStore } from "../hooks/useStore";
+import { isInClaudeDir } from "../lib/itemState";
 import { api } from "../lib/api";
 import { buildGraph, egoFilter, traitEdgeLabel, type GraphEdgeType, type GraphEdgeData } from "../lib/graph";
 import { GraphNode, type AssetNode } from "./GraphNode";
@@ -62,12 +63,10 @@ function baseEdgeStyle(type: GraphEdgeType): CSSProperties {
   };
 }
 
-/** 자산이 "지금 ~/.claude 에서 활성"인지 — 기본 스코프의 앵커.
- *  installed(소스가 ~/.claude 하위)는 카탈로그 대부분이 해당돼 의미가 없으므로 제외.
- *  실제 활성 = managed 링크 / 상주(직접 설치) / 레거시 equipped 만. */
-function isAnchor(it: Item): boolean {
-  return Boolean(it.equipped || it.claudeState === "resident" || it.claudeState === "link");
-}
+/** 기본 스코프(ego)의 앵커 = 지금 ~/.claude 에 물리적으로 있는 자산.
+ *  lib/itemState.isInClaudeDir 로 단일화 — 대시보드·인벤토리의 라이브 정의와 같은 출처.
+ *  (앵커는 divergent 도 포함: 여전히 디렉터리에 로드돼 있으므로.) */
+const isAnchor = isInClaudeDir;
 
 type Scope = "ego" | "all";
 

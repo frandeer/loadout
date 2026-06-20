@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, KIND_LABELS, isEquippable } from "../types";
 import type { Item, Kind } from "../types";
+import { isActive, isAmbient } from "../lib/itemState";
 import { api } from "../lib/api";
 import { teamCost } from "../lib/traits";
 import { formatSource, alwaysOnCost, formatK } from "../lib/utils";
@@ -46,27 +47,11 @@ export function Inventory() {
   // 상주·분기에 이중 노출되고, 상주의 "해제 → 보관함"이 미해소 분기를 덮어쓸 수 있다.
   // 분기 = 최우선(해소 전까지 다른 섹션에 노출 금지).
   const divergent = useMemo(() => items.filter((i) => i.divergent), [items]);
-  // 활성: 우리 링크(claudeState==="link") 또는 레거시 장착(미관리·equipped인데 상태 미확정).
-  // 레거시 절은 미관리 항목으로 한정 — equipped 는 파생값이라 관리 항목엔 의존하지 않는다.
-  // memory/mcp 는 장착 개념이 없으므로(isEquippable) 활성/상주/보관 섹션에 나타나지 않는다.
-  const active = useMemo(
-    () =>
-      items.filter(
-        (i) =>
-          isEquippable(i.kind) &&
-          !i.divergent &&
-          (i.claudeState === "link" ||
-            (!i.managed && !!i.equipped && i.claudeState == null)),
-      ),
-    [items],
-  );
-  // 설치 베이스(앰비언트): 플러그인·직접 설치로 ~/.claude 에 물리적으로 있는 실폴더 — Loadout 으로 의도적으로
-  // 장착한 게 아니다(서버가 ambient=true 로 표시). 활성과 분리해 별도 접이식 섹션으로 보여준다(정직한 2지표).
-  // isEquippable·!divergent 가드: memory/mcp·분기는 여기 노출 안 됨.
-  const ambient = useMemo(
-    () => items.filter((i) => isEquippable(i.kind) && i.ambient && !i.divergent),
-    [items],
-  );
+  // 활성/설치 베이스 판정은 lib/itemState 로 단일화(대시보드·그래프와 동일 정의).
+  // isActive = 우리 링크 또는 레거시 장착(미관리·equipped·상태 미확정). isAmbient = 설치 베이스(서버 ambient=true).
+  // 둘 다 isEquippable·!divergent 가드 내장 — memory·분기는 여기 노출 안 됨(정직한 2지표).
+  const active = useMemo(() => items.filter(isActive), [items]);
+  const ambient = useMemo(() => items.filter(isAmbient), [items]);
   // 보관: vault 관리 대상이며 ~/.claude 에는 없음(꺼짐).
   const stored = useMemo(
     () => items.filter((i) => isEquippable(i.kind) && i.managed && i.claudeState === "absent"),

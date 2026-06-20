@@ -4,24 +4,17 @@ import { useStore } from "../hooks/useStore";
 import { api } from "../lib/api";
 import { KIND_LABELS } from "../types";
 import type { Item, Kind } from "../types";
+import { isActive, isAmbient } from "../lib/itemState";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 
 /* ── 관제탑(CONTROL TOWER) ─────────────────────────────────────
    "내 손바닥 안의 컨트롤 타워" — 무엇이 있고, 무엇이 켜져 있고,
    무엇을 정리할지 한눈에. 가짜 지표(파워/Elo/시너지) 금지,
-   세션 로그 기반 사용량은 희소하므로 항상 "기록 없음 ≠ 미사용" 단서를 붙인다. */
+   세션 로그 기반 사용량은 희소하므로 항상 "기록 없음 ≠ 미사용" 단서를 붙인다.
 
-// 활성(의도적 장착) 판정 — Loadout으로 링크(claudeState==="link")했거나 장착(equipped)한 자산.
-// 앰비언트(ambient: 플러그인·직접 설치로 ~/.claude에 그냥 있는 설치 베이스)와 분기는 제외 —
-// 활성 KPI는 "내가 의도적으로 켠 로드아웃"만 센다. 앰비언트는 별도 '설치 베이스' 지표로 분리(정직한 2지표).
-function isActive(i: Item): boolean {
-  return (!!i.equipped || i.claudeState === "link") && !i.divergent && !i.ambient;
-}
-// 앰비언트(설치 베이스) — ~/.claude에 물리적으로 있으나 Loadout이 의도적으로 장착한 게 아닌 항목.
-function isAmbient(i: Item): boolean {
-  return !!i.ambient && !i.divergent;
-}
+   활성/설치 베이스 판정은 lib/itemState 로 단일화(인벤토리·그래프와 동일 정의) —
+   화면마다 다른 인라인 조건으로 같은 자산이 다르게 분류되던 결함을 근본 차단. */
 
 const KIND_ICONS: Record<Kind, IconName> = {
   skill: "puzzle",
