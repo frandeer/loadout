@@ -377,6 +377,9 @@ function LibraryControls({ view, cols, onView, onCols }: {
 
 /* ── 라이브러리 리스트 행 — 한 줄에 등급·이름·타입·레벨·점수·상태 ── */
 function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
+  // memory는 장착 점수로 줄세우는 자산이 아니라 '기억' — 레어도 뱃지·Lv·pt 대신
+  // repo/경로 + Memory 라벨로 정직하게 표기한다(CompactMemoryCard·MemoryCard와 동일 모델).
+  if (item.kind === "memory") return <LibraryMemoryRow item={item} onClick={onClick} />;
   const r = RARITY_CONFIG[item.rarity];
   const lvl = computeLevel(item.uses); // uses>0 일 때만 LV(실사용 기반), 없으면 null → 숨김
   const name = item.displayName;
@@ -405,6 +408,32 @@ function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
       <span className={`w-14 shrink-0 text-right text-[11px] font-medium ${item.equipped ? "text-accent-emerald" : "text-accent-orange"}`}>
         {status ?? ""}
       </span>
+    </button>
+  );
+}
+
+/* ── 라이브러리 리스트 행(메모리) — 레어도·Lv·pt 없이 repo/경로만 정직 표기 ── */
+function LibraryMemoryRow({ item, onClick }: { item: Item; onClick: () => void }) {
+  const repo = typeof item.source.repo === "string" ? item.source.repo : "";
+  const path = item.source.path;
+  // displayName('MEMORY')은 의미 없는 제목이라 repo를 제목으로 — MemoryCard와 동일한 정직 모델.
+  const title = repo || item.displayName || "메모리";
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-3 border-b border-hairline px-3 py-2.5 text-left transition last:border-b-0 hover:bg-surface-soft"
+    >
+      {/* 레어도 뱃지 자리에 Memory 라벨 — 등급으로 줄세우지 않음 */}
+      <span className="inline-flex w-[58px] shrink-0 items-center justify-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-muted-soft">
+        <Icon name="memory-card" size="xs" />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={`${repo}/${path}`}>{title}</span>
+      <span className="hidden shrink-0 rounded bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted sm:inline">
+        {KIND_LABELS[item.kind]}
+      </span>
+      {/* Lv·점수 막대 없음 — memory는 장착 점수로 줄세우는 자산이 아니다. 경로를 대신 노출. */}
+      <span className="hidden min-w-0 max-w-[40%] flex-1 truncate text-right font-mono text-[10px] text-muted-soft md:inline">{path}</span>
     </button>
   );
 }

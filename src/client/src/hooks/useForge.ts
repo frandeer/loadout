@@ -78,7 +78,13 @@ export const useForge = create<ForgeState>((set, get) => ({
     try {
       const { session } = await api.forge.session(id);
       set({ current: session, view: "gallery", exportResult: null });
-      if (session.status === "generating") get().refresh();
+      // 생성 중 세션을 다시 열면 폴링을 재개한다(generate는 재호출하지 않고 폴링만).
+      if (session.status === "generating") {
+        get().stopPolling(); // 중복 타이머 방지
+        const timer = setInterval(() => get().refresh(), 2500);
+        set({ _pollTimer: timer });
+        get().refresh(); // 즉시 1회
+      }
     } catch (e) {
       set({ error: (e as Error).message });
     } finally {

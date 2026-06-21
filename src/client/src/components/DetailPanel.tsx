@@ -745,7 +745,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         <div className="mb-5 space-y-3">
           <h4 className="text-sm font-bold uppercase tracking-wide text-muted">컨텍스트 비용</h4>
           {item.kind === "memory" ? (
-            <div className="flex items-center justify-between rounded-lg bg-surface-soft px-4 py-3" title="MEMORY.md 인덱스는 상시, 개별 노트는 회상 시 로드">
+            <div className="flex items-center justify-between rounded-lg bg-surface-soft px-4 py-3" title={item.layer === "note" ? "개별 노트는 회상 시에만 로드 — 상시 부하 없음(0)" : "MEMORY.md 인덱스는 항상 컨텍스트에 상주한다"}>
               <span className="flex items-center gap-1.5 text-sm text-muted"><Icon name="gauge" size="xs" /> 인덱스 상시</span>
               <span className="font-mono text-sm font-semibold text-accent-emerald">{alwaysOn ? `${formatK(alwaysOn)} tk` : "—"}</span>
             </div>

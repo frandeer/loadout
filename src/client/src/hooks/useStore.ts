@@ -131,8 +131,13 @@ export const useStore = create<AppState>((set, get) => ({
   reloadData: async () => {
     try {
       const data = await api.getIndex();
-      set({ items: data.items, meta: data });
-    } catch {}
+      set({ items: data.items, meta: data, error: null });
+    } catch {
+      // refetch 실패 — 기존 items/meta 는 유지(정체 데이터라도 보존)하고 에러만 표시.
+      set({
+        error: "최신 데이터를 불러오지 못했습니다 — 서버(:4970)가 실행 중인지 확인하세요.",
+      });
+    }
   },
 
   filtered: () => {

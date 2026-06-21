@@ -43,6 +43,20 @@ export function ForgeExport({ result, onBack }: Props) {
         </div>
       )}
 
+      {/* 폰트 토큰 */}
+      {tokens.fonts.length > 0 && (
+        <div className="mt-6">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">폰트</h4>
+          <div className="flex flex-wrap gap-2">
+            {tokens.fonts.map((f) => (
+              <div key={f} className="rounded border border-hairline bg-canvas px-2 py-1">
+                <span className="font-mono text-[11px] text-muted" style={{ fontFamily: f }}>{f}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 토큰 */}
       {Object.keys(tokens.customProps).length > 0 && (
         <div className="mt-6">

@@ -62,6 +62,8 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
   };
 
   const ranked = [...live].sort((a, b) => b.elo - a.elo);
+  // 변형이 정확히 2개면 건너뛰기는 같은 쌍의 A/B만 뒤집어 무의미 → 버튼 숨김.
+  const canSkip = live.length > 2;
 
   return (
     <div>
@@ -82,9 +84,13 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
         <button onClick={() => decide(0.5)} disabled={deciding} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-body hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50">
           무승부 / 둘 다 별로
         </button>
-        <button onClick={() => setSkipSeed((s) => s + 1)} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-muted hover:bg-surface-soft hover:text-body">
-          건너뛰기 →
-        </button>
+        {canSkip ? (
+          <button onClick={() => setSkipSeed((s) => s + 1)} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-muted hover:bg-surface-soft hover:text-body">
+            건너뛰기 →
+          </button>
+        ) : (
+          <span className="px-4 py-2 text-xs text-muted-soft">더 비교할 쌍 없음</span>
+        )}
       </div>
 
       {/* 현재 랭킹 */}

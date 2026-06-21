@@ -36,6 +36,9 @@ export function Inventory() {
   const [busy, setBusy] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [selected, setSel] = useState<Set<string>>(new Set());
+  // 설치 베이스(앰비언트) 섹션의 접힘 상태를 부모가 알아야 한다 — 접힌 동안 보이지 않는 항목이
+  // 일괄 대상에 남으면 화면에 없는 항목이 조작되므로, 접힘 상태를 끌어올려 배치 대상에서 제외한다.
+  const [ambientOpen, setAmbientOpen] = useState(false); // collapsible 기본 접힘과 동일
   const [batch, setBatch] = useState<{ kind: "off" | "on"; done: number; total: number } | null>(null);
   const [delTarget, setDelTarget] = useState<Item | null>(null);
   // 단건/배치 액션 오류 — 서버가 400/404/500 을 내리면 api.ts 가 throw 해 여기서 잡아 표시한다.
@@ -152,9 +155,10 @@ export function Inventory() {
   const clearSel = () => setSel(new Set());
 
   // 선택 항목을 섹션별로 분리 — 활성/설치베이스는 해제(내림), 보관은 켜기.
+  // 설치 베이스 섹션이 접혀 있으면 그 항목은 화면에 없으므로 일괄 대상에서 제외(보이지 않는 항목 무조작).
   const selOffItems = useMemo(
-    () => [...active, ...ambient].filter((i) => selected.has(i.id)),
-    [active, ambient, selected],
+    () => [...active, ...(ambientOpen ? ambient : [])].filter((i) => selected.has(i.id)),
+    [active, ambient, ambientOpen, selected],
   );
   const selOnItems = useMemo(() => stored.filter((i) => selected.has(i.id)), [stored, selected]);
 
@@ -177,19 +181,21 @@ export function Inventory() {
     }
     setActionError(null);
     setBatch({ kind: "off", done: 0, total: list.length });
-    let failed = 0;
+    // 실패한 항목 id 만 모은다 — 끝나면 성공분만 선택 해제하고 실패분은 선택을 유지해 재시도 가능하게.
+    const failedIds: string[] = [];
     for (let i = 0; i < list.length; i++) {
       try {
         await offAction(list[i]);
       } catch {
-        failed++;
+        failedIds.push(list[i].id);
       }
       setBatch({ kind: "off", done: i + 1, total: list.length });
     }
     await reloadData();
     setBatch(null);
-    clearSel();
-    if (failed > 0) setActionError(`일괄 해제: ${list.length - failed}개 성공 · ${failed}개 실패`);
+    setSel(new Set(failedIds)); // 성공분은 비우고 실패분만 남긴다
+    if (failedIds.length > 0)
+      setActionError(`일괄 해제: ${list.length - failedIds.length}개 성공 · ${failedIds.length}개 실패(실패분은 선택 유지)`);
   };
 
   // 일괄 켜기 — 보관 선택분을 순차 재링크.
@@ -198,19 +204,21 @@ export function Inventory() {
     if (!list.length) return;
     setActionError(null);
     setBatch({ kind: "on", done: 0, total: list.length });
-    let failed = 0;
+    // 실패한 항목 id 만 모은다 — 끝나면 성공분만 선택 해제하고 실패분은 선택을 유지해 재시도 가능하게.
+    const failedIds: string[] = [];
     for (let i = 0; i < list.length; i++) {
       try {
         await api.activateVault(list[i].id, true);
       } catch {
-        failed++;
+        failedIds.push(list[i].id);
       }
       setBatch({ kind: "on", done: i + 1, total: list.length });
     }
     await reloadData();
     setBatch(null);
-    clearSel();
-    if (failed > 0) setActionError(`일괄 켜기: ${list.length - failed}개 성공 · ${failed}개 실패`);
+    setSel(new Set(failedIds)); // 성공분은 비우고 실패분만 남긴다
+    if (failedIds.length > 0)
+      setActionError(`일괄 켜기: ${list.length - failedIds.length}개 성공 · ${failedIds.length}개 실패(실패분은 선택 유지)`);
   };
 
   return (
@@ -326,6 +334,8 @@ export function Inventory() {
             icon="package"
             tone="warm"
             collapsible
+            open={ambientOpen}
+            onToggle={setAmbientOpen}
           >
             <div className="mb-1 rounded-lg bg-surface-warm px-3 py-2 text-[11px] text-body">
               ~/.claude 에 직접·플러그인으로 설치된 실폴더입니다. 컨텍스트엔 로드되지만 Loadout 으로 장착한 건 아닙니다.
@@ -447,7 +457,8 @@ export function Inventory() {
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-canvas/95 backdrop-blur-sm">
           <div className="mx-auto flex max-w-[1100px] flex-wrap items-center gap-3 px-5 py-3">
             <span className="text-sm font-semibold text-ink">
-              <span className="font-mono">{selected.size}</span>개 선택됨
+              {/* 화면에서 실제 조작 가능한 선택만 표시 — 접힌 설치 베이스의 보이지 않는 선택은 제외(정직). */}
+              <span className="font-mono">{selOffItems.length + selOnItems.length}</span>개 선택됨
             </span>
             {batch && (
               <span className="font-mono text-xs text-muted">
@@ -506,6 +517,8 @@ function Section({
   icon,
   tone,
   collapsible = false,
+  open: openProp,
+  onToggle,
   children,
 }: {
   title: string;
@@ -514,9 +527,19 @@ function Section({
   icon: string;
   tone: "success" | "warm" | "danger" | "default";
   collapsible?: boolean;
+  // 접힘 상태 제어(선택) — 부모가 줄 때는 controlled, 없으면 내부 state 로 동작.
+  open?: boolean;
+  onToggle?: (next: boolean) => void;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(!collapsible); // collapsible 섹션은 기본 접힘
+  const [openLocal, setOpenLocal] = useState(!collapsible); // collapsible 섹션은 기본 접힘
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openLocal;
+  const toggle = () => {
+    const next = !open;
+    if (controlled) onToggle?.(next);
+    else setOpenLocal(next);
+  };
   if (count === 0) return null;
   const toneCls =
     tone === "success"
@@ -545,7 +568,7 @@ function Section({
     <section className="rounded-xl border border-hairline bg-canvas p-4">
       {collapsible ? (
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggle}
           aria-expanded={open}
           className={`flex w-full items-center gap-3 text-left ${open ? "mb-3" : ""}`}
         >

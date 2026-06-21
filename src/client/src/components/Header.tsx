@@ -49,6 +49,9 @@ export function Header({ onOpenSources }: HeaderProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        // 모달(role="dialog")이 열려 있으면 포커스를 가로채지 않는다 —
+        // 뒤편 검색창으로 포커스가 새어 나가면 모달의 포커스 트랩이 깨진다.
+        if (document.querySelector("[role=dialog]")) return;
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();

@@ -54,19 +54,11 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
     setCloneError(null);
     setCloneLoading(true);
     try {
-      const res = await fetch("/api/clone", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: cloneUrl.trim() }),
-      });
-      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-      if (!res.ok || !body.ok) {
-        setCloneError(body.error || `Clone 실패 (${res.status})`);
-      } else {
-        setCloneUrl("");
-        await fetchSources();
-        await reloadData();
-      }
+      // api.ts 래퍼만 사용 — 실패 시 서버 error 메시지를 담아 throw 하므로 catch 에서 표시.
+      await api.clone(cloneUrl.trim());
+      setCloneUrl("");
+      await fetchSources();
+      await reloadData();
     } catch (err) {
       setCloneError(err instanceof Error ? err.message : String(err));
     }
@@ -78,19 +70,11 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
     setAddError(null);
     setAddLoading(true);
     try {
-      const res = await fetch("/api/sources/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: addPath.trim() }),
-      });
-      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-      if (!res.ok || !body.ok) {
-        setAddError(body.error || `추가 실패 (${res.status})`);
-      } else {
-        setAddPath("");
-        await fetchSources();
-        await reloadData();
-      }
+      // api.ts 래퍼만 사용 — 실패 시 서버 error 메시지를 담아 throw 하므로 catch 에서 표시.
+      await api.addSource(addPath.trim());
+      setAddPath("");
+      await fetchSources();
+      await reloadData();
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err));
     }
@@ -101,18 +85,10 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
     setRemoveError(null);
     setRemoveLoading(path);
     try {
-      const res = await fetch("/api/sources/remove", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path }),
-      });
-      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-      if (!res.ok || !body.ok) {
-        setRemoveError(body.error || `제거 실패 (${res.status})`);
-      } else {
-        await fetchSources();
-        await reloadData();
-      }
+      // api.ts 래퍼만 사용 — 실패 시 서버 error 메시지를 담아 throw 하므로 catch 에서 표시.
+      await api.removeSource(path);
+      await fetchSources();
+      await reloadData();
     } catch (err) {
       setRemoveError(err instanceof Error ? err.message : String(err));
     }
@@ -123,16 +99,9 @@ export function SourceManager({ open, onClose }: SourceManagerProps) {
     setRescanError(null);
     setRescanLoading(true);
     try {
-      const res = await fetch("/api/rescan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-      if (!res.ok || !body.ok) {
-        setRescanError(body.error || `재스캔 실패 (${res.status})`);
-      } else {
-        await reloadData();
-      }
+      // api.ts 래퍼만 사용 — 실패 시 서버 error 메시지를 담아 throw 하므로 catch 에서 표시.
+      await api.rescan();
+      await reloadData();
     } catch (err) {
       setRescanError(err instanceof Error ? err.message : String(err));
     }

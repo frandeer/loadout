@@ -17,7 +17,13 @@ export function ManaGauge({ cost, label = "컨텍스트 부하" }: { cost: numbe
         </span>
       </div>
       <div className="h-2 w-full rounded-full bg-surface-soft">
+        {/* 보조기술 시맨틱: 막대 자체가 진행률(부하)을 나타내므로 progressbar role 부여 */}
         <div
+          role="progressbar"
+          aria-valuenow={cost}
+          aria-valuemin={0}
+          aria-valuemax={MANA_BUDGET}
+          aria-label={`${label} (${formatK(cost)} / ${formatK(MANA_BUDGET)} 토큰)`}
           className="h-full rounded-full stat-bar-fill"
           style={{ width: `${pct}%`, backgroundColor: color }}
         />

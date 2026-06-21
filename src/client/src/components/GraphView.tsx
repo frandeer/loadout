@@ -159,8 +159,10 @@ function GraphCanvas() {
   );
 
   // 전체 스코프 버튼 라벨/경고용 수치 — '전체'가 실제로 렌더할 노드 수를 정직하게 표시.
-  //   equipOnly ON 시 prefiltered는 앵커만 담으므로 kindFiltered 전체가 실제 '전체' 수.
-  const allCount = equipOnly ? kindFiltered.length : prefiltered.length;
+  //   '전체' 스코프는 prefiltered(=kind+equipOnly 적용 후)를 그대로 그린다(scopedItems 126행).
+  //   equipOnly ON 일 때도 prefiltered는 앵커만 담으므로, 실제 렌더 수는 항상 prefiltered.length다
+  //   (kindFiltered.length로 잡으면 equipOnly ON 시 필터 전 전체 수로 과대표시되는 버그).
+  const allCount = prefiltered.length;
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AssetNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -559,6 +561,14 @@ function GraphCanvas() {
                 <p className="flex items-start gap-1 rounded-lg bg-accent-orange-soft px-2 py-1.5 text-[10px] text-accent-orange">
                   <Icon name="warning" size="xs" className="mt-px shrink-0" />
                   노드 {allCount}개 — 많으면 느려질 수 있습니다.
+                </p>
+              )}
+              {/* equipOnly ON 이면 ego/전체 모두 앵커(장착·상주) 풀에서만 그려져 스코프 차이가
+                  EGO_CAP(80) 컷 정도로 사실상 무의미 — 그 사실을 안내(동작은 보존). */}
+              {equipOnly && (
+                <p className="flex items-start gap-1 rounded-lg bg-surface-soft px-2 py-1.5 text-[10px] text-muted">
+                  <Icon name="check-circle" size="xs" className="mt-px shrink-0 text-accent-emerald" />
+                  장착·상주만 필터 중 — 범위 선택이 거의 영향을 주지 않습니다.
                 </p>
               )}
             </div>

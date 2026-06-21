@@ -17,10 +17,12 @@ interface CardDropProps {
 
 export function CardDrop({ onReveal }: CardDropProps) {
   const { engines, reloadData, setSelected, items } = useStore();
-  // 사용자가 명시적으로 고른 엔진만 보관. 미선택이면 라이브 engines[0]로 폴백한다 —
+  // 카드 드랍은 세션 패턴 추출이라 heuristic 엔진은 의미가 없다 — 선택지에서 제외한다.
+  const dropEngines = engines.filter((e) => e !== "heuristic");
+  // 사용자가 명시적으로 고른 엔진만 보관. 미선택이면 첫 유효(비-heuristic) 엔진으로 폴백한다 —
   // engines가 mount 이후 비동기로 로드되어도(useStore.loadData) 기본값이 갱신되도록.
   const [picked, setPicked] = useState<string | null>(null);
-  const engine = picked ?? engines[0] ?? "heuristic";
+  const engine = picked ?? dropEngines[0] ?? "";
   const [dropping, setDropping] = useState(false);
   const [error, setError] = useState("");
   const [dropped, setDropped] = useState<DropResp["card"] | null>(null);
@@ -79,7 +81,7 @@ export function CardDrop({ onReveal }: CardDropProps) {
         aria-label="드랍 엔진"
         className="h-8 rounded-lg border border-hairline bg-canvas px-2 font-mono text-[11px] text-body focus:border-primary focus:outline-none"
       >
-        {engines.map((e) => (
+        {dropEngines.map((e) => (
           <option key={e} value={e}>{e}</option>
         ))}
       </select>

@@ -179,15 +179,6 @@ export function saveFavorites(favs: Set<string>): void {
   localStorage.setItem(FAV_KEY, JSON.stringify([...favs]));
 }
 
-export function getTheme(): "light" | "dark" {
-  return (localStorage.getItem("loadout-theme") as "light" | "dark") || "light";
-}
-
-export function setTheme(t: "light" | "dark"): void {
-  localStorage.setItem("loadout-theme", t);
-  document.documentElement.dataset.theme = t;
-}
-
 const ORBITAL_MONITOR_STYLE =
   "밝고 깔끔한 플랫 아이콘 일러스트. 흰색~아주 옅은 하늘색 단색 배경(격자는 생략하거나 거의 안 보이게), 단순하고 또렷한 플랫 라인 아이콘, 넉넉한 여백, 부드럽고 절제된 그림자. SHIP은 차분한 launch blue, MONITOR는 안정적인 orbit green 포인트 컬러. 친근하지만 진중한 엔지니어링 문서 톤. 빽빽한 디테일·여러 오브젝트 나열·과한 네온·어두운 군사 콘솔·홀로그램·실제 로고·국기·무기·군인·긴 문자는 없음.";
 
