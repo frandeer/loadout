@@ -22,6 +22,11 @@ interface AnalysisResult {
   reasons: string[];
 }
 
+// AI 분석 결과 캐시(카드 id → 결과+엔진). 모듈 레벨이라 카드 전환·패널 개폐와 무관하게
+// 세션 동안 유지 — 재방문 시 30~60초짜리 /api/analyze 재요청을 피한다. '분석' 버튼은
+// 항상 재요청해 이 캐시를 갱신하므로 강제 갱신 수단도 보존된다.
+const analysisCache = new Map<string, { analysis: AnalysisResult; engine: string | null }>();
+
 export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   // fine-grained 구독 — 전역 store를 통째로 구독하면 filters/picked 같은 무관한 변경에도
   // DetailPanel이 리렌더된다(큰 문서가 열려 있을 때 필터 클릭이 버벅이는 원인). 쓰는 슬라이스만 구독.
@@ -101,11 +106,12 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
     setFiles([]);
     setDeleteOpen(false);
     setDeleteText("");
-    // AI 분석 상태도 카드별로 초기화
-    setAnalysis(null);
+    // AI 분석은 카드별 모듈 캐시에서 복원 — 재방문 시 재요청 없이 이전 결과를 즉시 표시(없으면 비움).
+    const cachedAnalysis = analysisCache.get(item.id);
+    setAnalysis(cachedAnalysis?.analysis ?? null);
     setAnalyzeError(null);
     setAnalyzing(false);
-    setAnalyzedEngine(null);
+    setAnalyzedEngine(cachedAnalysis?.engine ?? null);
     // 카드 전환 시 일시적 처리 상태(장착·번역·삭제) 초기화 — 이전 카드에서 걸린 '처리 중...' 가 남지 않도록.
     setEquipping(false);
     setTranslating(false);
@@ -267,7 +273,12 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         analyzeEngine,
         analyzeEngine === "claude" ? analyzeModel : undefined,
       );
-      // 응답 도착 시 ref가 달라졌으면(다른 카드가 선택됐으면) 무시
+      // 결과 캐시는 카드 전환 여부와 무관하게 capturedId 로 기록 — 느린 응답(30~60초)이
+      // 카드 전환 후 도착해도 그 카드 재방문 시 재요청 없이 복원되게(stale-guard 이전에 저장).
+      if (res.ok && res.analysis) {
+        analysisCache.set(capturedId, { analysis: res.analysis, engine: res.engine || null });
+      }
+      // UI 상태는 현재 선택된 카드일 때만 반영(stale 응답이 다른 카드 화면을 덮어쓰지 않게).
       if (analyzeForIdRef.current !== capturedId) return;
       if (res.ok && res.analysis) {
         setAnalysis(res.analysis);

@@ -67,6 +67,7 @@ export function FilterRail() {
               setFilter("favOnly", false);
               setFilter("dupOnly", false);
               setFilter("q", "");
+              setFilter("tag", null);
               setFilter("group", undefined);
               setFilter("sort", "score");
             }}
@@ -260,9 +261,10 @@ export function FilterRail() {
               {(showAllTags ? tagCounts : tagCounts.slice(0, 10)).map(([tag, count]) => (
                 <button
                   key={tag}
-                  onClick={() => setFilter("q", filters.q === tag ? "" : tag)}
+                  // 구조적 태그 필터(filters.tag) — 자유 텍스트 검색(q)과 분리해 서로 덮어쓰지 않게(M#1).
+                  onClick={() => setFilter("tag", filters.tag === tag ? null : tag)}
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium transition-colors ${
-                    filters.q === tag
+                    filters.tag === tag
                       ? "bg-primary-soft text-primary"
                       : "bg-surface-soft text-body hover:bg-hairline"
                   }`}

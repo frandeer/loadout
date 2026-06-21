@@ -117,6 +117,7 @@ export function CardGrid() {
       setFilter("favOnly", false);
       setFilter("dupOnly", false);
       setFilter("q", "");
+      setFilter("tag", null);
       setFilter("group", undefined);
       setFilter("sort", "score");
     };
@@ -142,6 +143,7 @@ export function CardGrid() {
     filters.kind === "all" &&
     filters.rarity === "all" &&
     !filters.q &&
+    !filters.tag &&
     !filters.equipOnly &&
     !filters.favOnly &&
     !filters.dupOnly &&
@@ -159,6 +161,7 @@ export function CardGrid() {
     if (filters.equipOnly) parts.push("장착 중");
     if (filters.favOnly) parts.push("즐겨찾기");
     if (filters.dupOnly) parts.push("중복 그룹");
+    if (filters.tag) parts.push(`#${filters.tag}`);
     if (filters.q) parts.push(`'${filters.q}'`);
     return parts.length > 0 ? parts.join(" · ") : "라이브러리";
   };

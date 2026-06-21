@@ -310,17 +310,26 @@ export function Dashboard() {
       )}
 
       {/* ── 2. 통계 카드 ── */}
-      {/* 정직한 2지표: '로드아웃 장착'(Loadout으로 의도적으로 켠 것) ≠ '설치 베이스'(~/.claude에 그냥 있는 설치물). */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/* 카탈로그 구성 — 종류별 개수(보유 자산의 정적 분류). */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {(Object.keys(KIND_LABELS) as Kind[]).map((k) => (
           <StatCard
             key={k}
             label={KIND_LABELS[k]}
             value={m.kindCounts[k]}
             icon={KIND_ICONS[k]}
-            onClick={() => { setFilters({ kind: k, group: undefined, dupOnly: false, rarity: "all", category: "all", q: "", equipOnly: false, favOnly: false, sort: "score" }); navigate("/assets"); }}
+            onClick={() => { setFilters({ kind: k, group: undefined, dupOnly: false, rarity: "all", category: "all", q: "", tag: null, equipOnly: false, favOnly: false, sort: "score" }); navigate("/assets"); }}
           />
         ))}
+      </div>
+
+      {/* 상태 — 정직한 2지표('로드아웃 장착'=의도적으로 켠 것 ≠ '설치 베이스'=~/.claude에 그냥 있는 설치물).
+          카탈로그 개수(위)와 성격이 다른 "지금 무엇이 로드되나" 지표라, 라벨+구분선으로 시각 분리. */}
+      <div className="mt-5 flex items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted">상태 · 컨텍스트 로드</span>
+        <div className="h-px flex-1 bg-hairline" />
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-3">
         <StatCard
           label="로드아웃 장착"
           value={m.activeCount}

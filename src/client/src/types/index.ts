@@ -99,6 +99,7 @@ export interface FilterState {
   equipOnly: boolean;
   favOnly: boolean;
   group?: string;        // 동일 계열(중복) 묶음 필터 — 대시보드에서 그룹 클릭 시 set
+  tag?: string | null;   // 구조적 태그 필터(item.tags 일치) — 자유 텍스트 q 와 분리(칩 선택용, M#1)
 }
 
 // White SaaS 등급 팔레트 — index.css 토큰과 톤 동기 유지.

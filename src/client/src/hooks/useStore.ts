@@ -45,6 +45,7 @@ export const useStore = create<AppState>((set, get) => ({
     dupOnly: false,
     equipOnly: false,
     favOnly: false,
+    tag: null,
   },
   selected: null,
   favorites: loadFavorites(),
@@ -151,6 +152,8 @@ export const useStore = create<AppState>((set, get) => ({
     if (filters.group) xs = xs.filter((i) => i.group === filters.group);
     if (filters.equipOnly) xs = xs.filter((i) => i.equipped);
     if (filters.favOnly) xs = xs.filter((i) => favorites.has(i.id));
+    // 태그는 구조적 필터(item.tags 일치) — 자유 텍스트 q 와 독립적으로 AND 결합(M#1).
+    if (filters.tag) xs = xs.filter((i) => (i.tags ?? []).includes(filters.tag as string));
     if (filters.q) {
       const q = filters.q.toLowerCase();
       xs = xs.filter(
