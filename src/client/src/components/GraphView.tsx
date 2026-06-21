@@ -586,7 +586,7 @@ function GraphCanvas() {
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--color-accent-emerald)" }} /> 장착
             </span>
             <span className="flex items-center gap-1 text-muted">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--color-accent-orange)" }} /> 상주
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--color-accent-orange)" }} /> 상주·설치 베이스
             </span>
             <span className="flex items-center gap-1 text-muted">
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--color-muted-soft)" }} /> 보관

@@ -26,6 +26,8 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [rounds, setRounds] = useState(0);
   const [skipSeed, setSkipSeed] = useState(0);
+  // 판정 진행 플래그 — 더블클릭 시 같은 쌍에 onMatch가 두 번 발사돼 Elo·승패가 이중 반영되는 것 방지.
+  const [deciding, setDeciding] = useState(false);
   // 비교쌍은 상태가 아니라 live+counts+seed에서 파생(렌더 중 계산 — effect/setState 불필요).
   const pair = useMemo(() => pickPair(live, counts, skipSeed), [live, counts, skipSeed]);
   // 라운드 시작 시각은 ref만 갱신(setState 아님 → cascading 없음).
@@ -47,10 +49,16 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
   }
 
   const decide = async (result: 0 | 0.5 | 1) => {
+    if (deciding) return; // 진행 중이면 중복 판정 차단
+    setDeciding(true);
     const [a, b] = pair;
-    await onMatch(a.id, b.id, result, Date.now() - startRef.current);
-    setCounts((c) => ({ ...c, [a.id]: (c[a.id] || 0) + 1, [b.id]: (c[b.id] || 0) + 1 }));
-    setRounds((r) => r + 1);
+    try {
+      await onMatch(a.id, b.id, result, Date.now() - startRef.current);
+      setCounts((c) => ({ ...c, [a.id]: (c[a.id] || 0) + 1, [b.id]: (c[b.id] || 0) + 1 }));
+      setRounds((r) => r + 1);
+    } finally {
+      setDeciding(false);
+    }
   };
 
   const ranked = [...live].sort((a, b) => b.elo - a.elo);
@@ -66,12 +74,12 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {pair.map((v, i) => (
-          <Side key={v.id} v={v} label={i === 0 ? "A" : "B"} onWin={() => decide(i === 0 ? 1 : 0)} />
+          <Side key={v.id} v={v} label={i === 0 ? "A" : "B"} onWin={() => decide(i === 0 ? 1 : 0)} disabled={deciding} />
         ))}
       </div>
 
       <div className="mt-4 flex justify-center gap-3">
-        <button onClick={() => decide(0.5)} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-body hover:bg-surface-soft">
+        <button onClick={() => decide(0.5)} disabled={deciding} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-body hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50">
           무승부 / 둘 다 별로
         </button>
         <button onClick={() => setSkipSeed((s) => s + 1)} className="rounded-md border border-hairline bg-canvas px-4 py-2 text-xs text-muted hover:bg-surface-soft hover:text-body">
@@ -98,7 +106,7 @@ export function ForgePairwise({ session, eliminated, onMatch, onDone }: Props) {
   );
 }
 
-function Side({ v, label, onWin }: { v: ForgeVariant; label: string; onWin: () => void }) {
+function Side({ v, label, onWin, disabled }: { v: ForgeVariant; label: string; onWin: () => void; disabled?: boolean }) {
   const isHtml = v.file?.endsWith(".html");
   return (
     <div className="overflow-hidden rounded-xl border border-hairline bg-canvas shadow-sm">
@@ -114,7 +122,7 @@ function Side({ v, label, onWin }: { v: ForgeVariant; label: string; onWin: () =
           <img src={v.file} alt={v.id} className="h-full w-full object-contain" />
         ) : null}
       </div>
-      <button onClick={onWin} className="w-full bg-accent-orange-soft py-2.5 text-sm font-semibold text-accent-orange transition hover:opacity-80">
+      <button onClick={onWin} disabled={disabled} className="w-full bg-accent-orange-soft py-2.5 text-sm font-semibold text-accent-orange transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50">
         이쪽이 더 낫다 ▲
       </button>
     </div>

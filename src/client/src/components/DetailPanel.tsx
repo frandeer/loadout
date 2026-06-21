@@ -312,8 +312,15 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const handleTranslateContent = async () => {
     setTranslatingContent(true);
     try {
+      // HTTP 200이라도 {ok:false}를 반환할 수 있다(엔진 미설치·타임아웃).
+      // handleTranslate와 동일하게 ok 여부를 명시적으로 확인해 실패를 UI에 노출한다.
       const res = await api.translateContent(item.id);
-      if (res.ok && res.contentKo) {
+      if (!res.ok) {
+        alert("본문 번역에 실패했습니다: " + (res.error || "엔진 미설치 또는 타임아웃"));
+        setTranslatingContent(false);
+        return;
+      }
+      if (res.contentKo) {
         setContentKo(res.contentKo);
         setActiveTab("ko");
       }

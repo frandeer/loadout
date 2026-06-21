@@ -505,7 +505,7 @@ export function Dashboard() {
 
           {m.topUsed.length > 0 && (
             <div className="mt-4">
-              <div className="mb-2 text-xs font-semibold text-body">최근 많이 쓴 자산</div>
+              <div className="mb-2 text-xs font-semibold text-body">많이 쓴 자산 (누적)</div>
               <ul className="divide-y divide-hairline overflow-hidden rounded-lg border border-hairline">
                 {m.topUsed.map((i) => (
                   <li key={i.id}>

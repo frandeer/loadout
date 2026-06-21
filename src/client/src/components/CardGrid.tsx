@@ -411,6 +411,9 @@ function LibraryRow({ item, onClick }: { item: Item; onClick: () => void }) {
 
 /* ── 최근 추가용 컴팩트 카드 ── */
 function CompactCard({ item, lang, onClick }: { item: Item; lang: string; onClick: () => void }) {
+  // memory는 장착 자산이 아니라 '기억' — displayName이 'MEMORY'라서 점수 막대/Lv 게이지로 게임화하면
+  // 메인 Card·MemoryCard의 정직 모델과 어긋난다. repo를 제목으로, Memory 라벨로 통일한다.
+  if (item.kind === "memory") return <CompactMemoryCard item={item} onClick={onClick} />;
   const r = RARITY_CONFIG[item.rarity];
   const lvl = computeLevel(item.uses); // 실사용(uses>0) 있을 때만 LV
   const name = item.displayName;
@@ -442,6 +445,29 @@ function CompactCard({ item, lang, onClick }: { item: Item; lang: string; onClic
         </div>
         <span className="font-mono text-[10px] text-muted-soft">{item.score}pt</span>
       </div>
+    </button>
+  );
+}
+
+/* ── 컴팩트 메모리 카드 — 즐겨찾기·최근 추가 레일에서 memory를 정직하게 표기 ── */
+function CompactMemoryCard({ item, onClick }: { item: Item; onClick: () => void }) {
+  const repo = typeof item.source.repo === "string" ? item.source.repo : "";
+  const path = item.source.path;
+  // displayName('MEMORY')은 의미 없는 제목이라 repo를 제목으로 — MemoryCard와 동일한 정직 모델.
+  const title = repo || item.displayName || "메모리";
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col rounded-xl border border-hairline bg-surface-card p-3 text-left transition hover:-translate-y-0.5 hover:border-hairline-strong hover:shadow-sm"
+    >
+      <div className="mb-2 flex items-center gap-1.5 text-muted">
+        <Icon name="memory-card" size="sm" />
+        <span className="text-[9px] uppercase font-bold text-muted-soft">Memory</span>
+      </div>
+      <span className="truncate text-[13px] font-semibold text-ink" title={`${repo}/${path}`}>{title}</span>
+      {/* 점수 막대·Lv 게이지 없음 — memory는 장착 점수로 줄세우는 자산이 아니다. */}
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted">{summarize(item.description)}</p>
     </button>
   );
 }

@@ -32,7 +32,13 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const imageEngine = useStore((s) => s.imageEngine);
   const setImageEngine = useStore((s) => s.setImageEngine);
 
-  const selected: EngineKey = imageEngine === "codex-api" ? "codex-api" : imageEngine === "codex" ? "codex" : "chatgpt";
+  // 패널이 다루는 알려진 키만 선택으로 인정한다. grok/image-farm/auto 등 서버가
+  // 영속하는 다른 값이면 selected=null → 어떤 라디오도 active가 아니고(거짓 상태 방지),
+  // 아래 '현재 선택'은 원시 키를 정직하게 노출한다.
+  const known: EngineKey[] = ["codex-api", "codex", "chatgpt"];
+  const selected: EngineKey | null = known.includes(imageEngine as EngineKey)
+    ? (imageEngine as EngineKey)
+    : null;
 
   return (
     <Modal open={open} onClose={onClose} title="설정">

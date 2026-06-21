@@ -160,17 +160,21 @@ export function Inventory() {
 
   // 일괄 해제 — 활성/설치베이스 선택분을 순차 처리.
   // 설치 베이스(앰비언트)가 섞이면 실폴더를 vault로 대량 이동하게 되므로 먼저 확인(풋건 방지).
+  // 거대 자산(oversized)이 섞이면 단건 경로와 동일하게 이동 지연을 미리 알린다.
   const batchOff = async () => {
     const list = selOffItems;
     if (!list.length) return;
     const ambientHits = list.filter((i) => i.ambient).length;
-    if (
-      ambientHits > 0 &&
-      !window.confirm(
-        `선택 ${list.length}개 중 설치 베이스 ${ambientHits}개가 포함됩니다 — ~/.claude 에서 내려 vault(보관함)로 실제 폴더를 이동합니다. 계속할까요?`,
-      )
-    )
-      return;
+    const oversizedHits = list.filter((i) => i.oversized).length;
+    if (ambientHits > 0 || oversizedHits > 0) {
+      const lines = [
+        ambientHits > 0
+          ? `선택 ${list.length}개 중 설치 베이스 ${ambientHits}개가 포함됩니다 — ~/.claude 에서 내려 vault(보관함)로 실제 폴더를 이동합니다.`
+          : `선택 ${list.length}개를 ~/.claude 에서 내립니다.`,
+      ];
+      if (oversizedHits > 0) lines.push(`이 중 거대 자산 ${oversizedHits}개는 이동에 시간이 걸릴 수 있습니다.`);
+      if (!window.confirm(`${lines.join("\n")} 계속할까요?`)) return;
+    }
     setActionError(null);
     setBatch({ kind: "off", done: 0, total: list.length });
     let failed = 0;

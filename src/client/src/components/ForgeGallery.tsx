@@ -118,6 +118,9 @@ function VariantCard({
             <iframe
               src={v.file}
               title={v.id}
+              // 신뢰 불가한 CLI 생성 HTML — 동일 출처 권한 제거(allow-same-origin 제외).
+              // 스크립트/애니메이션 렌더는 유지하되 앱 localStorage·top 내비·동일 출처 fetch는 차단.
+              sandbox="allow-scripts"
               className="pointer-events-none h-[176px] w-full origin-top-left"
               style={{ width: "200%", height: "352px", transform: "scale(0.5)" }}
             />
