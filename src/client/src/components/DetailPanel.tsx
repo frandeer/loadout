@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "../hooks/useStore";
 import { RARITY_CONFIG, isEquippable, KIND_LABELS } from "../types";
 import { computeLevel, formatK, pickDesc, formatSource, alwaysOnCost } from "../lib/utils";
@@ -207,6 +208,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const lvl = computeLevel(item.uses); // 실사용(uses>0) 있을 때만 LV, 없으면 null → 숨김
   const name = item.displayName;
   const isMcp = item.kind === "mcp";
+  // 메인 문서 파일명(예: SKILL.md, agent.md) — 파일 목록·탐색기에서 필터링되는 대표 파일을
+  // "문서"/displayName 대신 실제 파일명으로 드러내, 사용자가 SKILL.md 를 식별할 수 있게 한다.
+  const mainFileName = item.source.path.split(/[/\\]/).pop() || "문서";
   const desc = pickDesc(item, lang);
   // 출처 라벨 — 단일 출처 helper. 직접설치/플러그인은 "직접 설치"/"플러그인", 클론은 owner/repo.
   const sourceLabel = formatSource(item.source);
@@ -221,9 +225,26 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
   const vaultToggleable = (item.managed || item.claudeState === "resident") && !ambient;
   // installed지만 토글 불가(cc-config 등 레거시)·앰비언트 → 읽기 전용 "고정/설치 베이스".
   const lockedInstalled = ambient || (!!item.installed && !vaultToggleable);
+  // 장착 버튼 잠금 — 앰비언트는 '해제 → 보관함'으로 조작 가능하므로 잠금에서 제외(레거시 고정만 잠금).
+  const btnLocked = lockedInstalled && !ambient;
 
   const handleEquip = async () => {
-    if (!equippable || lockedInstalled) return;
+    if (!equippable) return;
+    // 설치 베이스(앰비언트): 직접/플러그인 설치라 한 방향(해제 → vault 이동)만 가능. 실폴더를
+    // 옮기는 작업이라 풋건 방지로 확인창을 둔다. Inventory '해제 → 보관함'과 동일한 api.activateVault(false).
+    if (ambient) {
+      if (!window.confirm(`${item.displayName}는 직접/플러그인 설치 자산(설치 베이스)입니다.\n해제하면 ~/.claude 에서 내리고 vault(보관함)로 안전 이동합니다. 진행할까요?`)) return;
+      setEquipping(true);
+      try {
+        await api.activateVault(item.id, false);
+        await reloadData();
+      } catch (e: any) {
+        alert("해제 중 오류가 발생했습니다: " + (e?.message || e));
+      }
+      setEquipping(false);
+      return;
+    }
+    if (lockedInstalled) return;
     if (item.oversized && item.equipped && !window.confirm(`${item.displayName}는 거대 자산입니다. 끄면 vault로 이동(보관)됩니다. 진행할까요?`)) return;
     setEquipping(true);
     try {
@@ -468,23 +489,31 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
           {equippable ? (
             <button
               onClick={handleEquip}
-              disabled={equipping || lockedInstalled}
+              disabled={equipping || btnLocked}
               className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition ${
-                lockedInstalled
+                btnLocked
                   ? "bg-surface-soft text-muted"
-                  : item.equipped
+                  : ambient || item.equipped
                     ? "border border-hairline bg-canvas text-body hover:border-accent-rose hover:text-accent-rose"
                     : "bg-primary text-white hover:bg-primary-active"
               }`}
-              title={item.claudeState === "resident" ? "해제하면 vault(보관함)로 끌어와 관리합니다" : undefined}
+              title={
+                ambient
+                  ? "해제하면 ~/.claude 에서 내리고 vault(보관함)로 안전 이동합니다"
+                  : item.claudeState === "resident"
+                    ? "해제하면 vault(보관함)로 끌어와 관리합니다"
+                    : undefined
+              }
             >
-              {lockedInstalled
-                ? ambient ? "설치 베이스 (관리는 장착·보관)" : "고정 (설치됨)"
+              {btnLocked
+                ? "고정 (설치됨)"
                 : equipping
                   ? "처리 중..."
-                  : item.equipped
-                    ? item.claudeState === "resident" ? "해제 (보관함으로)" : "해제"
-                    : "장착하기"}
+                  : ambient
+                    ? "해제 → 보관함"
+                    : item.equipped
+                      ? item.claudeState === "resident" ? "해제 (보관함으로)" : "해제"
+                      : "장착하기"}
             </button>
           ) : (
             <div className="flex-1 rounded-lg bg-surface-soft py-2.5 text-center text-sm font-semibold text-muted">
@@ -868,7 +897,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
             <div className="mb-3 flex items-center justify-between gap-4 border-b border-hairline pb-2">
               <h4 className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-muted" title={subPath || "문서"}>
                 <Icon name="file-alt" size="xs" />
-                <span className="truncate">{subPath ? subPath.split("/").pop() : "문서"}</span>
+                <span className="truncate">{subPath ? subPath.split("/").pop() : mainFileName}</span>
               </h4>
               <div className="flex shrink-0 items-center gap-2">
                 {subPath && (
@@ -942,8 +971,9 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
         ) : null}
       </div>
 
-      {/* Details Popup Modal */}
-      {isModalOpen && (
+      {/* Details Popup Modal — body로 portal: backdrop-blur 패널이 fixed 컨테이닝 블록이 되어
+          모달이 패널 안에 갇히는 문제 방지(전체화면 중앙정렬 유지). */}
+      {isModalOpen && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10 bg-black/50 backdrop-blur-sm">
           {/* Backdrop */}
           <div
@@ -966,7 +996,7 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                   >
                     {r.ko}
                   </span>
-                  <h3 className="text-xl font-black text-ink">{item.displayName} - {subPath ? subPath.split("/").pop() : "상세 문서"}</h3>
+                  <h3 className="text-xl font-black text-ink">{item.displayName} - {subPath ? subPath.split("/").pop() : mainFileName}</h3>
                 </div>
               </div>
               <button
@@ -1038,8 +1068,8 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
                       }`}
                     >
                       <Icon name="file-alt" size="xs" className={subPath === null ? "text-white" : "text-primary"} />
-                      <span className="truncate flex-1 font-bold">
-                        {item.displayName || "메인 문서"}
+                      <span className="truncate flex-1 font-bold" title={item.displayName}>
+                        {mainFileName}
                       </span>
                     </button>
                     {/* Related files list */}
@@ -1079,7 +1109,8 @@ export function DetailPanel({ variant = "overlay" }: DetailPanelProps) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
 
 interface ModalProps {
@@ -69,7 +70,7 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm"
       onClick={onClose}
@@ -96,6 +97,7 @@ export function Modal({ open, onClose, title, children, wide }: ModalProps) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

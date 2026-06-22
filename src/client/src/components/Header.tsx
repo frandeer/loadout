@@ -11,7 +11,7 @@ import type { IconName } from "./Icon";
 const VIEW_TABS: { key: AppView; path: string; label: string; icon: IconName }[] = [
   { key: "dashboard", path: "/dashboard", label: "대시보드", icon: "dashboard-grid" },
   { key: "assets", path: "/assets", label: "자산", icon: "library-books" },
-  { key: "graph", path: "/graph", label: "그래프", icon: "network" },
+  { key: "map", path: "/map", label: "지도", icon: "app-grid" },
   { key: "loadout", path: "/loadout", label: "장착·보관", icon: "backpack" },
 ];
 

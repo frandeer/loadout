@@ -188,7 +188,7 @@ export function HelpPage() {
                         <td className="px-5 py-4 font-extrabold text-primary">Agent (에이전트)</td>
                         <td className="px-5 py-4"><span className="inline-flex items-center gap-2 font-semibold text-ink"><Icon name="team" size="sm"/> 작전 요원 (서브에이전트)</span></td>
                         <td className="px-5 py-4 text-body">독립된 에이전트 인격 및 파이프라인 유닛</td>
-                        <td className="px-5 py-4 text-muted-soft">그래프에서 특성 연결 조회, 비교 후 장착</td>
+                        <td className="px-5 py-4 text-muted-soft">지도에서 도메인별 조회, 비교 후 장착</td>
                       </tr>
                       <tr className="hover:bg-surface-app/30 transition-colors">
                         <td className="px-5 py-4 font-extrabold text-primary">MCP Server (MCP)</td>
@@ -225,10 +225,10 @@ export function HelpPage() {
                     <h3 className="font-extrabold text-ink text-base">대시보드 (관제탑)</h3>
                   </div>
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
-                    <li>전체 카탈로그의 현황을 한눈에 파악할 수 있는 관제 화면입니다.</li>
-                    <li>종류별(Skill/Agent/MCP) 자산 분포, 등급 비율, 최근 활동 등 핵심 지표를 대시보드로 제공합니다.</li>
-                    <li><strong>로드아웃 장착</strong>(의도적으로 켠 것)과 <strong>설치 베이스</strong>(그냥 설치돼 있는 것)를 별도 KPI로 정직하게 분리해, "내가 켠 것 vs 깔려 있는 것"을 한눈에 보여줍니다.</li>
-                    <li>주요 그룹·태그를 클릭하면 자산 탭으로 이동해 바로 필터링된 카탈로그를 확인할 수 있습니다.</li>
+                    <li>"지금 무엇이 켜져 있고 · 컨텍스트를 얼마나 먹고 · 뭘 꺼야 하나"를 3초에 스캔하는 다이제스트 화면입니다.</li>
+                    <li>헤드라인은 <strong>상시 컨텍스트 무게(토큰 추정)</strong> — 켜진 자산이 매 턴 먹는 부하를 장착/설치 베이스로 나눠 보여줍니다. (비용은 바이트 기반 근사라 "추정" 표기.)</li>
+                    <li><strong>로드아웃 장착</strong>(의도적으로 켠 것)과 <strong>설치 베이스</strong>(그냥 설치돼 있는 것)를 별도로 정직하게 분리합니다.</li>
+                    <li><strong>정리 후보</strong>는 끄면 컨텍스트가 실제로 줄어드는 거대 자산만 — 중복 정리는 자산 탭으로 분리했습니다.</li>
                   </ul>
                 </div>
 
@@ -246,16 +246,16 @@ export function HelpPage() {
                   </ul>
                 </div>
 
-                {/* 그래프 */}
+                {/* 지도 */}
                 <div className="p-6 rounded-2xl border border-hairline bg-surface-app/50 hover:bg-canvas hover:shadow-xs transition-all duration-200">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="network" size="md"/></div>
-                    <h3 className="font-extrabold text-ink text-base">그래프 (Graph)</h3>
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Icon name="app-grid" size="md"/></div>
+                    <h3 className="font-extrabold text-ink text-base">지도 (무기고 지도)</h3>
                   </div>
                   <ul className="text-sm text-body space-y-2.5 list-disc pl-5 leading-loose">
-                    <li>자산 간 의존·유사·중복 관계를 React Flow 온톨로지 그래프로 시각화합니다.</li>
-                    <li>노드를 클릭하면 해당 자산의 상세 정보로 바로 이동할 수 있습니다.</li>
-                    <li>등급·종류별 색상 구분으로 카탈로그 전체 구조를 직관적으로 파악합니다.</li>
+                    <li>전체 카탈로그를 <strong>도메인(카테고리)별 트리맵</strong>으로 펼쳐, "내가 무엇을 가졌나"를 한눈에 봅니다. 블록 크기 = 자산 개수, 테두리 농도 = 켜진 컨텍스트 무게(추정).</li>
+                    <li>타일 색으로 로드 상태(<strong>장착 / 설치 베이스 / 보관</strong>)를 구분해, 어느 도메인이 켜져 있고 어디가 비었는지 즉시 보입니다.</li>
+                    <li>타일을 클릭하면 상세, 호버하면 즉석 켜기/끄기. <strong>선택 모드</strong>로 여러 자산을 골라 일괄 장착·해제할 수 있습니다.</li>
                   </ul>
                 </div>
 

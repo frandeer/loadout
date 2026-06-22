@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>체크리스트 · 프로젝트 진행 관리</title>
+<style>
+  :root {
+    --color-primary: #2563eb;
+    --color-primary-dark: #1d4ed8;
+    --color-primary-light: #eaf2ff;
+    --color-primary-tint: #f4f8ff;
+
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-border: #e5e7eb;
+    --color-border-soft: #eef1f5;
+
+    --color-text-main: #111827;
+    --color-text-sub: #6b7280;
+    --color-text-muted: #9ca3af;
+
+    --color-success: #16a34a;
+    --color-success-light: #e8f6ed;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-danger-light: #fdecec;
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+
+    --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.06);
+    --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.04);
+    --shadow-pop: 0 12px 32px rgba(15, 23, 42, 0.12);
+
+    --font-title: 28px;
+    --font-section-title: 18px;
+    --font-body: 14px;
+    --font-small: 12px;
+
+    --sidebar-w: 288px;
+
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Pretendard", "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+      "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text-main);
+    font-size: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  ul { list-style: none; }
+
+  ::selection { background: var(--color-primary-light); color: var(--color-primary-dark); }
+
+  /* ============ App shell ============ */
+  .app {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    min-height: 100vh;
+  }
+
+  /* ============ Sidebar ============ */
+  .sidebar {
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    padding: 22px 16px 16px;
+    gap: 6px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 4px 8px 18px;
+  }
+  .brand-mark {
+    width: 38px; height: 38px;
+    border-radius: 11px;
+    background: linear-gradient(140deg, #3b82f6, #2563eb 60%, #1d4ed8);
+    display: grid; place-items: center;
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
+    flex-shrink: 0;
+  }
+  .brand-name {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+    margin-top: 1px;
+  }
+
+  .nav-scroll {
+    flex: 1;
+    overflow-y: auto;
+    margin: 0 -4px;
+    padding: 0 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .nav-scroll::-webkit-scrollbar { width: 6px; }
+  .nav-scroll::-webkit-scrollbar-thumb { background: #e2e6ec; border-radius: 99px; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    padding: 10px 10px 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .section-label .count {
+    background: var(--color-bg);
+    color: var(--color-text-sub);
+    border-radius: var(--radius-pill);
+    padding: 1px 8px;
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+
+  .list-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: var(--radius-md);
+    text-align: left;
+    position: relative;
+    transition: background .15s var(--ease);
+  }
+  .list-item:hover { background: var(--color-bg); }
+  .list-item:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+  .list-item.active { background: var(--color-primary-light); }
+  .list-item.active .li-name { color: var(--color-primary-dark); font-weight: 700; }
+  .list-item.active::before {
+    content: ""; position: absolute; left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 18px; border-radius: 99px;
+    background: var(--color-primary);
+  }
+
+  .li-emoji {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    background: var(--color-bg);
+    display: grid; place-items: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .list-item.active .li-emoji { background: #fff; }
+  .li-body { flex: 1; min-width: 0; }
+  .li-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--color-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .li-meta {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 4px;
+  }
+  .li-bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 99px;
+    background: #e6eaf0;
+    overflow: hidden;
+  }
+  .list-item.active .li-bar { background: #d4e3ff; }
+  .li-bar > span {
+    display: block; height: 100%;
+    background: var(--color-primary);
+    border-radius: 99px;
+    transition: width .4s var(--ease);
+  }
+  .li-pct {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 30px;
+    text-align: right;
+  }
+  .list-item.active .li-pct { color: var(--color-primary); }
+
+  .add-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    margin-top: 6px;
+    padding: 11px 12px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-sub);
+    font-weight: 600;
+    font-size: 13px;
+    transition: all .15s var(--ease);
+  }
+  .add-btn:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-tint); }
+  .add-btn svg { flex-shrink: 0; }
+
+  .sidebar-footer { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+
+  .pro-card {
+    background: linear-gradient(155deg, #1e3a8a, #2563eb 70%);
+    color: #fff;
+    border-radius: var(--radius-md);
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .pro-card::after {
+    content: ""; position: absolute; right: -28px; top: -28px;
+    width: 96px; height: 96px; border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+  }
+  .pro-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 99px;
+    padding: 3px 9px;
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .pro-title { font-size: 14.5px; font-weight: 800; margin: 11px 0 3px; }
+  .pro-desc { font-size: 12px; opacity: 0.82; line-height: 1.45; }
+  .pro-cta {
+    margin-top: 12px;
+    background: #fff; color: var(--color-primary-dark);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 12.5px; font-weight: 700;
+    width: 100%;
+    transition: transform .12s var(--ease);
+  }
+  .pro-cta:hover { transform: translateY(-1px); }
+
+  .profile {
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    transition: background .15s;
+  }
+  .profile:hover { background: var(--color-bg); }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(140deg, #f59e0b, #ef4444);
+    color: #fff; font-weight: 700; font-size: 13px;
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .profile-name { font-size: 13px; font-weight: 700; }
+  .profile-mail { font-size: 11.5px; color: var(--color-text-muted); }
+  .profile .chev { margin-left: auto; color: var(--color-text-muted); }
+
+  /* ============ Main ============ */
+  .main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .icon-btn {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-sm);
+    display: grid; place-items: center;
+    color: var(--color-text-sub);
+    transition: background .15s;
+  }
+  .icon-btn:hover { background: var(--color-bg); color: var(--color-text-main); }
+  .icon-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+
+  .content {
+    max-width: 880px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 40px 80px;
+  }
+
+  /* Header */
+  .page-head { display: flex; align-items: flex-start; gap: 16px; }
+  .head-emoji {
+    width: 56px; height: 56px;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-light);
+    display: grid; place-items: center;
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+  .head-text { flex: 1; min-width: 0; padding-top: 2px; }
+  .breadcrumb {
+    font-size: 12px; color: var(--color-text-muted);
+    font-weight: 600; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .title-row { display: flex; align-items: center; gap: 10px; }
+  .page-title {
+    font-size: var(--font-title);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+  .star-btn {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: grid; place-items: center;
+    color: var(--color-text-muted);
+    transition: all .15s;
+  }
+  .star-btn:hover { background: #fff7e6; color: var(--color-warning); }
+  .star-btn.on { color: var(--color-warning); }
+  .head-desc { color: var(--color-text-sub); font-size: 13.5px; margin-top: 7px; }
+
+  .head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .btn {
+    height: 40px;
+    padding: 0 15px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 7px;
+    transition: all .15s var(--ease);
+    white-space: nowrap;
+  }
+  .btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .btn-secondary {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-main);
+  }
+  .btn-secondary:hover { background: var(--color-bg); border-color: #d8dee6; }
+  .btn-ghost { color: var(--color-text-sub); }
+  .btn-ghost:hover { background: var(--color-bg); color: var(--color-text-main); }
+  .btn-primary {
+    background: var(--color-primary);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(37,99,235,0.28);
+  }
+  .btn-primary:hover { background: var(--color-primary-dark); box-shadow: 0 6px 16px rgba(37,99,235,0.34); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-top: 26px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .tab {
+    padding: 11px 14px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--color-text-sub);
+    position: relative;
+    transition: color .15s;
+  }
+  .tab:hover { color: var(--color-text-main); }
+  .tab.active { color: var(--color-primary); }
+  .tab.active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 2px; background: var(--color-primary); border-radius: 99px 99px 0 0;
+  }
+  .tab .badge {
+    margin-left: 6px;
+    background: var(--color-bg);
+    border-radius: 99px; padding: 1px 7px;
+    font-size: 11px; color: var(--color-text-sub);
+    font-variant-numeric: tabular-nums;
+  }
+  .tab.active .badge { background: var(--color-primary-light); color: var(--color-primary); }
+
+  /* Progress panel */
+  .progress-panel {
+    margin-top: 24px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 22px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .ring {
+    --val: 0;
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background:
+      conic-gradient(var(--color-primary) calc(var(--val) * 1%), #eef1f5 0);
+    display: grid; place-items: center;
+    position: relative;
+    transition: background .5s var(--ease);
+  }
+  .ring::before {
+    content: ""; position: absolute; inset: 8px;
+    background: var(--color-surface); border-radius: 50%;
+  }
+  .ring-val {
+    position: relative;
+    font-size: 18px; font-weight: 800;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-body { flex: 1; min-width: 0; }
+  .progress-top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 11px; gap: 12px;
+  }
+  .progress-label { font-size: 14px; font-weight: 700; }
+  .progress-stat {
+    font-size: 13px; color: var(--color-text-sub);
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-stat b { color: var(--color-primary); font-weight: 800; }
+  .bar {
+    height: 8px;
+    border-radius: 99px;
+    background: #eef1f5;
+    overflow: hidden;
+  }
+  .bar > span {
+    display: block; height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    width: 0;
+    transition: width .55s var(--ease);
+  }
+  .progress-hint {
+    margin-top: 11px; font-size: 12.5px;
+    color: var(--color-text-muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* Stage cards */
+  .stages { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+
+  .stage {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  .stage:hover { border-color: #dbe2ea; }
+  .stage.done { border-color: #cdead7; }
+
+  .stage-head {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 18px;
+    width: 100%;
+    text-align: left;
+    transition: background .15s;
+  }
+  .stage-head:hover { background: #fcfdfe; }
+  .stage-head:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+
+  .stage-no {
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: 11px;
+    background: var(--color-bg);
+    color: var(--color-text-sub);
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    transition: all .25s var(--ease);
+  }
+  .stage.active-step .stage-no { background: var(--color-primary); color: #fff; box-shadow: 0 4px 10px rgba(37,99,235,0.3); }
+  .stage.done .stage-no { background: var(--color-success); color: #fff; }
+
+  .stage-info { flex: 1; min-width: 0; }
+  .stage-step {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em;
+    color: var(--color-primary); text-transform: uppercase;
+  }
+  .stage.done .stage-step { color: var(--color-success); }
+  .stage-title { font-size: 15.5px; font-weight: 700; margin-top: 2px; }
+
+  .stage-right { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  .stage-count {
+    font-size: 12.5px; font-weight: 700;
+    color: var(--color-text-sub);
+    font-variant-numeric: tabular-nums;
+    background: var(--color-bg);
+    padding: 4px 10px; border-radius: 99px;
+  }
+  .stage.done .stage-count { background: var(--color-success-light); color: var(--color-success); }
+  .chevron {
+    color: var(--color-text-muted);
+    transition: transform .3s var(--ease);
+  }
+  .stage.collapsed .chevron { transform: rotate(-90deg); }
+
+  .stage-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows .3s var(--ease);
+  }
+  .stage.collapsed .stage-body { grid-template-rows: 0fr; }
+  .stage-body-inner { overflow: hidden; }
+  .items { padding: 2px 14px 12px; }
+
+  .item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 12px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background .14s;
+    position: relative;
+  }
+  .item + .item { border-top: 1px solid var(--color-border-soft); }
+  .item:hover { background: var(--color-primary-tint); }
+  .item:hover + .item, .item:has(+ .item:hover) { border-color: transparent; }
+
+  .check {
+    width: 22px; height: 22px; flex-shrink: 0;
+    border-radius: 7px;
+    border: 2px solid #cdd4dd;
+    background: #fff;
+    display: grid; place-items: center;
+    margin-top: 1px;
+    transition: all .18s var(--ease);
+  }
+  .check svg { opacity: 0; transform: scale(.4); transition: all .18s var(--ease); color: #fff; }
+  .item:hover .check { border-color: var(--color-primary); }
+  .item.checked .check {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+  .item.checked .check svg { opacity: 1; transform: scale(1); }
+
+  .item-text {
+    font-size: 14px;
+    color: var(--color-text-main);
+    line-height: 1.5;
+    transition: color .18s;
+    padding-top: 1px;
+  }
+  .item.checked .item-text {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+    text-decoration-color: #cbd2db;
+  }
+  .item-tip {
+    font-size: 12.5px; color: var(--color-text-muted);
+    margin-top: 3px; line-height: 1.45;
+  }
+  .item.checked .item-tip { opacity: .6; }
+
+  .empty-tab {
+    margin-top: 28px;
+    text-align: center;
+    padding: 64px 20px;
+    color: var(--color-text-muted);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+  }
+  .empty-tab .big { font-size: 32px; margin-bottom: 10px; }
+  .empty-tab p { font-size: 13.5px; }
+
+  /* ============ Modal ============ */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,0.42);
+    backdrop-filter: blur(2px);
+    display: grid; place-items: center;
+    z-index: 100;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s;
+    padding: 20px;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-pop);
+    width: 100%; max-width: 420px;
+    padding: 26px;
+    transform: translateY(8px) scale(.98);
+    transition: transform .22s var(--ease);
+  }
+  .overlay.open .modal { transform: none; }
+  .modal-icon {
+    width: 46px; height: 46px; border-radius: 12px;
+    display: grid; place-items: center; font-size: 22px;
+    margin-bottom: 14px;
+  }
+  .modal-icon.warn { background: var(--color-danger-light); }
+  .modal-icon.add { background: var(--color-primary-light); }
+  .modal h3 { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+  .modal p { color: var(--color-text-sub); font-size: 13.5px; margin-top: 7px; line-height: 1.55; }
+  .modal input {
+    width: 100%; margin-top: 16px;
+    height: 44px; padding: 0 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px; font-size: 14px;
+    font-family: inherit;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .modal input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-light); }
+  .modal-actions { display: flex; gap: 9px; margin-top: 22px; justify-content: flex-end; }
+  .btn-danger { background: var(--color-danger); color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 26px; left: 50%;
+    transform: translate(-50%, 16px);
+    background: #111827; color: #fff;
+    padding: 12px 18px; border-radius: 12px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: var(--shadow-pop);
+    z-index: 200; opacity: 0; pointer-events: none;
+    transition: all .25s var(--ease);
+    display: flex; align-items: center; gap: 9px;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); }
+
+  .scrim {
+    position: fixed; inset: 0; background: rgba(15,23,42,.4);
+    z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 1024px) {
+    :root { --sidebar-w: 248px; }
+    .content { padding: 32px 28px 70px; }
+    .page-title { font-size: 25px; }
+  }
+
+  @media (max-width: 768px) {
+    .app { grid-template-columns: 1fr; }
+    .topbar { display: flex; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 280px; z-index: 50;
+      transform: translateX(-100%);
+      transition: transform .28s var(--ease);
+      box-shadow: var(--shadow-pop);
+    }
+    .sidebar.open { transform: none; }
+    .content { padding: 22px 18px 90px; }
+    .page-head { flex-wrap: wrap; }
+    .head-actions { width: 100%; order: 3; margin-top: 4px; }
+    .head-actions .btn { flex: 1; justify-content: center; }
+    .progress-panel { padding: 18px; gap: 16px; }
+    .tabs { overflow-x: auto; }
+    .head-emoji { width: 48px; height: 48px; font-size: 24px; }
+    .page-title { font-size: 23px; }
+  }
+
+  @media (max-width: 480px) {
+    .head-actions .btn-label { display: none; }
+    .head-actions .btn { padding: 0 12px; }
+    .ring { width: 64px; height: 64px; }
+    .stage-step { display: none; }
+  }
+
+  @media (min-width: 769px) { .menu-toggle { display: none; } }
+
+  /* Print */
+  @media print {
+    .sidebar, .topbar, .head-actions, .tabs, .add-btn, .scrim { display: none !important; }
+    .app { grid-template-columns: 1fr; }
+    .content { padding: 0; max-width: none; }
+    .stage { box-shadow: none; border-color: #d1d5db; break-inside: avoid; }
+    .stage.collapsed .stage-body { grid-template-rows: 1fr !important; }
+    .stage.collapsed .stage-body-inner { overflow: visible; }
+    body { background: #fff; }
+  }
+
+  @keyframes pop { 0% { transform: scale(1);} 40%{ transform: scale(1.18);} 100%{ transform: scale(1);} }
+  .check.bump { animation: pop .28s var(--ease); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="5" fill="white" opacity="0.18"/>
+          <path d="M7.5 12.5l3 3 6-6.5" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">체크리스트</div>
+        <div class="brand-sub">단계별 진행 관리</div>
+      </div>
+    </div>
+
+    <nav class="nav-scroll">
+      <div class="section-label">내 체크리스트 <span class="count" id="navCount">4</span></div>
+      <div id="navList"><!-- injected --></div>
+
+      <button class="add-btn" id="addListBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        새 체크리스트
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="pro-card">
+        <span class="pro-badge">✦ PRO</span>
+        <div class="pro-title">무제한 템플릿 잠금 해제</div>
+        <div class="pro-desc">팀 공유, 진행 히스토리, PDF 브랜딩까지 한 번에.</div>
+        <button class="pro-cta" onclick="toast('Pro 안내 페이지로 이동합니다')">업그레이드 →</button>
+      </div>
+
+      <button class="profile" onclick="toast('프로필 메뉴')">
+        <div class="avatar">JD</div>
+        <div>
+          <div class="profile-name">정도현</div>
+          <div class="profile-mail">newwedb@gmail.com</div>
+        </div>
+        <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim" onclick="closeSidebar()"></div>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="topbar">
+      <button class="icon-btn menu-toggle" id="menuBtn" aria-label="메뉴 열기">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <div class="brand-name" style="font-size:15px">체크리스트</div>
+    </div>
+
+    <div class="content">
+      <!-- Header -->
+      <header class="page-head">
+        <div class="head-emoji" id="headEmoji">🌐</div>
+        <div class="head-text">
+          <div class="breadcrumb">
+            <span>워크스페이스</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span id="crumb">진행 중</span>
+          </div>
+          <div class="title-row">
+            <h1 class="page-title" id="pageTitle">AI 홈페이지 제작</h1>
+            <button class="star-btn on" id="starBtn" aria-label="즐겨찾기" onclick="toggleStar()">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5l2.6 5.3 5.9.86-4.27 4.16 1 5.88L12 17.9l-5.23 2.8 1-5.88L3.5 9.66l5.9-.86z"/></svg>
+            </button>
+          </div>
+          <p class="head-desc" id="headDesc">기획부터 코드 구현, 인터랙션까지 — 4단계로 완성하는 홈페이지 제작 플로우</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-ghost" onclick="toast('편집 모드')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10.5-10.5a2.12 2.12 0 0 0-3-3L5 17v3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span class="btn-label">편집</span>
+          </button>
+          <button class="btn btn-secondary" id="resetBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 14a7 7 0 0 0 13-3M18.5 10a7 7 0 0 0-13-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="btn-label">초기화</span>
+          </button>
+          <button class="btn btn-primary" onclick="window.print()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6M6 18H4v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5h-2M8 14h8v7H8z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="btn-label">인쇄 / PDF</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Tabs -->
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="progress">진행 중</button>
+        <button class="tab" data-tab="order">순서</button>
+        <button class="tab" data-tab="all">체크리스트 <span class="badge" id="tabCount">0</span></button>
+      </nav>
+
+      <!-- Progress -->
+      <section class="progress-panel">
+        <div class="ring" id="ring" style="--val:0"><span class="ring-val" id="ringVal">0%</span></div>
+        <div class="progress-body">
+          <div class="progress-top">
+            <span class="progress-label">전체 진행률</span>
+            <span class="progress-stat"><b id="doneCount">0</b> / <span id="totalCount">10</span> 완료</span>
+          </div>
+          <div class="bar"><span id="mainBar"></span></div>
+          <div class="progress-hint" id="hint">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span id="hintText">첫 항목부터 시작해 보세요.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stages -->
+      <section class="stages" id="stages"><!-- injected --></section>
+    </div>
+  </main>
+</div>
+
+<!-- Reset Modal -->
+<div class="overlay" id="resetModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+    <div class="modal-icon warn">↺</div>
+    <h3 id="resetTitle">진행 상태를 초기화할까요?</h3>
+    <p>현재 체크리스트의 모든 완료 표시가 해제됩니다. 이 작업은 되돌릴 수 없습니다.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('resetModal')">취소</button>
+      <button class="btn btn-danger" id="confirmReset">초기화</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div class="overlay" id="addModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+    <div class="modal-icon add">✨</div>
+    <h3 id="addTitle">새 체크리스트 만들기</h3>
+    <p>이름을 입력하면 빈 체크리스트가 생성됩니다.</p>
+    <input id="addInput" type="text" placeholder="예: 주간 회고 준비" maxlength="40" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('addModal')">취소</button>
+      <button class="btn btn-primary" id="confirmAdd">만들기</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+/* ============ Data ============ */
+const DB = {
+  web: {
+    emoji: "🌐", name: "AI 홈페이지 제작",
+    desc: "기획부터 코드 구현, 인터랙션까지 — 4단계로 완성하는 홈페이지 제작 플로우",
+    star: true,
+    stages: [
+      { title: "디자인 레퍼런스 수집", items: [
+        { t: "핀터레스트 등에서 제작하려는 사이트와 유사한 느낌의 디자인 이미지 최소 3장 이상 확보하기" },
+      ]},
+      { title: "브랜드 디자인으로 초안 생성", items: [
+        { t: "`프로토타입` 탭 선택하기" },
+        { t: "수집한 레퍼런스 이미지와 브랜드 정보 입력하기" },
+        { t: "생성된 디자인 확인 후 색상·폰트·여백 다듬기" },
+      ]},
+      { title: "코드로 사이트 구현", items: [
+        { t: "`핸드오프(Handoff)` 기능으로 디자인을 코드로 변환하기" },
+        { t: "생성된 코드를 VS Code 또는 Cursor 터미널에 붙여 넣기" },
+        { t: "폴더 정리, 이미지 교체로 콘텐츠 완성하기" },
+      ]},
+      { title: "애니메이션 및 인터랙션 추가", items: [
+        { t: "원하는 애니메이션 효과 선택하기" },
+        { t: "특정 섹션 디자인은 유지하면서 효과만 적용하기" },
+        { t: "최종 결과물 확인 및 전체 작동 상태 점검하기" },
+      ]},
+    ]
+  },
+  kimchi: {
+    emoji: "🍲", name: "김치찌개 끓이기",
+    desc: "깊은 맛을 내는 김치찌개를 처음부터 끝까지 — 재료 준비부터 마무리 간까지",
+    star: false,
+    stages: [
+      { title: "재료 준비", items: [
+        { t: "잘 익은 신김치 1/4포기 한입 크기로 썰기" },
+        { t: "돼지고기 목살 200g 준비하기", tip: "기름이 적당한 부위가 국물 맛을 좌우합니다." },
+        { t: "대파·양파·두부·청양고추 손질하기" },
+      ]},
+      { title: "양념 볶기", items: [
+        { t: "냄비에 들기름 두르고 김치 5분간 볶기" },
+        { t: "고춧가루·다진 마늘·설탕 한 꼬집 넣어 마저 볶기" },
+      ]},
+      { title: "끓이기", items: [
+        { t: "쌀뜨물 또는 멸치육수 붓고 돼지고기 넣어 센 불로 끓이기" },
+        { t: "끓어오르면 중불로 줄여 15분간 뭉근히 끓이기" },
+        { t: "두부·대파·고추 넣고 5분 더 끓이기" },
+      ]},
+      { title: "마무리", items: [
+        { t: "국간장·소금으로 최종 간 맞추기" },
+        { t: "불 끄고 뚜껑 덮어 2분 뜸 들인 뒤 그릇에 담기" },
+      ]},
+    ]
+  },
+  baby: {
+    emoji: "👶", name: "신생아 맞이",
+    desc: "출산 후 꼭 챙겨야 할 행정·준비 항목 체크리스트",
+    star: false,
+    stages: [
+      { title: "출생 직후 행정", items: [
+        { t: "출생신고 (출생 후 1개월 이내, 주민센터)" },
+        { t: "건강보험 피부양자 등록하기" },
+      ]},
+      { title: "지원금 신청", items: [
+        { t: "첫만남이용권 200만원 신청하기" },
+        { t: "부모급여·아동수당 신청하기" },
+        { t: "지자체 출산지원금 확인 및 신청하기" },
+      ]},
+      { title: "건강 관리", items: [
+        { t: "영유아 건강검진 일정 확인하기" },
+        { t: "예방접종 일정(BCG·B형간염) 체크하기" },
+      ]},
+    ]
+  },
+  video: {
+    emoji: "🎬", name: "영상 제작 워크플로",
+    desc: "기획부터 업로드까지 — 콘텐츠 영상 한 편을 완성하는 표준 절차",
+    star: false,
+    stages: [
+      { title: "기획", items: [
+        { t: "주제 선정 및 핵심 메시지 한 줄 정리하기" },
+        { t: "대본·스토리보드 작성하기" },
+      ]},
+      { title: "촬영", items: [
+        { t: "촬영 장비·조명·오디오 세팅 점검하기" },
+        { t: "장면별 촬영 및 백업 파일 확보하기" },
+      ]},
+      { title: "편집", items: [
+        { t: "컷 편집 및 자막 작업하기" },
+        { t: "BGM·효과음 삽입, 색보정 마무리하기" },
+      ]},
+      { title: "발행", items: [
+        { t: "썸네일·제목·설명 작성하기" },
+        { t: "업로드 및 SNS 공유하기" },
+      ]},
+    ]
+  },
+};
+
+/* runtime state: checked sets per list */
+const state = {};
+Object.keys(DB).forEach(k => state[k] = new Set());
+let current = "web";
+let collapsed = {};   // `${list}:${stageIdx}` -> true
+let activeTab = "progress";
+
+/* ============ Render ============ */
+const el = id => document.getElementById(id);
+
+function flatItems(listKey){
+  const arr = [];
+  DB[listKey].stages.forEach((s, si) => s.items.forEach((it, ii) => arr.push({ si, ii, ...it })));
+  return arr;
+}
+function listDone(listKey){ return state[listKey].size; }
+function listTotal(listKey){ return flatItems(listKey).length; }
+function key(si, ii){ return si + "-" + ii; }
+
+function renderNav(){
+  el('navCount').textContent = Object.keys(DB).length;
+  el('navList').innerHTML = Object.entries(DB).map(([k, v]) => {
+    const total = listTotal(k), done = listDone(k);
+    const pct = total ? Math.round(done/total*100) : 0;
+    return `<button class="list-item ${k===current?'active':''}" data-list="${k}" aria-current="${k===current}">
+      <span class="li-emoji">${v.emoji}</span>
+      <span class="li-body">
+        <span class="li-name">${v.name}</span>
+        <span class="li-meta">
+          <span class="li-bar"><span style="width:${pct}%"></span></span>
+        </span>
+      </span>
+      <span class="li-pct">${pct}%</span>
+    </button>`;
+  }).join('');
+  el('navList').querySelectorAll('.list-item').forEach(b =>
+    b.addEventListener('click', () => { selectList(b.dataset.list); closeSidebar(); }));
+}
+
+function renderHeader(){
+  const v = DB[current];
+  el('headEmoji').textContent = v.emoji;
+  el('pageTitle').textContent = v.name;
+  el('headDesc').textContent = v.desc;
+  el('starBtn').classList.toggle('on', !!v.star);
+  el('tabCount').textContent = listTotal(current);
+}
+
+function firstUncheckedLabel(){
+  const items = flatItems(current);
+  const next = items.find(it => !state[current].has(key(it.si, it.ii)));
+  return next ? next.t.replace(/`/g,'') : null;
+}
+
+function renderProgress(){
+  const total = listTotal(current), done = listDone(current);
+  const pct = total ? Math.round(done/total*100) : 0;
+  el('ring').style.setProperty('--val', pct);
+  el('ringVal').textContent = pct + '%';
+  el('mainBar').style.width = pct + '%';
+  el('doneCount').textContent = done;
+  el('totalCount').textContent = total;
+  el('ring').querySelector('.ring-val').style.color = pct === 100 ? 'var(--color-success)' : 'var(--color-primary)';
+  el('ring').style.background = `conic-gradient(${pct===100?'var(--color-success)':'var(--color-primary)'} ${pct}%, #eef1f5 0)`;
+
+  const hint = el('hintText');
+  if (total === 0) hint.textContent = "아직 항목이 없습니다. 편집에서 추가하세요.";
+  else if (pct === 100) { hint.innerHTML = "🎉 모든 단계를 완료했어요! 수고했습니다."; }
+  else {
+    const nx = firstUncheckedLabel();
+    hint.textContent = nx ? "다음 할 일 · " + nx : "";
+  }
+}
+
+function stageState(si){
+  const items = DB[current].stages[si].items;
+  const done = items.filter((_, ii) => state[current].has(key(si, ii))).length;
+  return { done, total: items.length };
+}
+
+function renderStages(){
+  if (activeTab !== 'progress' && activeTab !== 'all') return;
+  const v = DB[current];
+  // find active step = first stage not fully done
+  let activeIdx = v.stages.findIndex((_, si) => { const s = stageState(si); return s.done < s.total; });
+
+  el('stages').innerHTML = v.stages.map((stage, si) => {
+    const ss = stageState(si);
+    const done = ss.done === ss.total && ss.total > 0;
+    const isCollapsed = collapsed[current+":"+si];
+    const isActive = si === activeIdx;
+    const num = String(si+1).padStart(2,'0');
+    const itemsHtml = stage.items.map((it, ii) => {
+      const ck = state[current].has(key(si, ii));
+      return `<div class="item ${ck?'checked':''}" data-si="${si}" data-ii="${ii}" role="checkbox" tabindex="0" aria-checked="${ck}">
+        <span class="check">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span>
+          <span class="item-text">${fmt(it.t)}</span>
+          ${it.tip ? `<span class="item-tip">${it.tip}</span>` : ''}
+        </span>
+      </div>`;
+    }).join('');
+
+    return `<article class="stage ${done?'done':''} ${isActive?'active-step':''} ${isCollapsed?'collapsed':''}" data-stage="${si}">
+      <button class="stage-head" data-toggle="${si}" aria-expanded="${!isCollapsed}">
+        <span class="stage-no">${done ? '✓' : num}</span>
+        <span class="stage-info">
+          <span class="stage-step">${si+1}단계${done?' · 완료':isActive?' · 진행 중':''}</span>
+          <span class="stage-title">${stage.title}</span>
+        </span>
+        <span class="stage-right">
+          <span class="stage-count">${ss.done}/${ss.total}</span>
+          <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+      </button>
+      <div class="stage-body"><div class="stage-body-inner"><div class="items">${itemsHtml}</div></div></div>
+    </article>`;
+  }).join('');
+
+  // bind
+  el('stages').querySelectorAll('[data-toggle]').forEach(b =>
+    b.addEventListener('click', () => toggleStage(+b.dataset.toggle)));
+  el('stages').querySelectorAll('.item').forEach(it => {
+    it.addEventListener('click', () => toggleItem(+it.dataset.si, +it.dataset.ii, it));
+    it.addEventListener('keydown', e => {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleItem(+it.dataset.si, +it.dataset.ii, it); }
+    });
+  });
+}
+
+function fmt(s){
+  // `code` -> styled
+  return s.replace(/`([^`]+)`/g, '<code style="background:var(--color-bg);padding:1px 6px;border-radius:6px;font-size:12.5px;font-family:ui-monospace,monospace;color:var(--color-primary-dark)">$1</code>');
+}
+
+function renderTabContent(){
+  if (activeTab === 'order') {
+    el('stages').innerHTML = `<div class="empty-tab"><div class="big">↕</div>
+      <p>단계 순서 변경은 <b>3차 기능</b>입니다.<br>드래그 앤 드롭으로 단계를 재배열할 수 있게 됩니다.</p></div>`;
+    el('crumb').textContent = '순서';
+  } else {
+    el('crumb').textContent = activeTab === 'all' ? '체크리스트' : '진행 중';
+    renderStages();
+  }
+}
+
+/* ============ Actions ============ */
+function selectList(k){
+  if (k === current) return;
+  current = k;
+  renderAll();
+}
+function renderAll(){
+  renderNav(); renderHeader(); renderProgress(); renderTabContent();
+}
+
+function toggleItem(si, ii, node){
+  const k = key(si, ii);
+  const set = state[current];
+  if (set.has(k)) set.delete(k); else set.add(k);
+  // optimistic UI on node + bump
+  const checked = set.has(k);
+  node.classList.toggle('checked', checked);
+  node.setAttribute('aria-checked', checked);
+  const chk = node.querySelector('.check');
+  chk.classList.remove('bump'); void chk.offsetWidth; chk.classList.add('bump');
+  // update counts on its stage + globals (light re-render of stages keeps active-step correct)
+  renderNav(); renderProgress();
+  refreshStageMeta(si);
+  // if a stage just completed/uncompleted, recompute active-step ordering
+  recomputeStageStates();
+  if (listTotal(current) && listDone(current) === listTotal(current)) {
+    setTimeout(()=>toast('🎉 체크리스트를 모두 완료했습니다!'), 150);
+  }
+}
+
+function refreshStageMeta(si){
+  const stage = el('stages').querySelector(`.stage[data-stage="${si}"]`);
+  if (!stage) return;
+  const ss = stageState(si);
+  stage.querySelector('.stage-count').textContent = ss.done + '/' + ss.total;
+}
+
+function recomputeStageStates(){
+  const v = DB[current];
+  let activeIdx = v.stages.findIndex((_, si) => { const s = stageState(si); return s.done < s.total; });
+  v.stages.forEach((_, si) => {
+    const stage = el('stages').querySelector(`.stage[data-stage="${si}"]`);
+    if (!stage) return;
+    const ss = stageState(si);
+    const done = ss.done === ss.total && ss.total > 0;
+    stage.classList.toggle('done', done);
+    stage.classList.toggle('active-step', si === activeIdx);
+    stage.querySelector('.stage-no').textContent = done ? '✓' : String(si+1).padStart(2,'0');
+    const step = stage.querySelector('.stage-step');
+    step.textContent = `${si+1}단계${done?' · 완료':si===activeIdx?' · 진행 중':''}`;
+  });
+}
+
+function toggleStage(si){
+  const id = current+":"+si;
+  collapsed[id] = !collapsed[id];
+  const stage = el('stages').querySelector(`.stage[data-stage="${si}"]`);
+  stage.classList.toggle('collapsed', collapsed[id]);
+  stage.querySelector('.stage-head').setAttribute('aria-expanded', !collapsed[id]);
+}
+
+function toggleStar(){
+  DB[current].star = !DB[current].star;
+  el('starBtn').classList.toggle('on', DB[current].star);
+  toast(DB[current].star ? '즐겨찾기에 추가했습니다' : '즐겨찾기를 해제했습니다');
+}
+
+/* tabs */
+el('tabs').querySelectorAll('.tab').forEach(t =>
+  t.addEventListener('click', () => {
+    el('tabs').querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    activeTab = t.dataset.tab;
+    renderTabContent();
+  }));
+
+/* reset */
+el('resetBtn').addEventListener('click', () => openModal('resetModal'));
+el('confirmReset').addEventListener('click', () => {
+  state[current].clear();
+  closeModal('resetModal');
+  renderAll();
+  toast('진행 상태를 초기화했습니다');
+});
+
+/* add */
+el('addListBtn').addEventListener('click', () => { openModal('addModal'); setTimeout(()=>el('addInput').focus(), 180); });
+el('confirmAdd').addEventListener('click', createList);
+el('addInput').addEventListener('keydown', e => { if (e.key === 'Enter') createList(); });
+function createList(){
+  const name = el('addInput').value.trim();
+  if (!name) { el('addInput').focus(); return; }
+  const id = 'list_' + Object.keys(DB).length + '_' + name.length;
+  DB[id] = { emoji: '📝', name, desc: '새로 만든 체크리스트입니다. 편집에서 단계를 추가하세요.', star: false,
+    stages: [{ title: '시작하기', items: [{ t: '첫 번째 할 일 추가하기' }] }] };
+  state[id] = new Set();
+  el('addInput').value = '';
+  closeModal('addModal');
+  selectList(id);
+  toast('새 체크리스트를 만들었습니다');
+}
+
+/* modal helpers */
+function openModal(id){ el(id).classList.add('open'); }
+function closeModal(id){ el(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o =>
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open')); });
+
+/* sidebar mobile */
+el('menuBtn').addEventListener('click', () => { el('sidebar').classList.add('open'); el('scrim').classList.add('open'); });
+function closeSidebar(){ el('sidebar').classList.remove('open'); el('scrim').classList.remove('open'); }
+
+/* toast */
+let toastTimer;
+function toast(msg){
+  el('toastMsg').textContent = msg;
+  el('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el('toast').classList.remove('show'), 2400);
+}
+
+/* init: pre-check a couple of items in the demo list for life-like state */
+state.web.add('0-0');
+renderAll();
+</script>
+</body>
+</html>

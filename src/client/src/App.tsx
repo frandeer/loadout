@@ -8,13 +8,13 @@ import { DetailPanel } from "./components/DetailPanel";
 import { BatchBar } from "./components/BatchBar";
 import { EquippedBar } from "./components/EquippedBar";
 import { Dashboard } from "./components/Dashboard";
-import { GraphView } from "./components/GraphView";
+import { ArsenalMap } from "./components/ArsenalMap";
 import { Inventory } from "./components/Inventory";
 import { SourceManager } from "./components/SourceManager";
 import { Forge } from "./components/Forge";
 import { HelpPage } from "./components/HelpPage";
 
-export type AppView = "dashboard" | "assets" | "graph" | "loadout" | "forge" | "help";
+export type AppView = "dashboard" | "assets" | "map" | "loadout" | "forge" | "help";
 
 /** 자산(컬렉션) 레이아웃 — "/assets" 라우트 전용 */
 function AssetsView() {
@@ -113,7 +113,9 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<PageView><Dashboard /></PageView>} />
           <Route path="/assets" element={<AssetsView />} />
-          <Route path="/graph" element={<PageView><GraphView /></PageView>} />
+          <Route path="/map" element={<PageView><ArsenalMap /></PageView>} />
+          {/* 구 "그래프" 경로 → 무기고 지도로 리다이렉트(북마크 보존). */}
+          <Route path="/graph" element={<Navigate to="/map" replace />} />
           <Route path="/loadout" element={<PageView><Inventory /></PageView>} />
           <Route path="/forge" element={<PageView><Forge /></PageView>} />
           <Route path="/help" element={<PageView><HelpPage /></PageView>} />
